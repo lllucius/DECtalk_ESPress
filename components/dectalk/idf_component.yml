@@ -1,0 +1,17 @@
+## yaml-language-server: $schema=https://dl.espressif.com/dl/schemas/idf_component.json
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
+version: "1.0.0"
+description: "DECtalk text-to-speech engine compiled as an ESP-IDF component"
+url: "https://github.com/lllucius/dectalk/tree/develop/ports/esp32/components/dectalk"
+repository: "https://github.com/lllucius/dectalk"
+documentation: "https://github.com/lllucius/dectalk/blob/develop/ports/esp32/components/dectalk/README.md"
+issues: "https://github.com/lllucius/dectalk/issues"
+license: "MIT"
+targets:
+  - esp32s2
+  - esp32s3
+  - esp32p4
+dependencies:
+  idf:
+    version: ">=5.0.0"

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
+
+# DECtalk ESPress - Custom partition table
+# Name,     Type,   SubType,    Offset, Size,    Flags
+nvs,        data,   nvs,        ,       24K,
+phy_init,   data,   phy,        ,       4K,
+factory,    app,    factory,    ,       2m,
+
+#
+# Dictionary files can be stored in a filesystem
+#storage,   data,   spiffs,     ,       1m,
+
+#
+# Or directly within a partition
+#udict,     data,   64,         ,       512K,
+
+#
+# And you don't even have to specify the partition if you use the automatic
+# partition creation (see "DECtalk ESPRess config" in "idf.py menuconfig".
+# ...

@@ -1,0 +1,162 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
+
+menu "DECtalk component"
+    menu "DECtalk distribution"
+        config DECTALK_SRC_ROOT
+            string "Path to DECtalk library source tree"
+            default ""
+            help
+                Path to the DECtalk source tree used when building the ESP32
+                component.
+
+                The selected directory may point either at the DECtalk
+                repository root (it must contain src/dapi/src) or directly at
+                the library source tree (it must contain dapi/src).
+
+                Relative paths are resolved from
+                ports/esp32/components/dectalk.
+
+                Leave this empty to auto-detect when the component lives
+                inside a DECtalk repository checkout, or to fall through to
+                the FetchContent download (if enabled).
+
+                If you copied this project out of a previous build tree
+                and see path errors, delete the sdkconfig file and
+                reconfigure so the defaults are regenerated.
+
+        config DECTALK_FETCH_SOURCE
+            bool "Fetch DECtalk source from GitHub if local path is unavailable"
+            default y
+            help
+                If the configured local DECtalk path cannot be resolved, use
+                CMake FetchContent to clone https://github.com/dectalk/dectalk
+                into the build directory and build against that checkout
+                instead.
+
+                This is enabled by default so that the component works
+                out-of-the-box when installed via the ESP Component Registry
+                (idf.py add-dependency lllucius__dectalk) without any
+                additional source-path configuration.
+
+                When disabled, a missing or invalid local source path will
+                produce a warning during configuration and an error at build
+                time, but will not block access to menuconfig.
+
+        config DECTALK_FETCH_GIT_TAG
+            string "DECtalk Git ref to fetch"
+            default "develop"
+            depends on DECTALK_FETCH_SOURCE
+            help
+                Git branch, tag, or commit to fetch when the local DECtalk
+                source path cannot be used.
+    endmenu
+
+    choice DECTALK_LANGUAGE
+        prompt "DECtalk Language"
+        default DECTALK_LANG_US
+        help
+            Select the language for DECtalk text-to-speech synthesis.
+            This determines which dictionary is built and which language
+            model is compiled into the firmware. Only one language can
+            be selected at a time.
+
+        config DECTALK_LANG_US
+            bool "US English"
+
+        config DECTALK_LANG_UK
+            bool "UK English"
+
+        config DECTALK_LANG_SP
+            bool "Spanish"
+
+        config DECTALK_LANG_GR
+            bool "German"
+
+        config DECTALK_LANG_LA
+            bool "Latin American Spanish"
+
+        config DECTALK_LANG_FR
+            bool "French"
+    endchoice
+
+    choice DECTALK_DICT_LOCATION
+        prompt "Dictionary location"
+        help
+            Choose how the generated DECtalk dictionary is stored for the
+            firmware. The dictionary can be embedded in the app binary,
+            written to a dedicated data partition, or loaded from a file
+            system directory at runtime.
+        config DECTALK_DICT_EMBED
+            bool "Embedded in firmware"
+            help
+                Include the generated dictionary in the application binary.
+                This is the simplest option, but it increases firmware size
+                and requires reflashing the app whenever the dictionary changes.
+        config DECTALK_DICT_PART
+            bool "Dedicated partition"
+            help
+                Store the generated dictionary in a dedicated flash partition.
+                This keeps the app binary smaller and lets the dictionary live
+                outside the firmware image.
+            config DECTALK_AUTOCREATE_PARTITIONS
+                bool "Automatically add dictionary partitions"
+                depends on DECTALK_DICT_PART
+                help
+                    Add the required DECtalk dictionary partitions to the build's
+                    generated partition table automatically.
+            config DECTALK_FLASH_IN_PROJECT
+                bool "Automatically flash dictionary partitions with app"
+                depends on DECTALK_DICT_PART
+                help
+                    Include the DECtalk dictionary partitions in the normal
+                    project flash target so they are programmed together with
+                    the application.
+
+        config DECTALK_DICT_FILE
+            bool "File system"
+            help
+                Load the dictionary from a file system mounted on the target.
+                The build system creates a SPIFFS partition image from the
+                configured image directory and mounts it at the configured
+                dictionary root path on startup.
+            config DECTALK_DICT_ROOT
+                depends on DECTALK_DICT_FILE
+                default "/dict"
+                string "Path to directory containing dictionary file"
+                help
+                    Directory path that contains the DECtalk dictionary file
+                    when the file-system storage option is selected.  This is
+                    also used as the SPIFFS mount point at runtime.
+            config DECTALK_DICT_FILE_AUTOCREATE_PARTITION
+                bool "Automatically add SPIFFS dictionary partition"
+                depends on DECTALK_DICT_FILE
+                default y
+                help
+                    Add the required SPIFFS dictionary partition to the build's
+                    generated partition table automatically.  Disable this if
+                    you already have a partition labelled "dictionary" with
+                    subtype "spiffs" in your custom partition table.
+            config DECTALK_DICT_FILE_FLASH_WITH_APP
+                bool "Automatically flash dictionary SPIFFS image with app"
+                depends on DECTALK_DICT_FILE
+                default y
+                help
+                    Include the DECtalk dictionary SPIFFS partition image in
+                    the normal project flash target so it is programmed
+                    together with the application.
+            config DECTALK_DICT_FILE_IMAGE_DIR
+                string "Path to SPIFFS image source directory"
+                depends on DECTALK_DICT_FILE
+                default ""
+                help
+                    Path to the directory whose contents will be packed into
+                    the SPIFFS partition image.  Leave empty to use the build
+                    directory where the dictionary file is generated
+                    automatically.
+
+                    Use an absolute path, or a path relative to the project
+                    root directory.
+    endchoice
+
+endmenu

@@ -1,0 +1,164 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
+
+menu "DECtalk ESPress Firmware"
+
+    menu "Audio output"
+        config DECTALK_I2S_SAMPLE_RATE
+            int "I2S sample rate (Hz)"
+            default 11025
+            range 8000 48000
+            help
+                Audio sample rate used for the I2S output.
+
+        config DECTALK_I2S_BCK_GPIO
+            int "I2S BCK GPIO"
+            default 8
+            range 0 48
+            help
+                GPIO used for the I2S bit clock output.
+
+        config DECTALK_I2S_WS_GPIO
+            int "I2S WS GPIO"
+            default 3
+            range 0 48
+            help
+                GPIO used for the I2S word select / LRCK output.
+
+        config DECTALK_I2S_DO_GPIO
+            int "I2S data out GPIO"
+            default 18
+            range 0 48
+            help
+                GPIO used for the I2S serial data output.
+
+        menu "Advanced audio tuning"
+            config DECTALK_I2S_DMA_DESC_NUM
+                int "I2S DMA descriptor count"
+                default 8
+                range 2 32
+                help
+                    Number of DMA descriptors allocated for I2S playback.
+
+            config DECTALK_I2S_DMA_FRAME_NUM
+                int "I2S DMA frame count"
+                default 256
+                range 64 1024
+                help
+                    Number of audio frames per I2S DMA descriptor.
+        endmenu
+    endmenu
+
+    menu "Runtime tuning"
+        config DECTALK_TEXT_BUFFER_SIZE
+            int "Protocol text buffer size"
+            default 2048
+            range 256 8192
+            help
+                Maximum number of text bytes buffered before they are queued
+                for synthesis.
+
+        config DECTALK_SPEECH_QUEUE_SIZE
+            int "Speech queue depth"
+            default 32
+            range 4 128
+            help
+                Number of queued text chunks allowed before host flow control
+                starts throttling input.
+
+        config DECTALK_RX_TIMEOUT_MS
+            int "USB CDC RX timeout (ms)"
+            default 10
+            range 1 1000
+            help
+                Timeout used when polling the USB CDC receive buffer.
+
+        config DECTALK_TEXT_IDLE_TIMEOUT_MS
+            int "Buffered text idle flush timeout (ms)"
+            default 200
+            range 10 5000
+            help
+                Flush buffered text to the speech queue if no new characters
+                arrive within this interval.
+
+        menu "Advanced task tuning"
+            config DECTALK_SPEECH_TASK_CORE
+                int "Speech task core"
+                default 1
+                range 0 1
+                help
+                    CPU core used for the speech synthesis thread.
+
+            config DECTALK_MAIN_TASK_STACK_SIZE
+                int "Main ESPress pthread stack size"
+                default 12288
+                range 4096 32768
+                help
+                    Stack size for the ESPress protocol thread created from
+                    app_main().
+        endmenu
+    endmenu
+
+    menu "USB CDC transport"
+        config DECTALK_CDC_RX_STREAM_SIZE
+            int "CDC RX stream buffer size"
+            default 4096
+            range 256 16384
+            help
+                Size of the FreeRTOS stream buffer that bridges TinyUSB RX to
+                the ESPress protocol task.
+    endmenu
+
+    menu "Diagnostics and logging"
+        config DECTALK_ENABLE_DIAG_MEM
+            bool "Enable heap and stack diagnostics"
+            default y
+            select FREERTOS_USE_TRACE_FACILITY
+            help
+                Start a low-priority background task that periodically logs
+                per-task stack high-water marks together with heap usage and
+                fragmentation statistics.
+
+                Disable this option to remove the diagnostic task entirely
+                when you want the quietest runtime logging or the lowest
+                possible overhead.
+
+        choice DECTALK_LOG_LEVEL
+            prompt "DECtalk log level"
+            default DECTALK_LOG_LEVEL_INFO
+            help
+                Select the runtime log level used by the DECtalk ESPress
+                application, USB CDC transport, and optional diagnostics task.
+
+                Higher log levels provide more detail for debugging, while
+                lower levels reduce console output on UART0.
+
+            config DECTALK_LOG_LEVEL_ERROR
+                bool "Error"
+                help
+                    Log only errors that prevent normal operation.
+
+            config DECTALK_LOG_LEVEL_WARN
+                bool "Warning"
+                help
+                    Log warnings and errors.
+
+            config DECTALK_LOG_LEVEL_INFO
+                bool "Info"
+                help
+                    Log normal status messages, warnings, and errors.
+
+            config DECTALK_LOG_LEVEL_DEBUG
+                bool "Debug"
+                help
+                    Add debug-level messages that help diagnose protocol and
+                    transport behavior.
+
+            config DECTALK_LOG_LEVEL_VERBOSE
+                bool "Verbose"
+                help
+                    Enable the most detailed logging level for deep debugging.
+        endchoice
+    endmenu
+
+endmenu

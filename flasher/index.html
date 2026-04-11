@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  DECtalk ESPress Web Flasher
+  Uses esptool-js to flash application or dictionary partitions via Web Serial API.
+  Requires Chrome or Edge 89+.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress Web Flasher</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --surface: #282840;
+      --border: #444;
+      --text: #e0e0e0;
+      --accent: #6c9ef8;
+      --accent-hover: #5580d0;
+      --danger: #e05555;
+      --success: #55c055;
+      --muted: #888;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      max-width: 640px;
+    }
+
+    .panel h2 {
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      color: var(--accent);
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .form-row:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-size: 0.85rem;
+      min-width: 90px;
+    }
+
+    select, input[type="text"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+    }
+
+    select {
+      min-width: 180px;
+    }
+
+    input[type="text"] {
+      width: 100px;
+      font-family: monospace;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .file-name {
+      font-size: 0.85rem;
+      color: var(--muted);
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.45rem 1rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: #c04040;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    #status {
+      font-size: 0.85rem;
+      padding: 0.5rem 0;
+      min-height: 1.5rem;
+    }
+
+    .status-connected {
+      color: var(--success);
+    }
+
+    .status-disconnected {
+      color: var(--muted);
+    }
+
+    .status-error {
+      color: var(--danger);
+    }
+
+    .status-busy {
+      color: #e0c050;
+    }
+
+    #log-container {
+      max-width: 640px;
+    }
+
+    #log-container h2 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #log-container h2 button {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+    }
+
+    #log {
+      background: #111;
+      color: #0f0;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 0.8rem;
+      padding: 0.75rem;
+      border-radius: 6px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid var(--border);
+      line-height: 1.4;
+    }
+
+    .progress-bar-container {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 20px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+      display: none;
+      max-width: 640px;
+    }
+
+    .progress-bar {
+      background: var(--accent);
+      height: 100%;
+      width: 0%;
+      transition: width 0.2s;
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 20px;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔌 DECtalk ESPress Web Flasher</h1>
+  <p class="subtitle">Flash application or dictionary partitions via USB serial</p>
+
+  <!-- Connection -->
+  <div class="panel">
+    <h2>Connection</h2>
+    <div class="form-row">
+      <div class="btn-group">
+        <button id="btn-connect">Connect</button>
+        <button id="btn-disconnect" class="danger" disabled>Disconnect</button>
+      </div>
+    </div>
+    <div id="status" class="status-disconnected">Not connected</div>
+  </div>
+
+  <!-- Flash Settings -->
+  <div class="panel">
+    <h2>Flash Settings</h2>
+    <div class="form-row">
+      <label for="partition">Partition:</label>
+      <select id="partition">
+        <option value="">(connect to read partitions)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="address">Address:</label>
+      <input type="text" id="address" value="" readonly>
+    </div>
+    <div class="form-row">
+      <label>Firmware:</label>
+      <div class="file-label">
+        <button id="btn-browse" type="button">Browse for file…</button>
+        <input type="file" id="file-input" accept=".bin">
+        <span class="file-name" id="file-name">No file selected</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="btn-group">
+        <button id="btn-flash" disabled>Flash</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar-container" id="progress-container">
+    <div class="progress-bar" id="progress-bar">0%</div>
+  </div>
+
+  <!-- Log -->
+  <div id="log-container">
+    <h2>Log <button id="btn-clear-log">Clear</button></h2>
+    <div id="log"></div>
+  </div>
+
+  <!-- esptool-js v0.6.0 uses ES module format -->
+  <script type="module">
+    import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.0/bundle.js";
+
+    // ── Partition table constants ──
+    const PARTITION_TABLE_ADDR = 0x8000;
+    const PARTITION_TABLE_SIZE = 0x1000;
+    const PARTITION_ENTRY_SIZE = 32;
+    const PARTITION_MAGIC      = 0x50AA;  // little-endian for bytes 0xAA 0x50
+    const PARTITION_MD5_MAGIC  = 0xEBEB;
+
+    const PART_TYPE_APP  = 0x00;
+    const PART_TYPE_DATA = 0x01;
+
+    const APP_SUBTYPE_NAMES = {
+      0x00: "factory",
+      0x10: "ota_0",  0x11: "ota_1",  0x12: "ota_2",  0x13: "ota_3",
+      0x14: "ota_4",  0x15: "ota_5",  0x16: "ota_6",  0x17: "ota_7",
+      0x18: "ota_8",  0x19: "ota_9",  0x1a: "ota_10", 0x1b: "ota_11",
+      0x1c: "ota_12", 0x1d: "ota_13", 0x1e: "ota_14", 0x1f: "ota_15",
+      0x20: "test",
+    };
+
+    const DATA_SUBTYPE_NAMES = {
+      0x00: "ota",     0x01: "phy",      0x02: "nvs",
+      0x03: "coredump", 0x04: "nvs_keys", 0x05: "efuse",
+      0x81: "fat",     0x82: "spiffs",
+    };
+
+    // Subtypes that are internal/system and should not be offered for flashing
+    const SYSTEM_DATA_SUBTYPES = new Set([0x00, 0x01, 0x02, 0x04, 0x05]);
+
+    /**
+     * Parse ESP32 binary partition table data.
+     * @param {Uint8Array} data  Raw bytes read from flash at 0x8000
+     * @returns {Array<{type:number, subtype:number, offset:number, size:number, label:string, flags:number}>}
+     */
+    function parsePartitionTable(data) {
+      const partitions = [];
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+
+      for (let i = 0; i + PARTITION_ENTRY_SIZE <= data.length; i += PARTITION_ENTRY_SIZE) {
+        const magic = view.getUint16(i, true);
+        if (magic === PARTITION_MD5_MAGIC) break;
+        if (magic !== PARTITION_MAGIC) break;
+
+        const type    = data[i + 2];
+        const subtype = data[i + 3];
+        const offset  = view.getUint32(i + 4, true);
+        const size    = view.getUint32(i + 8, true);
+
+        let label = "";
+        for (let j = 0; j < 16; j++) {
+          const ch = data[i + 12 + j];
+          if (ch === 0) break;
+          label += String.fromCharCode(ch);
+        }
+
+        const flags = view.getUint32(i + 28, true);
+        partitions.push({ type, subtype, offset, size, label, flags });
+      }
+      return partitions;
+    }
+
+    /**
+     * Return a human-readable description for a partition entry.
+     */
+    function describePartition(p) {
+      let typeName, subtypeName;
+      if (p.type === PART_TYPE_APP) {
+        typeName = "app";
+        subtypeName = APP_SUBTYPE_NAMES[p.subtype] || `0x${p.subtype.toString(16)}`;
+      } else if (p.type === PART_TYPE_DATA) {
+        typeName = "data";
+        subtypeName = DATA_SUBTYPE_NAMES[p.subtype] || `0x${p.subtype.toString(16)}`;
+      } else {
+        typeName = `0x${p.type.toString(16)}`;
+        subtypeName = `0x${p.subtype.toString(16)}`;
+      }
+      return { typeName, subtypeName };
+    }
+
+    /**
+     * Format byte size to human-readable string.
+     */
+    function formatSize(bytes) {
+      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "") + " MB";
+      if (bytes >= 1024)        return (bytes / 1024).toFixed(1).replace(/\.0$/, "") + " KB";
+      return bytes + " B";
+    }
+
+    /**
+     * Determine if a partition should be offered as a flash target.
+     * Show app partitions and non-system data partitions.
+     */
+    function isFlashable(p) {
+      if (p.type === PART_TYPE_APP) return true;
+      if (p.type === PART_TYPE_DATA && !SYSTEM_DATA_SUBTYPES.has(p.subtype)) return true;
+      return false;
+    }
+
+    // ── Discovered partitions (populated after connect) ──
+    let partitions = [];
+
+    /**
+     * Update the address field to reflect the currently selected partition.
+     */
+    function updateAddressFromPartition() {
+      const idx = parseInt(elPartition.value, 10);
+      if (!isNaN(idx) && partitions[idx]) {
+        elAddress.value = "0x" + partitions[idx].offset.toString(16);
+      } else {
+        elAddress.value = "";
+      }
+    }
+
+    // ── DOM refs ──
+    const elBtnConnect    = document.getElementById("btn-connect");
+    const elBtnDisconnect = document.getElementById("btn-disconnect");
+    const elBtnBrowse     = document.getElementById("btn-browse");
+    const elBtnFlash      = document.getElementById("btn-flash");
+    const elBtnClearLog   = document.getElementById("btn-clear-log");
+    const elPartition     = document.getElementById("partition");
+    const elAddress       = document.getElementById("address");
+    const elFileInput     = document.getElementById("file-input");
+    const elFileName      = document.getElementById("file-name");
+    const elStatus        = document.getElementById("status");
+    const elLog           = document.getElementById("log");
+    const elProgressCont  = document.getElementById("progress-container");
+    const elProgressBar   = document.getElementById("progress-bar");
+
+    // ── State ──
+    let port      = null;
+    let transport = null;
+    let esploader = null;
+    let chipName  = null;
+    let fileData  = null;
+    let flashing  = false;
+
+    /**
+     * Tear down any open transport / port so the serial device is released.
+     * Safe to call even when nothing is open.
+     */
+    async function cleanupConnection() {
+      const t = transport;
+      const p = port;
+
+      esploader  = null;
+      transport  = null;
+      port       = null;
+      chipName   = null;
+      partitions = [];
+      populatePartitionDropdown();
+
+      if (t) {
+        try { await t.disconnect(); } catch (_) { /* best-effort */ }
+      }
+      // Fallback: close the port directly in case transport.disconnect()
+      // didn't fully release it (e.g. connection failed mid-handshake).
+      if (p) {
+        try { await p.close(); } catch (_) { /* may already be closed */ }
+      }
+    }
+
+    // ── Logging ──
+    function log(msg) {
+      const ts = new Date().toLocaleTimeString();
+      appendLog(`[${ts}] ${msg}\n`);
+    }
+
+    const MAX_LOG_LINES = 2000;
+
+    function appendLog(text) {
+      elLog.textContent += text;
+      // Trim log if it gets too large
+      const lines = elLog.textContent.split("\n");
+      if (lines.length > MAX_LOG_LINES) {
+        elLog.textContent = lines.slice(-MAX_LOG_LINES).join("\n");
+      }
+      elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    // Terminal interface for esptool-js
+    const terminal = {
+      clean()          { /* keep log history */ },
+      writeLine(data)  { appendLog(data + "\n"); },
+      write(data)      { appendLog(data); },
+    };
+
+    // ── Status helpers ──
+    function setStatus(text, cls) {
+      elStatus.textContent = text;
+      elStatus.className = cls;
+    }
+
+    // ── UI state ──
+    function updateUI() {
+      const connected = esploader !== null;
+      const hasFile   = fileData !== null;
+      const hasPartition = elPartition.value !== "";
+
+      elBtnConnect.disabled    = connected || flashing;
+      elBtnDisconnect.disabled = !connected || flashing;
+      elBtnFlash.disabled      = !connected || !hasFile || !hasPartition || flashing;
+      elBtnBrowse.disabled     = flashing;
+      elPartition.disabled     = flashing;
+    }
+
+    // ── Partition selection → address ──
+    elPartition.addEventListener("change", () => {
+      updateAddressFromPartition();
+    });
+
+    // ── File selection ──
+    elBtnBrowse.addEventListener("click", () => elFileInput.click());
+
+    elFileInput.addEventListener("change", () => {
+      const file = elFileInput.files[0];
+      if (!file) {
+        fileData = null;
+        elFileName.textContent = "No file selected";
+        updateUI();
+        return;
+      }
+
+      elFileName.textContent = file.name;
+      log(`Selected file: ${file.name} (${file.size} bytes)`);
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        fileData = new Uint8Array(e.target.result);
+        log(`File loaded: ${fileData.length} bytes`);
+        updateUI();
+      };
+      reader.onerror = () => {
+        log("Error reading file");
+        fileData = null;
+        updateUI();
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // ── Browser support check ──
+    function isWebSerialSupported() {
+      return "serial" in navigator;
+    }
+
+    // ── Connect ──
+    elBtnConnect.addEventListener("click", async () => {
+      if (!isWebSerialSupported()) {
+        log("Web Serial API is not supported in this browser. Use Chrome or Edge 89+.");
+        setStatus("Browser not supported", "status-error");
+        return;
+      }
+
+      try {
+        // Release any previous connection so the port is not locked
+        await cleanupConnection();
+
+        log("Requesting serial port...");
+        port = await navigator.serial.requestPort();
+        log("Serial port selected");
+
+        transport = new Transport(port, true);
+        log("Transport created, connecting to ESP...");
+        setStatus("Connecting…", "status-busy");
+
+        const loaderOptions = {
+          transport: transport,
+          baudrate: 115200,
+          terminal: terminal,
+          debugLogging: false,
+        };
+
+        esploader = new ESPLoader(loaderOptions);
+        chipName = await esploader.main();
+
+        log(`Connected: ${chipName}`);
+        setStatus(`Connected: ${chipName}`, "status-connected");
+
+        // Read and parse the partition table from flash
+        await readPartitionTable();
+
+        updateUI();
+      } catch (err) {
+        log(`Connection failed: ${err.message}`);
+        if (err.message && err.message.includes("Failed to open")) {
+          log("Hint: The port may be in use by another application. " +
+              "Close any open serial terminals and try again.");
+        }
+        setStatus("Connection failed", "status-error");
+        await cleanupConnection();
+        updateUI();
+      }
+    });
+
+    /**
+     * Read the partition table from flash and populate the UI.
+     */
+    async function readPartitionTable() {
+      try {
+        log("Reading partition table...");
+        const data = await esploader.readFlash(PARTITION_TABLE_ADDR, PARTITION_TABLE_SIZE);
+        partitions = parsePartitionTable(data);
+
+        if (partitions.length === 0) {
+          log("Warning: No partitions found in partition table");
+        } else {
+          log(`Found ${partitions.length} partition(s):`);
+          for (const p of partitions) {
+            const { typeName, subtypeName } = describePartition(p);
+            log(`  ${p.label.padEnd(16)} ${typeName}/${subtypeName}  ` +
+                `@ 0x${p.offset.toString(16)}  ${formatSize(p.size)}`);
+          }
+        }
+
+        populatePartitionDropdown();
+      } catch (err) {
+        log(`Warning: Could not read partition table: ${err.message}`);
+        partitions = [];
+        populatePartitionDropdown();
+      }
+    }
+
+    /**
+     * Populate the partition dropdown with flashable partitions.
+     */
+    function populatePartitionDropdown() {
+      elPartition.innerHTML = "";
+
+      const flashable = partitions
+        .map((p, i) => ({ ...p, index: i }))
+        .filter(p => isFlashable(p));
+
+      if (flashable.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "(no flashable partitions)";
+        elPartition.appendChild(opt);
+        elAddress.value = "";
+        return;
+      }
+
+      for (const p of flashable) {
+        const { typeName, subtypeName } = describePartition(p);
+        const opt = document.createElement("option");
+        opt.value = String(p.index);
+        opt.textContent = `${p.label} (${typeName}/${subtypeName}, ${formatSize(p.size)})`;
+        elPartition.appendChild(opt);
+      }
+
+      // Select the first flashable partition and update address
+      elPartition.selectedIndex = 0;
+      updateAddressFromPartition();
+    }
+
+    // ── Disconnect ──
+    elBtnDisconnect.addEventListener("click", async () => {
+      log("Disconnecting...");
+      await cleanupConnection();
+      setStatus("Disconnected", "status-disconnected");
+      updateUI();
+      log("Disconnected");
+    });
+
+    // ── Flash ──
+    elBtnFlash.addEventListener("click", async () => {
+      if (!esploader || !fileData) return;
+
+      const idx = parseInt(elPartition.value, 10);
+      if (isNaN(idx) || !partitions[idx]) {
+        log("No partition selected");
+        return;
+      }
+
+      const part = partitions[idx];
+      const { typeName, subtypeName } = describePartition(part);
+      const partitionLabel = `${part.label} (${typeName}/${subtypeName})`;
+      const address = part.offset;
+
+      if (fileData.length > part.size) {
+        log(`Error: File size (${formatSize(fileData.length)}) exceeds partition size (${formatSize(part.size)})`);
+        setStatus("File too large for partition", "status-error");
+        return;
+      }
+
+      flashing = true;
+      updateUI();
+      setStatus("Flashing…", "status-busy");
+      elProgressCont.style.display = "block";
+      elProgressBar.style.width = "0%";
+      elProgressBar.textContent = "0%";
+
+      log(`Flashing ${partitionLabel} at 0x${address.toString(16)}...`);
+      log(`Image size: ${fileData.length} bytes`);
+
+      try {
+        const flashOptions = {
+          fileArray: [{ data: fileData, address: address }],
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true,
+          reportProgress: (fileIndex, written, total) => {
+            const pct = Math.round((written / total) * 100);
+            elProgressBar.style.width = pct + "%";
+            elProgressBar.textContent = pct + "%";
+          },
+        };
+
+        await esploader.writeFlash(flashOptions);
+
+        log("Flash complete!");
+        setStatus(`Flash complete — ${chipName}`, "status-connected");
+        elProgressBar.style.width = "100%";
+        elProgressBar.textContent = "100%";
+      } catch (err) {
+        log(`Flash failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+      } finally {
+        flashing = false;
+        updateUI();
+      }
+    });
+
+    // ── Clear log ──
+    elBtnClearLog.addEventListener("click", () => {
+      elLog.textContent = "";
+    });
+
+    // ── Handle physical USB disconnect ──
+    if (isWebSerialSupported()) {
+      navigator.serial.addEventListener("disconnect", async (event) => {
+        // event.target is the SerialPort that was removed
+        if (port && event.target === port) {
+          log("Device disconnected (USB removed)");
+          await cleanupConnection();
+          setStatus("Device disconnected", "status-disconnected");
+          updateUI();
+        }
+      });
+    }
+
+    // ── Check browser support on load ──
+    window.addEventListener("load", () => {
+      if (!isWebSerialSupported()) {
+        log("⚠ Web Serial API not available. Please use Chrome or Edge 89+.");
+        setStatus("Browser not supported", "status-error");
+        elBtnConnect.disabled = true;
+      } else {
+        log("DECtalk ESPress Web Flasher ready.");
+        log("Click 'Connect' to begin.");
+      }
+      updateUI();
+    });
+  </script>
+</body>
+</html>
