@@ -5,13 +5,9 @@ version: "1.0.0"
 description: "DECtalk text-to-speech engine compiled as an ESP-IDF component"
 url: "https://github.com/lllucius/DECtalk_ESPress/tree/main/components/dectalk"
 repository: "https://github.com/lllucius/DECtalk_ESPress"
-documentation: "https://github.com/lllucius/DECtalk_ESPress/blob/main/components/dectalk/README.md"
+documentation: "https://dectalk.homerow.net/components/dectalk/README.html"
 issues: "https://github.com/lllucius/DECtalk_ESPress/issues"
 license: "MIT"
-targets:
-  - esp32s2
-  - esp32s3
-  - esp32p4
 dependencies:
   idf:
     version: ">=5.5.0"
