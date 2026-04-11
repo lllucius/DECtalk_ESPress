@@ -1,55 +1,29 @@
-# Prerequisites
-*.d
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+# ESP32 build artifacts
+build/
+sdkconfig
+sdkconfig.old
+*.lock
+managed_components
 
-# Linker output
-*.ilk
-*.map
-*.exp
+# CMake build artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+build/
+cmake-build-*/
+*.cmake.in
 
-# Precompiled Headers
-*.gch
-*.pch
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+*.egg
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-# debug information files
-*.dwo
