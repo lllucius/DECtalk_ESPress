@@ -229,11 +229,17 @@
       line-height: 20px;
       color: #fff;
     }
+
+    button.compact {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+      min-width: auto;
+    }
   </style>
 </head>
 <body>
   <h1>🔌 DECtalk ESPress Web Flasher</h1>
-  <p class="subtitle">Flash application or dictionary partitions via USB serial</p>
+  <p class="subtitle">Flash firmware via USB serial from GitHub releases or local files</p>
 
   <!-- Connection -->
   <div class="panel">
@@ -247,9 +253,37 @@
     <div id="status" class="status-disconnected">Not connected</div>
   </div>
 
-  <!-- Flash Settings -->
+  <!-- Flash from Release -->
   <div class="panel">
-    <h2>Flash Settings</h2>
+    <h2>Flash from Release</h2>
+    <div class="form-row">
+      <label for="release">Release:</label>
+      <select id="release">
+        <option value="">(loading releases…)</option>
+      </select>
+      <button id="btn-refresh-releases" class="compact" title="Refresh releases">↻</button>
+    </div>
+    <div class="form-row">
+      <label for="language">Language:</label>
+      <select id="language">
+        <option value="us">US English</option>
+        <option value="uk">UK English</option>
+        <option value="sp">Spanish</option>
+        <option value="gr">German</option>
+        <option value="la">Latin American Spanish</option>
+        <option value="fr">French</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="btn-group">
+        <button id="btn-flash-release" disabled>Flash Firmware</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flash Local File (advanced) -->
+  <div class="panel">
+    <h2>Flash Local File</h2>
     <div class="form-row">
       <label for="partition">Partition:</label>
       <select id="partition">
@@ -264,13 +298,13 @@
       <label>Firmware:</label>
       <div class="file-label">
         <button id="btn-browse" type="button">Browse for file…</button>
-        <input type="file" id="file-input" accept=".bin">
+        <input type="file" id="file-input" accept=".bin,.dic">
         <span class="file-name" id="file-name">No file selected</span>
       </div>
     </div>
     <div class="form-row">
       <div class="btn-group">
-        <button id="btn-flash" disabled>Flash</button>
+        <button id="btn-flash" disabled>Flash File</button>
       </div>
     </div>
   </div>
@@ -289,6 +323,17 @@
   <!-- esptool-js v0.6.0 uses ES module format -->
   <script type="module">
     import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.0/bundle.js";
+
+    // ── GitHub release configuration ──
+    const GITHUB_OWNER = "lllucius";
+    const GITHUB_REPO  = "DECtalk_ESPress";
+
+    // ESP32-S3 flash addresses (fixed for this project's partition layout)
+    const RELEASE_FLASH_PARTS = [
+      { name: "bootloader",      suffix: "-bootloader.bin",      offset: 0x0 },
+      { name: "partition-table",  suffix: "-partition-table.bin", offset: 0x8000 },
+      { name: "application",     suffix: "-app.bin",             offset: 0x10000 },
+    ];
 
     // ── Partition table constants ──
     const PARTITION_TABLE_ADDR = 0x8000;
@@ -417,6 +462,12 @@
     const elProgressCont  = document.getElementById("progress-container");
     const elProgressBar   = document.getElementById("progress-bar");
 
+    // Release-flash DOM refs
+    const elRelease         = document.getElementById("release");
+    const elLanguage        = document.getElementById("language");
+    const elBtnFlashRelease = document.getElementById("btn-flash-release");
+    const elBtnRefresh      = document.getElementById("btn-refresh-releases");
+
     // ── State ──
     let port      = null;
     let transport = null;
@@ -486,12 +537,19 @@
       const connected = esploader !== null;
       const hasFile   = fileData !== null;
       const hasPartition = elPartition.value !== "";
+      const hasRelease = elRelease.value !== "";
 
       elBtnConnect.disabled    = connected || flashing;
       elBtnDisconnect.disabled = !connected || flashing;
       elBtnFlash.disabled      = !connected || !hasFile || !hasPartition || flashing;
       elBtnBrowse.disabled     = flashing;
       elPartition.disabled     = flashing;
+
+      // Release flash controls
+      elBtnFlashRelease.disabled = !connected || !hasRelease || flashing;
+      elRelease.disabled         = flashing;
+      elLanguage.disabled        = flashing;
+      elBtnRefresh.disabled      = flashing;
     }
 
     // ── Partition selection → address ──
@@ -717,6 +775,141 @@
       elLog.textContent = "";
     });
 
+    // ── Release fetching ──
+    let releases = [];
+
+    /**
+     * Fetch available releases from the GitHub API and populate the dropdown.
+     */
+    async function fetchReleases() {
+      try {
+        elRelease.innerHTML = '<option value="">(loading releases…)</option>';
+        const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          if (resp.status === 403) {
+            throw new Error("GitHub API rate limit reached — try again later");
+          }
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        releases = await resp.json();
+        populateReleaseDropdown();
+        log(`Loaded ${releases.length} release(s) from GitHub`);
+      } catch (err) {
+        log(`Failed to fetch releases: ${err.message}`);
+        elRelease.innerHTML = '<option value="">(failed to load releases)</option>';
+      }
+      updateUI();
+    }
+
+    function populateReleaseDropdown() {
+      elRelease.innerHTML = "";
+      // Filter to releases that have assets (i.e. completed builds)
+      const available = releases.filter(r => r.assets && r.assets.length > 0);
+      if (available.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "(no releases with firmware found)";
+        elRelease.appendChild(opt);
+        return;
+      }
+      for (const release of available) {
+        const opt = document.createElement("option");
+        opt.value = release.tag_name;
+        const label = release.name && release.name !== release.tag_name
+          ? `${release.tag_name} — ${release.name}`
+          : release.tag_name;
+        opt.textContent = label;
+        elRelease.appendChild(opt);
+      }
+    }
+
+    elBtnRefresh.addEventListener("click", () => fetchReleases());
+
+    // ── Flash from release ──
+
+    /**
+     * Build the download URL for a release asset.
+     */
+    function releaseAssetUrl(tagName, langCode, suffix) {
+      return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${encodeURIComponent(tagName)}/dectalk-espress-${langCode}${suffix}`;
+    }
+
+    /**
+     * Download a single binary asset from a GitHub release.
+     */
+    async function downloadAsset(url) {
+      const fileName = decodeURIComponent(url.split("/").pop());
+      log(`Downloading ${fileName}…`);
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        throw new Error(`Failed to download ${fileName}: HTTP ${resp.status}`);
+      }
+      const buf = await resp.arrayBuffer();
+      log(`Downloaded ${fileName}: ${buf.byteLength} bytes`);
+      return new Uint8Array(buf);
+    }
+
+    elBtnFlashRelease.addEventListener("click", async () => {
+      if (!esploader) return;
+
+      const tagName  = elRelease.value;
+      const langCode = elLanguage.value;
+      if (!tagName || !langCode) {
+        log("Please select a release and language");
+        return;
+      }
+
+      flashing = true;
+      updateUI();
+      setStatus("Downloading firmware…", "status-busy");
+      elProgressCont.style.display = "block";
+      elProgressBar.style.width = "0%";
+      elProgressBar.textContent = "0%";
+
+      try {
+        // Download all required bin files
+        log(`Preparing ${tagName} / ${langCode}…`);
+        const fileArray = [];
+        for (const part of RELEASE_FLASH_PARTS) {
+          const url  = releaseAssetUrl(tagName, langCode, part.suffix);
+          const data = await downloadAsset(url);
+          fileArray.push({ data, address: part.offset });
+        }
+
+        // Flash all files
+        setStatus("Flashing…", "status-busy");
+        log(`Flashing ${fileArray.length} images…`);
+
+        const flashOptions = {
+          fileArray,
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true,
+          reportProgress: (fileIndex, written, total) => {
+            const pct = Math.round((written / total) * 100);
+            elProgressBar.style.width = pct + "%";
+            elProgressBar.textContent = pct + "%";
+          },
+        };
+
+        await esploader.writeFlash(flashOptions);
+
+        log("Flash complete!");
+        setStatus(`Flash complete — ${chipName}`, "status-connected");
+        elProgressBar.style.width = "100%";
+        elProgressBar.textContent = "100%";
+      } catch (err) {
+        log(`Flash failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+      } finally {
+        flashing = false;
+        updateUI();
+      }
+    });
+
     // ── Handle physical USB disconnect ──
     if (isWebSerialSupported()) {
       navigator.serial.addEventListener("disconnect", async (event) => {
@@ -739,6 +932,7 @@
       } else {
         log("DECtalk ESPress Web Flasher ready.");
         log("Click 'Connect' to begin.");
+        fetchReleases();
       }
       updateUI();
     });

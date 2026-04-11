@@ -84,10 +84,24 @@ jobs:
           path: ${{ env.archive }}
           if-no-files-found: error
 
-      - name: Upload release asset
+      - name: Prepare web-flasher bin files
+        shell: bash
+        run: |
+          lang="${{ matrix.language.code }}"
+          cp build/bootloader/bootloader.bin "dectalk-espress-${lang}-bootloader.bin"
+          cp build/partition_table/partition-table.bin "dectalk-espress-${lang}-partition-table.bin"
+          cp build/dectalk_espress.bin "dectalk-espress-${lang}-app.bin"
+
+      - name: Upload release assets
         if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release upload "${{ github.event.release.tag_name }}" "${{ env.archive }}" --clobber
+          lang="${{ matrix.language.code }}"
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "${{ env.archive }}" \
+            "dectalk-espress-${lang}-bootloader.bin" \
+            "dectalk-espress-${lang}-partition-table.bin" \
+            "dectalk-espress-${lang}-app.bin" \
+            --clobber
