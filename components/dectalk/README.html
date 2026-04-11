@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  Dark-themed Pandoc HTML template for DECtalk ESPress GitHub Pages.
+  Used by the deploy-site and release workflows to convert Markdown to HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk Component</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --table-alt:   #161b22;
+      --table-head:  #1c2128;
+      --kbd-bg:      #2d333b;
+      --blockquote:  #30363d;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+
+    /* ── Main content area ── */
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--heading);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: none;
+    }
+    h1 { font-size: 1.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.4rem;  padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; }
+    h4 { font-size: 1rem; }
+
+    p { margin-bottom: 1rem; }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    strong { color: var(--heading); font-weight: 600; }
+
+    /* ── Lists ── */
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    li > ul, li > ol { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+
+    /* ── Code ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas,
+                   "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: var(--table-alt); }
+
+    /* ── Blockquotes ── */
+    blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--surface);
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-radius: 0 6px 6px 0;
+    }
+    blockquote p { margin-bottom: 0.5rem; }
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { color: var(--text); }
+
+    /* ── Horizontal rules ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Images ── */
+    img { max-width: 100%; height: auto; border-radius: 6px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+    .footer a { color: var(--link); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 0 1rem 3rem; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.2rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 0.45rem 0.55rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a href="/flasher/">Web Flasher</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
+  </nav>
+
+  <main class="container">
+<!-- SPDX-License-Identifier: MIT -->
+
+<!-- Copyright (c) 2025 Leland Lucius -->
+
+<h1 id="dectalk-esp-idf-component">DECtalk ESP-IDF Component</h1>
+<p>An ESP-IDF component that wraps the upstream DECtalk <code>dapi</code> text-to-speech library for use on ESP32 targets. This component handles source resolution, language selection, dictionary compilation, cross-compilation of the approximately 70 upstream C source files, and dictionary loading at runtime.</p>
+<p>For details on how the firmware application (ESPress protocol, I2S audio, USB CDC transport) uses this component, see the <a href="../../README.html">project-level README</a> and <a href="../../BUILD.html">BUILD.md</a>.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#features">Features</a></li>
+<li><a href="#esp-component-registry-installation">ESP Component Registry Installation</a>
+<ul>
+<li><a href="#add-to-a-project">Add to a Project</a></li>
+<li><a href="#offline--air-gapped-builds">Offline / Air-Gapped Builds</a></li>
+</ul></li>
+<li><a href="#kconfig-settings">Kconfig Settings</a></li>
+<li><a href="#directory-layout">Directory Layout</a></li>
+<li><a href="#quick-start">Quick Start</a>
+<ul>
+<li><a href="#from-the-project-root">From the Project Root</a></li>
+<li><a href="#setting-a-local-dectalk-source-path">Setting a Local DECtalk Source Path</a></li>
+</ul></li>
+<li><a href="#language-selection">Language Selection</a></li>
+<li><a href="#dictionary-storage-modes">Dictionary Storage Modes</a></li>
+<li><a href="#build-details">Build Details</a></li>
+<li><a href="#license">License</a></li>
+</ul>
+<h2 id="features">Features</h2>
+<ul>
+<li><strong>Full DECtalk TTS engine</strong> — the complete <code>dapi</code> pipeline (letter-to-sound, phonetics, vocal-tract model, Klatt synthesiser) compiled as an ESP-IDF component</li>
+<li><strong>Six languages</strong> — US English (default), UK English, Spanish, German, Latin American Spanish, French; selected at build time via Kconfig</li>
+<li><strong>Three dictionary storage modes</strong> — embedded in firmware binary, stored on a dedicated flash partition, or loaded from a SPIFFS file system</li>
+<li><strong>Zero upstream patches</strong> — all adaptations achieved through compile definitions, header shims, libc stubs, and linker wrapping</li>
+<li><strong>Standalone component</strong> — works as a standalone project, installed via the ESP Component Registry, or with a local DECtalk source path / FetchContent from GitHub</li>
+<li><strong>Configurable via <code>menuconfig</code></strong> — language, dictionary location, source paths; all under the <strong>DECtalk</strong> menu</li>
+</ul>
+<h2 id="esp-component-registry-installation">ESP Component Registry Installation</h2>
+<p>The component is published on the <a href="https://components.espressif.com/">ESP Component Registry</a> as <strong><code>lllucius/dectalk</code></strong>.</p>
+<h3 id="add-to-a-project">Add to a Project</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> add-dependency <span class="st">&quot;lllucius__dectalk&gt;=1.0.0&quot;</span></span></code></pre></div>
+<p>This downloads the component to your project's <code>managed_components/</code> directory. On the first <code>idf.py build</code> (or <code>idf.py reconfigure</code>), CMake will automatically clone the upstream DECtalk source tree from GitHub via FetchContent — no manual source-tree configuration required.</p>
+<blockquote>
+<p><strong>Internet access required on first build.</strong> CMake fetches <code>https://github.com/dectalk/dectalk</code> (branch <code>develop</code>) into the build directory. Subsequent builds reuse the cached checkout.</p>
+</blockquote>
+<h3 id="offline--air-gapped-builds">Offline / Air-Gapped Builds</h3>
+<p>If network access is unavailable, download the DECtalk upstream source tree manually and point the component at it:</p>
+<ol type="1">
+<li>Clone the upstream DECtalk source: <code>https://github.com/dectalk/dectalk</code> (this is the TTS engine source, separate from this project's repository <code>https://github.com/lllucius/DECtalk_ESPress</code>).</li>
+<li>In <code>idf.py menuconfig</code>, navigate to <em>DECtalk → DECtalk distribution → Path to DECtalk library source tree</em> and enter the path to your local clone.</li>
+<li>Disable <em>Fetch DECtalk source from GitHub if local path is unavailable</em> (optional, but avoids a network attempt).</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig   <span class="co"># set source path, optionally disable FetchContent</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span></code></pre></div>
+<h2 id="kconfig-settings">Kconfig Settings</h2>
+<p>All component settings appear under <strong>DECtalk</strong> in <code>idf.py menuconfig</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Menu Path</th>
+<th>Key Settings</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><em>DECtalk distribution</em></td>
+<td>Local DECtalk source path; optional GitHub FetchContent fallback (enabled by default) and Git ref</td>
+</tr>
+<tr class="even">
+<td><em>DECtalk Language</em></td>
+<td>US English (default), UK English, Spanish, German, Latin American Spanish, French</td>
+</tr>
+<tr class="odd">
+<td><em>Dictionary location</em></td>
+<td>Embedded in firmware, dedicated partition, or SPIFFS file system</td>
+</tr>
+</tbody>
+</table>
+<p>These settings are defined in <code>Kconfig.projbuild</code> within this component directory. Firmware-specific settings (audio, runtime tuning, transport, diagnostics) are defined separately by the application — see the <a href="../../README.html">project-level README</a>.</p>
+<h2 id="directory-layout">Directory Layout</h2>
+<pre><code>components/dectalk/
+├── CMakeLists.txt          # Compiles all dapi sources + local stubs; builds dictionary
+├── Kconfig.projbuild       # menuconfig entries (language, dict storage, source path)
+├── idf_component.yml       # ESP Component Registry metadata (name, version, dependencies)
+├── BUILD.md                # Detailed build process and porting notes
+├── README.md               # ← this file
+├── project_include.cmake   # Registers custom partition subtypes; manages partition CSV
+├── include/
+│   ├── config.h            # Maps Kconfig DECTALK_DICT_ROOT → DECTALK_INSTALL_PREFIX
+│   └── sys/
+│       ├── ipc.h           # Minimal IPC_CREAT / IPC_RMID stubs
+│       ├── mman.h          # mmap/munmap prototypes + MAP_FAILED constant
+│       └── shm.h           # shmget/shmat/shmdt/shmctl prototypes
+└── src/
+    ├── libc_stubs.c        # shmget/shmat/shmdt/shmctl, nanosleep, readlink, dirname
+    └── loaddict_wrappers.c # __wrap_load_dictionary / __wrap_unload_dictionary</code></pre>
+<h2 id="quick-start">Quick Start</h2>
+<h3 id="from-the-project-root">From the Project Root</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build   <span class="co"># fetches upstream source automatically on first run</span></span></code></pre></div>
+<h3 id="setting-a-local-dectalk-source-path">Setting a Local DECtalk Source Path</h3>
+<p>If you have a local checkout of the DECtalk source tree:</p>
+<ol type="1">
+<li><p><strong>Set a local path</strong> — in <code>idf.py menuconfig</code>, navigate to <em>DECtalk → DECtalk distribution → Path to DECtalk library source tree</em> and point it at your local DECtalk checkout.</p></li>
+<li><p><strong>Or rely on FetchContent</strong> — FetchContent is enabled by default (<code>DECTALK_FETCH_SOURCE=y</code>). If no local path is configured, CMake will automatically clone the upstream source tree from GitHub into the build directory.</p></li>
+</ol>
+<h2 id="language-selection">Language Selection</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → DECtalk Language</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Select desired language, save, exit</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>Kconfig Symbol</th>
+<th>Lang Code</th>
+<th>Compile Definitions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>DECTALK_LANG_US</code></td>
+<td><code>us</code></td>
+<td><code>ENGLISH ENGLISH_US ACNA</code></td>
+</tr>
+<tr class="even">
+<td><code>DECTALK_LANG_UK</code></td>
+<td><code>uk</code></td>
+<td><code>ENGLISH ENGLISH_UK</code></td>
+</tr>
+<tr class="odd">
+<td><code>DECTALK_LANG_SP</code></td>
+<td><code>sp</code></td>
+<td><code>SPANISH SPANISH_SP</code></td>
+</tr>
+<tr class="even">
+<td><code>DECTALK_LANG_GR</code></td>
+<td><code>gr</code></td>
+<td><code>GERMAN</code></td>
+</tr>
+<tr class="odd">
+<td><code>DECTALK_LANG_LA</code></td>
+<td><code>la</code></td>
+<td><code>SPANISH SPANISH_LA</code></td>
+</tr>
+<tr class="even">
+<td><code>DECTALK_LANG_FR</code></td>
+<td><code>fr</code></td>
+<td><code>FRENCH</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="dictionary-storage-modes">Dictionary Storage Modes</h2>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → Dictionary location</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose: Embedded in firmware / Dedicated partition / File system</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>Mode</th>
+<th>Kconfig Symbol</th>
+<th>How it Works</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Embedded</strong></td>
+<td><code>DECTALK_DICT_EMBED</code></td>
+<td>Dictionary binary is linked into the firmware via ESP-IDF's <code>EMBED_FILES</code>. Accessed through the linker symbol <code>_binary_dtalk_&lt;lang&gt;_dic_start</code>. Zero-copy.</td>
+</tr>
+<tr class="even">
+<td><strong>Partition</strong></td>
+<td><code>DECTALK_DICT_PART</code></td>
+<td>Dictionary is flashed to a <code>udict</code> data partition. Mapped into the address space via <code>esp_partition_mmap()</code>. Zero-copy.</td>
+</tr>
+<tr class="odd">
+<td><strong>File system</strong></td>
+<td><code>DECTALK_DICT_FILE</code></td>
+<td>Dictionary is loaded from a SPIFFS mount at runtime using <code>fopen()</code>/<code>fread()</code>. Requires separate heap allocation.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Partition mode options:</strong></p>
+<ul>
+<li><em>Automatically add dictionary partitions</em> — adds the <code>udict</code> partition to the table at build time.</li>
+<li><em>Automatically flash dictionary partitions with app</em> — includes the dictionary in the normal <code>idf.py flash</code> target.</li>
+<li>Or flash separately: <code>idf.py -p &lt;PORT&gt; udict-flash</code>.</li>
+</ul>
+<p><strong>File system mode options:</strong></p>
+<ul>
+<li><em>Automatically add SPIFFS dictionary partition</em> — adds a <code>dictionary</code> SPIFFS partition to the table.</li>
+<li><em>Automatically flash dictionary SPIFFS image with app</em> — includes the SPIFFS image in <code>idf.py flash</code>.</li>
+<li><em>Path to SPIFFS image source directory</em> — defaults to the build directory.</li>
+<li><em>Path to directory containing dictionary file</em> — the SPIFFS mount point (default <code>/dict</code>).</li>
+</ul>
+<h2 id="build-details">Build Details</h2>
+<p>For detailed build process documentation including the dictionary cross-compilation pipeline, dapi source compilation, porting notes, and linker wrapping, see <strong><a href="BUILD.html">BUILD.md</a></strong>.</p>
+<h2 id="license">License</h2>
+<p>This component is licensed under the MIT License — see <a href="LICENSE">LICENSE</a>.</p>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+</body>
+</html>

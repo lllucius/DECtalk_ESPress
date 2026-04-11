@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  Dark-themed Pandoc HTML template for DECtalk ESPress GitHub Pages.
+  Used by the deploy-site and release workflows to convert Markdown to HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk Component — Build</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --table-alt:   #161b22;
+      --table-head:  #1c2128;
+      --kbd-bg:      #2d333b;
+      --blockquote:  #30363d;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+
+    /* ── Main content area ── */
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--heading);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: none;
+    }
+    h1 { font-size: 1.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.4rem;  padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; }
+    h4 { font-size: 1rem; }
+
+    p { margin-bottom: 1rem; }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    strong { color: var(--heading); font-weight: 600; }
+
+    /* ── Lists ── */
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    li > ul, li > ol { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+
+    /* ── Code ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas,
+                   "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: var(--table-alt); }
+
+    /* ── Blockquotes ── */
+    blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--surface);
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-radius: 0 6px 6px 0;
+    }
+    blockquote p { margin-bottom: 0.5rem; }
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { color: var(--text); }
+
+    /* ── Horizontal rules ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Images ── */
+    img { max-width: 100%; height: auto; border-radius: 6px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+    .footer a { color: var(--link); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 0 1rem 3rem; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.2rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 0.45rem 0.55rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a href="/flasher/">Web Flasher</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
+  </nav>
+
+  <main class="container">
+<!-- SPDX-License-Identifier: MIT -->
+
+<!-- Copyright (c) 2025 Leland Lucius -->
+
+<h1 id="dectalk-esp-idf-component--build-process--porting-notes">DECtalk ESP-IDF Component — Build Process &amp; Porting Notes</h1>
+<p>This document describes the internal build process and porting details of the DECtalk ESP-IDF component. For the firmware-level build process (project bootstrapping, partition table, sdkconfig, build commands), see the <a href="../../BUILD.html">project-level BUILD.md</a>.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#source-resolution">Source Resolution</a>
+<ul>
+<li><a href="#registry-installed-usage">Registry-Installed Usage</a></li>
+</ul></li>
+<li><a href="#dictionary-build-host-side-cross-compilation">Dictionary Build (Host-Side Cross-Compilation)</a></li>
+<li><a href="#cross-compiling-the-dapi-sources">Cross-Compiling the dapi Sources</a>
+<ul>
+<li><a href="#compile-definitions">Compile Definitions</a></li>
+<li><a href="#linker-wrapping">Linker Wrapping</a></li>
+</ul></li>
+<li><a href="#porting-notes">Porting Notes</a>
+<ul>
+<li><a href="#what-was-adapted-from-upstream">What was Adapted from Upstream</a></li>
+<li><a href="#esp32-specific-considerations">ESP32-Specific Considerations</a></li>
+</ul></li>
+<li><a href="#partition-management">Partition Management</a></li>
+<li><a href="#references">References</a></li>
+</ul>
+<hr />
+<h2 id="source-resolution">Source Resolution</h2>
+<p>The component resolves the upstream DECtalk source tree (<code>src/dapi/src/</code>) in the following order:</p>
+<ol type="1">
+<li><strong>Configured path</strong> — the value of <em>Path to DECtalk library source tree</em> in menuconfig (<code>CONFIG_DECTALK_SRC_ROOT</code>).</li>
+<li><strong>FetchContent</strong> — if enabled in menuconfig (default: <strong>enabled</strong>), CMake clones <code>https://github.com/dectalk/dectalk</code> into the build directory. This is the mechanism used when the component is installed via the ESP Component Registry.</li>
+</ol>
+<p>The path may point at the DECtalk repository root (containing <code>src/dapi/src</code>) or directly at the library source tree (containing <code>dapi/src</code>).</p>
+<h3 id="registry-installed-usage">Registry-Installed Usage</h3>
+<p>When the component is installed via the ESP Component Registry (<code>idf.py add-dependency "lllucius__dectalk&gt;=1.0.0"</code>), it lands in the project's <code>managed_components/lllucius__dectalk/</code> directory. Since no local source path is configured by default, CMake falls through to the FetchContent step. Because <code>DECTALK_FETCH_SOURCE</code> defaults to <code>y</code>, the upstream source tree is cloned automatically on the first configure run. Subsequent builds reuse the cached checkout from the CMake build directory.</p>
+<hr />
+<h2 id="dictionary-build-host-side-cross-compilation">Dictionary Build (Host-Side Cross-Compilation)</h2>
+<p>The DECtalk dictionary (<code>.dic</code>) is a binary file generated from a text source (<code>src/dapi/src/dic/Dic_&lt;lang&gt;.txt</code>) by a host-native tool compiled from <code>src/dapi/src/dic/dic.c</code>.</p>
+<p>This happens at <strong>CMake configure time</strong> (before any cross-compilation) via <code>execute_process()</code>:</p>
+<ol type="1">
+<li>The build system locates a host C compiler (<code>cc</code> or <code>gcc</code>) — explicitly <em>not</em> <code>CMAKE_C_COMPILER</code> which is the ESP32 cross-compiler.</li>
+<li>It compiles <code>dic.c</code> with the same language defines, producing <code>build/dicts/dic_&lt;lang&gt;</code>.</li>
+<li>It runs the compiler: <code>dic_&lt;lang&gt; Dic_&lt;lang&gt;.txt dtalk_&lt;lang&gt;.dic</code> in the <code>build/dicts/</code> working directory.</li>
+<li>The resulting <code>.dic</code> file is consumed according to the dictionary storage mode selected in Kconfig (see <a href="README.html">README.md</a>).</li>
+</ol>
+<blockquote>
+<p>The <code>dic.c</code> tool interprets paths starting with <code>/</code> as option flags, so the output filename is relative and <code>WORKING_DIRECTORY</code> is used.</p>
+</blockquote>
+<hr />
+<h2 id="cross-compiling-the-dapi-sources">Cross-Compiling the dapi Sources</h2>
+<p>After the dictionary is prepared, <code>idf_component_register()</code> compiles approximately 70 upstream C source files from <code>src/dapi/src/</code> covering:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Subsystem</th>
+<th>Directory</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>api</strong></td>
+<td><code>src/dapi/src/api/</code></td>
+<td>Public TTS API (<code>TextToSpeechStartup</code>, <code>Speak</code>, <code>Sync</code>, <code>Reset</code>, …)</td>
+</tr>
+<tr class="even">
+<td><strong>cmd</strong></td>
+<td><code>src/dapi/src/cmd/</code></td>
+<td>Command parser (inline <code>[:commands]</code>, phoneme mode)</td>
+</tr>
+<tr class="odd">
+<td><strong>lts</strong></td>
+<td><code>src/dapi/src/lts/</code></td>
+<td>Letter-to-sound rules, dictionary lookup, suffix handling</td>
+</tr>
+<tr class="even">
+<td><strong>ph</strong></td>
+<td><code>src/dapi/src/ph/</code></td>
+<td>Phonetics, timing, intonation, syllable structure</td>
+</tr>
+<tr class="odd">
+<td><strong>kernel</strong></td>
+<td><code>src/dapi/src/kernel/</code></td>
+<td>Internal services, language initialisation</td>
+</tr>
+<tr class="even">
+<td><strong>nt</strong></td>
+<td><code>src/dapi/src/nt/</code></td>
+<td>Threading primitives (<code>opthread.c</code>), SPC pipe, IPC</td>
+</tr>
+<tr class="odd">
+<td><strong>osf</strong></td>
+<td><code>src/dapi/src/osf/</code></td>
+<td>Play stub, MMIO stubs</td>
+</tr>
+<tr class="even">
+<td><strong>vtm</strong></td>
+<td><code>src/dapi/src/vtm/</code></td>
+<td>Vocal-tract model (Klatt synthesiser), waveform generation</td>
+</tr>
+<tr class="odd">
+<td><strong>hlsyn</strong></td>
+<td><code>src/dapi/src/hlsyn/</code></td>
+<td>High-level synthesis model (Brent solver, circuit model)</td>
+</tr>
+</tbody>
+</table>
+<p>Plus two local source files:</p>
+<ul>
+<li><strong><code>libc_stubs.c</code></strong> — implements POSIX APIs not available on ESP-IDF's newlib: <code>shmget</code>/<code>shmat</code>/<code>shmdt</code>/<code>shmctl</code> (single-slot shared memory emulation), <code>nanosleep</code> (delegates to FreeRTOS <code>vTaskDelay</code> + <code>esp_rom_delay_us</code>), <code>readlink</code> (returns <code>ENOSYS</code>), <code>dirname</code>.</li>
+<li><strong><code>loaddict_wrappers.c</code></strong> — GNU ld <code>--wrap</code> overrides for <code>load_dictionary()</code> / <code>unload_dictionary()</code> that replace the upstream file-based dictionary loader with ESP32-specific paths: reading from an embedded symbol, memory-mapping a flash partition, or opening a SPIFFS file.</li>
+</ul>
+<h3 id="compile-definitions">Compile Definitions</h3>
+<p>Key compile definitions applied to all dapi sources:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Define</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>__linux__</code></td>
+<td><code>1</code></td>
+<td>Activates POSIX code paths in upstream sources</td>
+</tr>
+<tr class="even">
+<td><code>ANSI</code></td>
+<td><code>1</code></td>
+<td>ANSI C mode</td>
+</tr>
+<tr class="odd">
+<td><code>BLD_DECTALK_DLL</code></td>
+<td><code>1</code></td>
+<td>Builds the API as a shared-library-style interface</td>
+</tr>
+<tr class="even">
+<td><code>LTSSIM</code> / <code>TTSSIM</code></td>
+<td><code>1</code></td>
+<td>Enables the letter-to-sound and TTS simulation modes</td>
+</tr>
+<tr class="odd">
+<td><code>TYPING_MODE</code></td>
+<td><code>1</code></td>
+<td>Enables interactive typing-mode support</td>
+</tr>
+</tbody>
+</table>
+<h3 id="linker-wrapping">Linker Wrapping</h3>
+<p>The component is linked with:</p>
+<pre><code>-Wl,--wrap=load_dictionary
+-Wl,--wrap=unload_dictionary</code></pre>
+<p>so that upstream calls to <code>load_dictionary()</code> are redirected to the ESP32-specific <code>__wrap_load_dictionary()</code> at link time.</p>
+<p>Many GCC warnings are suppressed (<code>-Wno-*</code>) because the upstream dapi sources are legacy C code that predates modern compiler strictness.</p>
+<hr />
+<h2 id="porting-notes">Porting Notes</h2>
+<h3 id="what-was-adapted-from-upstream">What was Adapted from Upstream</h3>
+<p>The dapi library (<code>src/dapi/src/</code>) is compiled <strong>unmodified</strong> — no source patches. All ESP32 adaptations are achieved through:</p>
+<ol type="1">
+<li><strong>Compile definitions</strong> (<code>__linux__=1</code>, etc.) that steer <code>#ifdef</code> branches in the upstream code toward POSIX paths.</li>
+<li><strong>Header shims</strong> (<code>include/sys/mman.h</code>, <code>include/sys/ipc.h</code>, <code>include/sys/shm.h</code>) that provide minimal type/constant definitions expected by the upstream headers.</li>
+<li><strong>libc stubs</strong> (<code>libc_stubs.c</code>) that implement the small subset of POSIX APIs actually called at runtime (shared memory, <code>nanosleep</code>).</li>
+<li><strong>Linker wrapping</strong> (<code>--wrap=load_dictionary</code>, <code>--wrap=unload_dictionary</code>) that redirects dictionary I/O to ESP32-specific flash/partition/embed paths without touching upstream code.</li>
+<li><strong>Warning suppression</strong> — the extensive <code>-Wno-*</code> list silences diagnostics from the legacy C codebase without modifying it.</li>
+</ol>
+<h3 id="esp32-specific-considerations">ESP32-Specific Considerations</h3>
+<ul>
+<li><strong>No dynamic linking</strong> — ESP-IDF uses static linking. <code>BLD_DECTALK_DLL</code> is defined to satisfy API export macros but produces no actual DLL.</li>
+<li><strong>Single TTS instance</strong> — the shared-memory stubs support only one slot, matching the single-instance usage.</li>
+<li><strong>No audio device</strong> — <code>TextToSpeechStartup()</code> is called with <code>DO_NOT_USE_AUDIO_DEVICE</code>; audio reaches the speaker through an in-memory callback (implemented by the firmware application).</li>
+<li><strong>Thread safety</strong> — the speech thread and protocol loop communicate exclusively through a FreeRTOS queue (managed by the firmware application).</li>
+</ul>
+<hr />
+<h2 id="partition-management">Partition Management</h2>
+<p><code>project_include.cmake</code> registers the custom <code>udict</code> partition subtype (<code>0x40</code>) with ESP-IDF and manages dynamic partition table extension when dictionary partitions are enabled.</p>
+<hr />
+<h2 id="references">References</h2>
+<ul>
+<li><a href="README.html">README.md</a> — component overview, Kconfig settings, dictionary storage modes</li>
+<li><a href="../../README.html">Project README</a> — firmware overview and quick-start</li>
+<li><a href="../../BUILD.html">Project BUILD.md</a> — firmware build process, architecture, and build commands</li>
+</ul>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+</body>
+</html>

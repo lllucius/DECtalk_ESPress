@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  Dark-themed Pandoc HTML template for DECtalk ESPress GitHub Pages.
+  Used by the deploy-site and release workflows to convert Markdown to HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress — Build</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --table-alt:   #161b22;
+      --table-head:  #1c2128;
+      --kbd-bg:      #2d333b;
+      --blockquote:  #30363d;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+
+    /* ── Main content area ── */
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--heading);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: none;
+    }
+    h1 { font-size: 1.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.4rem;  padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; }
+    h4 { font-size: 1rem; }
+
+    p { margin-bottom: 1rem; }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    strong { color: var(--heading); font-weight: 600; }
+
+    /* ── Lists ── */
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    li > ul, li > ol { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+
+    /* ── Code ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas,
+                   "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: var(--table-alt); }
+
+    /* ── Blockquotes ── */
+    blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--surface);
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-radius: 0 6px 6px 0;
+    }
+    blockquote p { margin-bottom: 0.5rem; }
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { color: var(--text); }
+
+    /* ── Horizontal rules ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Images ── */
+    img { max-width: 100%; height: auto; border-radius: 6px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+    .footer a { color: var(--link); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 0 1rem 3rem; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.2rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 0.45rem 0.55rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a href="/flasher/">Web Flasher</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
+  </nav>
+
+  <main class="container">
+<!-- SPDX-License-Identifier: MIT -->
+
+<!-- Copyright (c) 2025 Leland Lucius -->
+
+<h1 id="dectalk-espress-firmware--build-process--architecture">DECtalk ESPress Firmware — Build Process &amp; Architecture</h1>
+<p>This document describes the build system, source layout, and internal architecture of the DECtalk ESPress firmware.</p>
+<p>For the DECtalk component build process (dapi source compilation, dictionary cross-compilation, porting notes), see the <a href="components/dectalk/BUILD.html">component BUILD.md</a>.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#prerequisites">Prerequisites</a>
+<ul>
+<li><a href="#installing-esp-idf">Installing ESP-IDF</a></li>
+</ul></li>
+<li><a href="#directory-layout">Directory Layout</a></li>
+<li><a href="#how-the-build-works">How the Build Works</a>
+<ul>
+<li><a href="#1-project-bootstrapping">1. Project Bootstrapping</a></li>
+<li><a href="#2-component-dectalk-the-tts-library">2. Component: <code>dectalk</code> (the TTS library)</a></li>
+<li><a href="#3-component-main-firmware-application">3. Component: <code>main</code> (Firmware Application)</a></li>
+<li><a href="#4-partition-table">4. Partition Table</a></li>
+<li><a href="#5-sdkconfigdefaults">5. <code>sdkconfig.defaults</code></a></li>
+</ul></li>
+<li><a href="#firmware-architecture">Firmware Architecture</a>
+<ul>
+<li><a href="#thread-model">Thread Model</a></li>
+<li><a href="#data-flow">Data Flow</a></li>
+<li><a href="#tts-in-memory-mode">TTS In-Memory Mode</a></li>
+<li><a href="#usb-cdc-transport">USB CDC Transport</a></li>
+<li><a href="#dictionary-loading">Dictionary Loading</a></li>
+<li><a href="#flow-control">Flow Control</a></li>
+<li><a href="#idle-flush">Idle Flush</a></li>
+</ul></li>
+<li><a href="#build-commands-reference">Build Commands Reference</a>
+<ul>
+<li><a href="#changing-language">Changing Language</a></li>
+<li><a href="#changing-dictionary-storage-mode">Changing Dictionary Storage Mode</a></li>
+</ul></li>
+<li><a href="#porting-notes">Porting Notes</a></li>
+</ul>
+<hr />
+<h2 id="prerequisites">Prerequisites</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Requirement</th>
+<th>Version</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>ESP-IDF</strong></td>
+<td>v5.5+ (tested with v5.5.2)</td>
+<td>The <code>sdkconfig.defaults</code> header references ESP-IDF 5.5.2</td>
+</tr>
+<tr class="even">
+<td><strong>Python</strong></td>
+<td>3.8+</td>
+<td>Required by ESP-IDF tools</td>
+</tr>
+<tr class="odd">
+<td><strong>Host C compiler</strong></td>
+<td><code>cc</code> or <code>gcc</code></td>
+<td>Used at build time to compile the dictionary compiler that runs on the host</td>
+</tr>
+<tr class="even">
+<td><strong>CMake</strong></td>
+<td>3.5+</td>
+<td>Bundled with ESP-IDF</td>
+</tr>
+<tr class="odd">
+<td><strong>Ninja</strong></td>
+<td>any</td>
+<td>Bundled with ESP-IDF</td>
+</tr>
+</tbody>
+</table>
+<h3 id="installing-esp-idf">Installing ESP-IDF</h3>
+<h4 id="linux--macos">Linux / macOS</h4>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install system dependencies (Ubuntu/Debian)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> apt-get install git wget flex bison gperf python3 python3-pip <span class="dt">\</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    python3-venv cmake ninja-build ccache libffi-dev libssl-dev <span class="dt">\</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    dfu-util libusb-1.0-0</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Clone ESP-IDF</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/esp <span class="kw">&amp;&amp;</span> <span class="bu">cd</span> ~/esp</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="at">--recursive</span> https://github.com/espressif/esp-idf.git</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> esp-idf</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout v5.5.2   <span class="co"># or latest stable release</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Install toolchains (ESP32-S3 target)</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> esp32s3</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Activate the environment (run in every new shell, or add to .bashrc)</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span></code></pre></div>
+<h4 id="windows">Windows</h4>
+<p>Use the <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/windows-setup.html">ESP-IDF Windows Installer</a> which bundles Git, Python, CMake, Ninja, and the Xtensa/RISC-V toolchains.</p>
+<hr />
+<h2 id="directory-layout">Directory Layout</h2>
+<pre><code>DECtalk_ESPress/
+├── CMakeLists.txt                  # Top-level ESP-IDF project file
+├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
+├── partitions.csv                  # Custom partition table
+├── BUILD.md                        # ← this file (firmware build &amp; architecture)
+├── README.md                       # Firmware overview and quick-start
+│
+├── components/
+│   └── dectalk/                    # ESP-IDF component wrapping the upstream dapi library
+│       ├── CMakeLists.txt          # Compiles all dapi sources + local stubs; builds dictionary
+│       ├── Kconfig.projbuild       # menuconfig: language, dict storage, source path (DECtalk menu)
+│       ├── README.md               # Component overview, Kconfig settings, dictionary modes
+│       ├── BUILD.md                # Component build process, dapi compilation, porting notes
+│       ├── project_include.cmake   # Registers custom partition subtypes; manages partition CSV
+│       ├── include/
+│       │   ├── config.h            # Maps Kconfig DECTALK_DICT_ROOT → DECTALK_INSTALL_PREFIX
+│       │   └── sys/
+│       │       ├── ipc.h           # Minimal IPC_CREAT / IPC_RMID stubs
+│       │       ├── mman.h          # mmap/munmap prototypes + MAP_FAILED constant
+│       │       └── shm.h           # shmget/shmat/shmdt/shmctl prototypes
+│       └── src/
+│           ├── libc_stubs.c        # shmget/shmat/shmdt/shmctl, nanosleep, readlink, dirname
+│           └── loaddict_wrappers.c # __wrap_load_dictionary / __wrap_unload_dictionary
+│
+├── main/                           # Main application component
+│   ├── CMakeLists.txt              # Registers main sources; depends on dectalk, driver, pthread…
+│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC, diagnostics (ESPress menu)
+│   ├── idf_component.yml           # IDF component manager dep: espressif/esp_tinyusb ≥ 2.0.0
+│   ├── dectalk_espress.c           # Entry point (app_main), I2S init, threads, ESPress protocol
+│   ├── dectalk_espress.h           # Protocol constants, DLE encode/decode, public API
+│   ├── usb_cdc_transport.c         # USB CDC-ACM transport layer (TinyUSB wrapper)
+│   ├── usb_cdc_transport.h         # Transport API: init, read, write, connected, reconnect
+│   ├── diag_mem.c                  # Optional heap/stack diagnostics task
+│   └── diag_mem.h                  # Diagnostics API
+│
+└── host/                           # Python host-side tools
+    ├── README.md                   # Host tools documentation
+    ├── dectalk_serial.py           # DECtalkESPressSerial class (serial protocol API)
+    └── dectalk_espress_gui.py      # Tkinter GUI for voice control, status, pause/resume</code></pre>
+<hr />
+<h2 id="how-the-build-works">How the Build Works</h2>
+<h3 id="1-project-bootstrapping">1. Project Bootstrapping</h3>
+<p><code>CMakeLists.txt</code> is a minimal ESP-IDF project file:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode cmake"><code class="sourceCode cmake"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">cmake_minimum_required</span>(<span class="ot">VERSION</span> <span class="dt">3.5</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">include</span>(<span class="fl">$ENV{IDF_PATH}</span>/tools/cmake/project.cmake)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">project</span>(dectalk_espress)</span></code></pre></div>
+<p>ESP-IDF discovers the <code>components/dectalk/</code> and <code>main/</code> components automatically.</p>
+<h3 id="2-component-dectalk-the-tts-library">2. Component: <code>dectalk</code> (the TTS library)</h3>
+<p>The DECtalk component handles source resolution, language selection, dictionary cross-compilation, and dapi library compilation. For full details see the <a href="components/dectalk/BUILD.html">component BUILD.md</a>.</p>
+<h3 id="3-component-main-firmware-application">3. Component: <code>main</code> (Firmware Application)</h3>
+<p>The <code>main/</code> component contains the application logic:</p>
+<table>
+<thead>
+<tr class="header">
+<th>File</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>dectalk_espress.c</code></td>
+<td>Entry point (<code>app_main</code>), I2S initialisation, thread creation, ESPress protocol loop, speech task, TTS callback</td>
+</tr>
+<tr class="even">
+<td><code>usb_cdc_transport.c</code></td>
+<td>TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection</td>
+</tr>
+<tr class="odd">
+<td><code>diag_mem.c</code></td>
+<td>Optional diagnostic task enabled from <code>idf.py menuconfig</code> that logs stack HWM and heap stats every 10 s</td>
+</tr>
+</tbody>
+</table>
+<p>Dependencies declared in <code>CMakeLists.txt</code>:</p>
+<ul>
+<li><code>dectalk</code> — the TTS library component</li>
+<li><code>driver</code> — ESP-IDF I2S driver</li>
+<li><code>pthread</code> — POSIX threading</li>
+<li><code>spiffs</code> — SPIFFS file system (for dictionary-from-filesystem mode)</li>
+<li><code>esp_timer</code> — High-resolution timer</li>
+</ul>
+<p>External dependency via <code>idf_component.yml</code>:</p>
+<ul>
+<li><code>espressif/esp_tinyusb ≥ 2.0.0</code> — TinyUSB CDC-ACM for native USB</li>
+</ul>
+<h3 id="4-partition-table">4. Partition Table</h3>
+<p><code>partitions.csv</code> defines a custom layout:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Type</th>
+<th>SubType</th>
+<th>Size</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>nvs</code></td>
+<td>data</td>
+<td>nvs</td>
+<td>24 KB</td>
+<td>Non-volatile storage</td>
+</tr>
+<tr class="even">
+<td><code>phy_init</code></td>
+<td>data</td>
+<td>phy</td>
+<td>4 KB</td>
+<td>PHY calibration data</td>
+</tr>
+<tr class="odd">
+<td><code>factory</code></td>
+<td>app</td>
+<td>factory</td>
+<td>2 MB</td>
+<td>Application firmware</td>
+</tr>
+</tbody>
+</table>
+<p>Additional partitions can be added for dictionary storage:</p>
+<ul>
+<li>A <code>udict</code> data partition (subtype <code>0x40</code>) when using partition-based dictionary storage — this can be created automatically via <code>CONFIG_DECTALK_AUTOCREATE_PARTITIONS</code>.</li>
+<li>A <code>storage</code> SPIFFS partition when using file-system-based dictionary loading (commented out by default).</li>
+</ul>
+<p>The <code>project_include.cmake</code> file registers the custom <code>udict</code> subtype (<code>0x40</code>) with ESP-IDF and manages dynamic partition table extension.</p>
+<h3 id="5-sdkconfigdefaults">5. <code>sdkconfig.defaults</code></h3>
+<p>Key settings baked into the default configuration:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th>Value</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CONFIG_IDF_TARGET</code></td>
+<td><code>esp32s3</code></td>
+<td>Target SoC</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESPTOOLPY_FLASHSIZE_8MB</code></td>
+<td><code>y</code></td>
+<td>8 MB flash for firmware + dictionary</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_SPIRAM</code></td>
+<td><code>y</code></td>
+<td>Enable PSRAM</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_SPIRAM_MODE_OCT</code></td>
+<td><code>y</code></td>
+<td>Octal SPI PSRAM</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_SPIRAM_SPEED_80M</code></td>
+<td><code>y</code></td>
+<td>80 MHz PSRAM clock</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240</code></td>
+<td><code>y</code></td>
+<td>Maximum CPU clock for synthesis performance</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_ESP_CONSOLE_UART_DEFAULT</code></td>
+<td><code>y</code></td>
+<td>Console/ESP_LOG on UART0 (not USB)</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESP_CONSOLE_SECONDARY_NONE</code></td>
+<td><code>y</code></td>
+<td>No secondary console</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_ESP_TASK_WDT_EN</code></td>
+<td><code>n</code></td>
+<td>Task watchdog disabled (speech synthesis is CPU-intensive)</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS</code></td>
+<td><code>y</code></td>
+<td>Hard-fail on OOM for easier debugging</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT</code></td>
+<td><code>8192</code></td>
+<td>Default pthread stack (8 KB)</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_TINYUSB_CDC_ENABLED</code></td>
+<td><code>y</code></td>
+<td>Enable TinyUSB CDC-ACM for host protocol</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_PARTITION_TABLE_CUSTOM</code></td>
+<td><code>y</code></td>
+<td>Use the project's <code>partitions.csv</code></td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT</code></td>
+<td><code>y</code></td>
+<td>Print backtrace and halt on panic</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="firmware-architecture">Firmware Architecture</h2>
+<h3 id="thread-model">Thread Model</h3>
+<p><code>app_main()</code> creates two pthreads and then returns (freeing the default FreeRTOS task):</p>
+<table>
+<thead>
+<tr class="header">
+<th>Thread</th>
+<th>Core</th>
+<th>Stack</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>speech_thread</code></td>
+<td>CPU 1 (configurable)</td>
+<td>default (8 KB)</td>
+<td>Dequeues text from <code>speech_queue</code>, calls <code>TextToSpeechSpeak()</code> + <code>Sync()</code></td>
+</tr>
+<tr class="even">
+<td><code>main_thread</code></td>
+<td>any</td>
+<td>12 KB (configurable)</td>
+<td>Runs the ESPress protocol loop: USB CDC reads, DLE state machine, flow control</td>
+</tr>
+</tbody>
+</table>
+<p>CPU pinning is important: the speech synthesis in <code>TextToSpeechSpeak()</code> is compute-intensive and does not yield to the scheduler. Pinning it to CPU 1 keeps CPU 0 free so the IDLE0 task can service the Task Watchdog Timer (even though the watchdog is disabled in the defaults, this is defensive).</p>
+<h3 id="data-flow">Data Flow</h3>
+<pre><code>  Host (PC)                         ESP32-S3
+  ─────────                         ────────
+  Serial terminal / GUI             USB CDC-ACM
+       │                                │
+       │  ASCII text, control chars     │
+       │  DLE command sequences         │
+       ├───────────────────────────────►│
+       │                                ▼
+       │                         main_thread (protocol loop)
+       │                           ├── DLE state machine
+       │                           ├── Control char handlers
+       │                           ├── Text accumulation buffer
+       │                           └── XON/XOFF flow control
+       │                                │
+       │                                │ strdup&#39;d text chunks
+       │                                ▼
+       │                         speech_queue (FreeRTOS queue)
+       │                                │
+       │                                ▼
+       │                         speech_thread
+       │                           ├── TextToSpeechSpeak()
+       │                           ├── TextToSpeechSync()
+       │                           └── Flush / drain
+       │                                │
+       │                                │ TTS_MSG_BUFFER callback
+       │                                ▼
+       │                         espress_tts_callback()
+       │                           ├── Audio samples → I2S DMA
+       │                           └── Index markers → DLE INDEX
+       │                                │
+       │  DLE STATUS, INDEX, XON/XOFF   │
+       │◄───────────────────────────────┤
+       │                                │
+       │                                ▼
+       │                         I2S peripheral → DAC → speaker</code></pre>
+<h3 id="tts-in-memory-mode">TTS In-Memory Mode</h3>
+<p>The firmware uses <code>TextToSpeechOpenInMemory()</code> with three rotating audio buffers (16 KB each, 8192 16-bit samples per buffer). Each buffer also carries up to 8 index-mark slots. When a buffer is filled, the <code>espress_tts_callback()</code> is invoked with <code>TTS_MSG_BUFFER</code>:</p>
+<ol type="1">
+<li>Any embedded index marks are extracted and sent to the host as DLE INDEX sequences.</li>
+<li>Audio samples are written to the I2S DMA ring buffer via <code>i2s_channel_write()</code>.</li>
+<li>If speech is paused (SO received), samples are zeroed before writing.</li>
+<li>The buffer is reset and re-queued with <code>TextToSpeechAddBuffer()</code>.</li>
+</ol>
+<h3 id="usb-cdc-transport">USB CDC Transport</h3>
+<p><code>usb_cdc_transport.c</code> wraps the <code>espressif/esp_tinyusb</code> CDC-ACM interface:</p>
+<ul>
+<li><strong>RX path:</strong> A TinyUSB callback drains 64-byte USB bulk packets into a FreeRTOS stream buffer (default 4 KB). The protocol loop calls <code>usb_cdc_transport_read()</code> which blocks on the stream buffer with a configurable timeout.</li>
+<li><strong>TX path:</strong> <code>usb_cdc_transport_write()</code> queues data via <code>tinyusb_cdcacm_write_queue()</code> and flushes with a 50 ms timeout. Writes are silently dropped when no host is connected (<code>cdc_connected == false</code>).</li>
+<li><strong>Connection tracking:</strong> The line-state callback monitors DTR. When DTR transitions low→high (host opens the port), a reconnection counter is incremented. The protocol loop polls <code>usb_cdc_transport_check_reconnected()</code> each iteration and resets all protocol state on reconnection.</li>
+<li><strong>Initial boot:</strong> <code>cdc_had_disconnect</code> starts as <code>true</code> so the first host connection after power-on is treated as a reconnection, triggering XON.</li>
+</ul>
+<h3 id="dictionary-loading">Dictionary Loading</h3>
+<p>Dictionary loading is handled by the DECtalk component. See the <a href="components/dectalk/README.html">component README</a> for dictionary storage modes and the <a href="components/dectalk/BUILD.html">component BUILD.md</a> for the dictionary build pipeline and <code>__wrap_load_dictionary()</code> implementation.</p>
+<h3 id="flow-control">Flow Control</h3>
+<p>The protocol loop implements two-tier XON/XOFF flow control:</p>
+<ol type="1">
+<li><strong>Text buffer level</strong> — XOFF at 2/3 full, XON at 1/3 full.</li>
+<li><strong>Speech queue depth</strong> — XOFF at 3/4 full, XON at 1/4 full.</li>
+</ol>
+<p>XOFF is sent when <em>either</em> threshold is exceeded (aggressive). XON requires <em>both</em> to be below their respective thresholds (conservative) to prevent rapid oscillation.</p>
+<h3 id="idle-flush">Idle Flush</h3>
+<p>If no new characters arrive for <code>CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS</code> (default 200 ms), any buffered text is automatically flushed to the speech queue. This handles the case where the host sends text without a trailing CR.</p>
+<hr />
+<h2 id="build-commands-reference">Build Commands Reference</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Full clean build</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> fullclean <span class="kw">&amp;&amp;</span> <span class="ex">idf.py</span> build</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Build only</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash (replace /dev/ttyUSB0 with your UART port)</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash dictionary partition separately (when using partition mode)</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 udict-flash</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Monitor console output (UART0)</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Open menuconfig</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Set target (only needed once, or after fullclean)</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32s3</span></code></pre></div>
+<h3 id="changing-language">Changing Language</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → DECtalk Language</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Select desired language, save, exit</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span></code></pre></div>
+<p>See the <a href="components/dectalk/README.html">component README</a> for supported languages and compile definitions.</p>
+<h3 id="changing-dictionary-storage-mode">Changing Dictionary Storage Mode</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → Dictionary location</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose: Embedded in firmware / Dedicated partition / File system</span></span></code></pre></div>
+<p>See the <a href="components/dectalk/README.html">component README</a> for detailed descriptions of each storage mode and its sub-options.</p>
+<hr />
+<h2 id="porting-notes">Porting Notes</h2>
+<p>For details on how the upstream dapi library was adapted for ESP32 (compile definitions, header shims, libc stubs, linker wrapping, warning suppression), see the <a href="components/dectalk/BUILD.html">component BUILD.md</a>.</p>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+</body>
+</html>
