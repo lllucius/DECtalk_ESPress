@@ -222,7 +222,19 @@ int __wrap_load_dictionary(void **dict_index,
 
 #if defined(CONFIG_DECTALK_DICT_EMBED)
 
-    extern const uint8_t dtalk_dict[] asm("_binary_dtalk_us_dic_start");
+    // Build the linker symbol for the embedded dictionary binary.
+    // ESP-IDF's EMBED_FILES generates symbols named
+    //   _binary_<filename_with_dots_as_underscores>_start
+    // The dictionary file is dtalk_<LANG_CODE>.dic, so the symbol is
+    //   _binary_dtalk_<LANG_CODE>_dic_start
+    // LANG_CODE is set by CMake as a compile definition (us, uk, sp, ...).
+#define _DIC_PASTE(a, b, c) a ## b ## c
+#define _DIC_SYM(lang)      _DIC_PASTE(_binary_dtalk_, lang, _dic_start)
+#define _DIC_STR2(x)        #x
+#define _DIC_STR(x)         _DIC_STR2(x)
+#define DIC_SYMBOL_NAME     _DIC_STR(_DIC_SYM(LANG_CODE))
+
+    extern const uint8_t dtalk_dict[] asm(DIC_SYMBOL_NAME);
     dict_mem = (S32 *) dtalk_dict;
 
 #elif defined(CONFIG_DECTALK_DICT_PART)
