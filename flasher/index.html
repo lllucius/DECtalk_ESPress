@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  DECtalk ESPress Web Flasher
+  Uses esptool-js to flash application or dictionary partitions via Web Serial API.
+  Requires Chrome or Edge 89+.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress Web Flasher</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --surface: #282840;
+      --border: #444;
+      --text: #e0e0e0;
+      --accent: #6c9ef8;
+      --accent-hover: #5580d0;
+      --danger: #e05555;
+      --success: #55c055;
+      --muted: #888;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1rem 1.25rem;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .instructions {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 0.85rem;
+      margin-bottom: 0.75rem;
+      max-width: 640px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .instructions ol {
+      margin: 0.25rem 0 0.25rem 1.25rem;
+      padding: 0;
+    }
+
+    .instructions li {
+      margin-bottom: 0.1rem;
+    }
+
+    .instructions a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .instructions a:hover {
+      text-decoration: underline;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.6rem;
+      max-width: 640px;
+    }
+
+    .panel h2 {
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+      color: var(--accent);
+    }
+
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .form-row:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-size: 0.8rem;
+      min-width: 70px;
+    }
+
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.8rem;
+      min-width: 180px;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .file-name {
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: #c04040;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    #status {
+      font-size: 0.8rem;
+      padding: 0.3rem 0;
+      min-height: 1.3rem;
+    }
+
+    .status-connected {
+      color: var(--success);
+    }
+
+    .status-disconnected {
+      color: var(--muted);
+    }
+
+    .status-error {
+      color: var(--danger);
+    }
+
+    .status-busy {
+      color: #e0c050;
+    }
+
+    #log-container {
+      max-width: 640px;
+    }
+
+    #log-container h2 {
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #log-container h2 button {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+    }
+
+    #log {
+      background: #111;
+      color: #0f0;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 0.75rem;
+      padding: 0.6rem;
+      border-radius: 6px;
+      height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid var(--border);
+      line-height: 1.4;
+    }
+
+    .progress-bar-container {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 18px;
+      margin-top: 0.4rem;
+      overflow: hidden;
+      display: none;
+      max-width: 640px;
+    }
+
+    .progress-bar {
+      background: var(--accent);
+      height: 100%;
+      width: 0%;
+      transition: width 0.2s;
+      text-align: center;
+      font-size: 0.65rem;
+      line-height: 18px;
+      color: #fff;
+    }
+
+    button.compact {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.8rem;
+      min-width: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔌 DECtalk ESPress Web Flasher</h1>
+  <p class="subtitle">Flash firmware via USB serial — requires Chrome or Edge 89+</p>
+
+  <!-- Instructions -->
+  <div class="instructions">
+    <ol>
+      <li>Connect your ESP32-S3 board via USB and click <strong>Connect</strong>.</li>
+      <li>Select a <strong>Release</strong> and <strong>Language</strong>, then click <strong>Flash Firmware</strong>.</li>
+      <li>Alternatively, click <strong>Flash from File…</strong> to flash a previously downloaded release archive.</li>
+    </ol>
+    <span>For more info, see the <a href="https://github.com/lllucius/DECtalk_ESPress#readme" target="_blank" rel="noopener noreferrer">README</a>.</span>
+  </div>
+
+  <!-- Connection -->
+  <div class="panel">
+    <h2>Connection</h2>
+    <div class="form-row">
+      <div class="btn-group">
+        <button id="btn-connect">Connect</button>
+        <button id="btn-disconnect" class="danger" disabled>Disconnect</button>
+      </div>
+    </div>
+    <div id="status" class="status-disconnected">Not connected</div>
+  </div>
+
+  <!-- Flash from Release -->
+  <div class="panel">
+    <h2>Flash from Release</h2>
+    <div class="form-row">
+      <label for="release">Release:</label>
+      <select id="release">
+        <option value="">(loading releases…)</option>
+      </select>
+      <button id="btn-refresh-releases" class="compact" title="Refresh releases">↻</button>
+    </div>
+    <div class="form-row">
+      <label for="language">Language:</label>
+      <select id="language">
+        <option value="us">US English</option>
+        <option value="uk">UK English</option>
+        <option value="sp">Spanish</option>
+        <option value="gr">German</option>
+        <option value="la">Latin American Spanish</option>
+        <option value="fr">French</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="btn-group">
+        <button id="btn-flash-release" disabled>Flash Firmware</button>
+        <button id="btn-flash-from-file" disabled>Flash from File…</button>
+        <input type="file" id="file-input" accept=".tar.gz,.tgz,.bin">
+      </div>
+      <span class="file-name" id="file-name"></span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-bar-container" id="progress-container">
+    <div class="progress-bar" id="progress-bar">0%</div>
+  </div>
+
+  <!-- Log -->
+  <div id="log-container">
+    <h2>Log <button id="btn-clear-log">Clear</button></h2>
+    <div id="log"></div>
+  </div>
+
+  <!-- esptool-js v0.6.0 uses ES module format -->
+  <script type="module">
+    import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.0/bundle.js";
+
+    // ── GitHub release configuration ──
+    const GITHUB_OWNER = "lllucius";
+    const GITHUB_REPO  = "DECtalk_ESPress";
+
+    // GitHub Pages base URL for CORS-friendly firmware downloads.
+    // GitHub's release-asset CDN does not return Access-Control-Allow-Origin
+    // headers, so browsers block direct fetch() calls.  GitHub Pages, on the
+    // other hand, serves every response with Access-Control-Allow-Origin: *.
+    const FIRMWARE_BASE_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/firmware`;
+
+    // ESP32-S3 flash addresses (fixed for this project's partition layout)
+    const RELEASE_FLASH_PARTS = [
+      { name: "bootloader",      suffix: "-bootloader.bin",      offset: 0x0 },
+      { name: "partition-table",  suffix: "-partition-table.bin", offset: 0x8000 },
+      { name: "application",     suffix: "-app.bin",             offset: 0x10000 },
+    ];
+
+    // File patterns for matching files inside a release tar archive
+    const TAR_FLASH_PARTS = [
+      { pattern: /\/bootloader\/bootloader\.bin$/,         offset: 0x0,     name: "bootloader" },
+      { pattern: /\/partition_table\/partition-table\.bin$/,offset: 0x8000,  name: "partition-table" },
+      { pattern: /\/dectalk_espress\.bin$/,                offset: 0x10000, name: "application" },
+    ];
+
+    // ── DOM refs ──
+    const elBtnConnect      = document.getElementById("btn-connect");
+    const elBtnDisconnect   = document.getElementById("btn-disconnect");
+    const elBtnClearLog     = document.getElementById("btn-clear-log");
+    const elStatus          = document.getElementById("status");
+    const elLog             = document.getElementById("log");
+    const elProgressCont    = document.getElementById("progress-container");
+    const elProgressBar     = document.getElementById("progress-bar");
+
+    // Release-flash DOM refs
+    const elRelease         = document.getElementById("release");
+    const elLanguage        = document.getElementById("language");
+    const elBtnFlashRelease = document.getElementById("btn-flash-release");
+    const elBtnRefresh      = document.getElementById("btn-refresh-releases");
+    const elBtnFlashFromFile = document.getElementById("btn-flash-from-file");
+    const elFileInput       = document.getElementById("file-input");
+    const elFileName        = document.getElementById("file-name");
+
+    // ── State ──
+    let port      = null;
+    let transport = null;
+    let esploader = null;
+    let chipName  = null;
+    let flashing  = false;
+
+    /**
+     * Tear down any open transport / port so the serial device is released.
+     * Safe to call even when nothing is open.
+     */
+    async function cleanupConnection() {
+      const t = transport;
+      const p = port;
+
+      esploader  = null;
+      transport  = null;
+      port       = null;
+      chipName   = null;
+
+      if (t) {
+        try { await t.disconnect(); } catch (_) { /* best-effort */ }
+      }
+      // Fallback: close the port directly in case transport.disconnect()
+      // didn't fully release it (e.g. connection failed mid-handshake).
+      if (p) {
+        try { await p.close(); } catch (_) { /* may already be closed */ }
+      }
+    }
+
+    // ── Logging ──
+    function log(msg) {
+      const ts = new Date().toLocaleTimeString();
+      appendLog(`[${ts}] ${msg}\n`);
+    }
+
+    const MAX_LOG_LINES = 2000;
+
+    function appendLog(text) {
+      elLog.textContent += text;
+      // Trim log if it gets too large
+      const lines = elLog.textContent.split("\n");
+      if (lines.length > MAX_LOG_LINES) {
+        elLog.textContent = lines.slice(-MAX_LOG_LINES).join("\n");
+      }
+      elLog.scrollTop = elLog.scrollHeight;
+    }
+
+    // Terminal interface for esptool-js
+    const terminal = {
+      clean()          { /* keep log history */ },
+      writeLine(data)  { appendLog(data + "\n"); },
+      write(data)      { appendLog(data); },
+    };
+
+    // ── Status helpers ──
+    function setStatus(text, cls) {
+      elStatus.textContent = text;
+      elStatus.className = cls;
+    }
+
+    // ── UI state ──
+    function updateUI() {
+      const connected  = esploader !== null;
+      const hasRelease = elRelease.value !== "";
+
+      elBtnConnect.disabled      = connected || flashing;
+      elBtnDisconnect.disabled   = !connected || flashing;
+
+      // Release flash controls
+      elBtnFlashRelease.disabled  = !connected || !hasRelease || flashing;
+      elBtnFlashFromFile.disabled = !connected || flashing;
+      elRelease.disabled          = flashing;
+      elLanguage.disabled         = flashing;
+      elBtnRefresh.disabled       = flashing;
+    }
+
+    // ── Browser support check ──
+    function isWebSerialSupported() {
+      return "serial" in navigator;
+    }
+
+    // ── Connect ──
+    elBtnConnect.addEventListener("click", async () => {
+      if (!isWebSerialSupported()) {
+        log("Web Serial API is not supported in this browser. Use Chrome or Edge 89+.");
+        setStatus("Browser not supported", "status-error");
+        return;
+      }
+
+      try {
+        // Release any previous connection so the port is not locked
+        await cleanupConnection();
+
+        log("Requesting serial port...");
+        port = await navigator.serial.requestPort();
+        log("Serial port selected");
+
+        transport = new Transport(port, true);
+        log("Transport created, connecting to ESP...");
+        setStatus("Connecting…", "status-busy");
+
+        const loaderOptions = {
+          transport: transport,
+          baudrate: 115200,
+          terminal: terminal,
+          debugLogging: false,
+        };
+
+        esploader = new ESPLoader(loaderOptions);
+        chipName = await esploader.main();
+
+        log(`Connected: ${chipName}`);
+        setStatus(`Connected: ${chipName}`, "status-connected");
+
+        updateUI();
+      } catch (err) {
+        log(`Connection failed: ${err.message}`);
+        if (err.message && err.message.includes("Failed to open")) {
+          log("Hint: The port may be in use by another application. " +
+              "Close any open serial terminals and try again.");
+        }
+        setStatus("Connection failed", "status-error");
+        await cleanupConnection();
+        updateUI();
+      }
+    });
+
+    // ── Disconnect ──
+    elBtnDisconnect.addEventListener("click", async () => {
+      log("Disconnecting...");
+      await cleanupConnection();
+      setStatus("Disconnected", "status-disconnected");
+      updateUI();
+      log("Disconnected");
+    });
+
+    // ── Clear log ──
+    elBtnClearLog.addEventListener("click", () => {
+      elLog.textContent = "";
+    });
+
+    // ── Flash helper ──
+    async function flashImages(fileArray) {
+      flashing = true;
+      updateUI();
+      setStatus("Flashing…", "status-busy");
+      elProgressCont.style.display = "block";
+      elProgressBar.style.width = "0%";
+      elProgressBar.textContent = "0%";
+
+      try {
+        log(`Flashing ${fileArray.length} image(s)…`);
+
+        const flashOptions = {
+          fileArray,
+          flashSize: "keep",
+          flashMode: "keep",
+          flashFreq: "keep",
+          eraseAll: false,
+          compress: true,
+          reportProgress: (fileIndex, written, total) => {
+            const pct = Math.round((written / total) * 100);
+            elProgressBar.style.width = pct + "%";
+            elProgressBar.textContent = pct + "%";
+          },
+        };
+
+        await esploader.writeFlash(flashOptions);
+
+        log("Flash complete!");
+        setStatus(`Flash complete — ${chipName}`, "status-connected");
+        elProgressBar.style.width = "100%";
+        elProgressBar.textContent = "100%";
+      } catch (err) {
+        log(`Flash failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+      } finally {
+        flashing = false;
+        updateUI();
+      }
+    }
+
+    // ── Release fetching ──
+    let releases = [];
+
+    /**
+     * Fetch available releases from the GitHub API and populate the dropdown.
+     */
+    async function fetchReleases() {
+      try {
+        elRelease.innerHTML = '<option value="">(loading releases…)</option>';
+        const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          if (resp.status === 403) {
+            throw new Error("GitHub API rate limit reached — try again later");
+          }
+          throw new Error(`HTTP ${resp.status}`);
+        }
+        releases = await resp.json();
+        populateReleaseDropdown();
+        log(`Loaded ${releases.length} release(s) from GitHub`);
+      } catch (err) {
+        log(`Failed to fetch releases: ${err.message}`);
+        elRelease.innerHTML = '<option value="">(failed to load releases)</option>';
+      }
+      updateUI();
+    }
+
+    function populateReleaseDropdown() {
+      elRelease.innerHTML = "";
+      // Filter to releases that have assets (i.e. completed builds)
+      const available = releases.filter(r => r.assets && r.assets.length > 0);
+      if (available.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "(no releases with firmware found)";
+        elRelease.appendChild(opt);
+        return;
+      }
+      for (const release of available) {
+        const opt = document.createElement("option");
+        opt.value = release.tag_name;
+        const label = release.name && release.name !== release.tag_name
+          ? `${release.tag_name} — ${release.name}`
+          : release.tag_name;
+        opt.textContent = label;
+        elRelease.appendChild(opt);
+      }
+    }
+
+    elBtnRefresh.addEventListener("click", () => fetchReleases());
+
+    // ── Flash from release (download) ──
+
+    /**
+     * Download a single firmware binary from GitHub Pages.
+     * GitHub Pages serves with Access-Control-Allow-Origin: *, so this
+     * avoids the CORS issues that occur when fetching from the GitHub
+     * release-asset CDN (which has no CORS headers).
+     */
+    async function downloadAsset(tagName, fileName) {
+      log(`Downloading ${fileName}…`);
+      const url = `${FIRMWARE_BASE_URL}/${tagName}/${fileName}`;
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          throw new Error(
+            `${fileName} not found on GitHub Pages. ` +
+            `This release may not be available for web flashing yet. ` +
+            `Use "Flash from File…" with a downloaded release archive instead.`
+          );
+        }
+        throw new Error(`Failed to download ${fileName}: HTTP ${resp.status}`);
+      }
+      const buf = await resp.arrayBuffer();
+      log(`Downloaded ${fileName}: ${buf.byteLength} bytes`);
+      return new Uint8Array(buf);
+    }
+
+    elBtnFlashRelease.addEventListener("click", async () => {
+      if (!esploader) return;
+
+      const tagName  = elRelease.value;
+      const langCode = elLanguage.value;
+      if (!tagName || !langCode) {
+        log("Please select a release and language");
+        return;
+      }
+
+      flashing = true;
+      updateUI();
+      setStatus("Downloading firmware…", "status-busy");
+      elProgressCont.style.display = "block";
+      elProgressBar.style.width = "0%";
+      elProgressBar.textContent = "0%";
+
+      try {
+        // Download all required bin files
+        log(`Preparing ${tagName} / ${langCode}…`);
+        const fileArray = [];
+        for (const part of RELEASE_FLASH_PARTS) {
+          const assetName = `dectalk-espress-${langCode}${part.suffix}`;
+          const data = await downloadAsset(tagName, assetName);
+          fileArray.push({ data, address: part.offset });
+        }
+
+        // Flash all files
+        await flashImages(fileArray);
+      } catch (err) {
+        log(`Flash failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+        flashing = false;
+        updateUI();
+      }
+    });
+
+    // ── Flash from local file (browse for previously downloaded release) ──
+
+    /**
+     * Extract files from a tar archive (uncompressed).
+     * @param {Uint8Array} data  Raw tar bytes
+     * @returns {Array<{name: string, data: Uint8Array}>}
+     */
+    function parseTar(data) {
+      const files = [];
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      let offset = 0;
+
+      while (offset + 512 <= data.length) {
+        // Check for end-of-archive (all-zero block)
+        let allZero = true;
+        for (let i = 0; i < 512; i++) {
+          if (data[offset + i] !== 0) { allZero = false; break; }
+        }
+        if (allZero) break;
+
+        // Extract filename (bytes 0–99, null-terminated)
+        let name = "";
+        for (let i = 0; i < 100 && data[offset + i] !== 0; i++) {
+          name += String.fromCharCode(data[offset + i]);
+        }
+
+        // USTAR prefix (bytes 345–499) extends the filename
+        const ustarMagic = String.fromCharCode(...data.slice(offset + 257, offset + 262));
+        if (ustarMagic === "ustar") {
+          let prefix = "";
+          for (let i = 345; i < 500 && data[offset + i] !== 0; i++) {
+            prefix += String.fromCharCode(data[offset + i]);
+          }
+          if (prefix) name = prefix + "/" + name;
+        }
+
+        // File type (byte 156): '0' or '\0' = regular file
+        const typeFlag = data[offset + 156];
+
+        // File size in octal (bytes 124–135)
+        let sizeStr = "";
+        for (let i = 124; i < 136 && data[offset + i] !== 0; i++) {
+          sizeStr += String.fromCharCode(data[offset + i]);
+        }
+        const size = parseInt(sizeStr.trim(), 8) || 0;
+
+        offset += 512; // skip header
+
+        if ((typeFlag === 0x30 || typeFlag === 0) && size > 0) {
+          files.push({ name, data: data.slice(offset, offset + size) });
+        }
+
+        // Advance past file data (padded to 512-byte blocks)
+        offset += Math.ceil(size / 512) * 512;
+      }
+
+      return files;
+    }
+
+    /**
+     * Decompress a gzip blob and parse the inner tar archive.
+     * @param {ArrayBuffer} arrayBuffer  Raw .tar.gz bytes
+     * @returns {Promise<Array<{name: string, data: Uint8Array}>>}
+     */
+    async function extractTarGz(arrayBuffer) {
+      const ds = new DecompressionStream("gzip");
+      const stream = new Blob([arrayBuffer]).stream().pipeThrough(ds);
+      const decompressed = await new Response(stream).arrayBuffer();
+      return parseTar(new Uint8Array(decompressed));
+    }
+
+    /**
+     * Match extracted tar files to the flash parts we need.
+     * @param {Array<{name: string, data: Uint8Array}>} tarFiles
+     * @returns {Array<{data: Uint8Array, address: number}>}
+     */
+    function matchFlashParts(tarFiles) {
+      const fileArray = [];
+
+      for (const part of TAR_FLASH_PARTS) {
+        const match = tarFiles.find(f => part.pattern.test(f.name));
+        if (!match) {
+          throw new Error(`Required file not found in archive: ${part.name}`);
+        }
+        log(`  ${part.name}: ${match.name} (${match.data.length} bytes)`);
+        fileArray.push({ data: match.data, address: part.offset });
+      }
+
+      return fileArray;
+    }
+
+    // "Flash from File…" button opens the file picker
+    elBtnFlashFromFile.addEventListener("click", () => {
+      elFileInput.click();
+    });
+
+    elFileInput.addEventListener("change", async () => {
+      const file = elFileInput.files[0];
+      // Reset so the same file can be re-selected later
+      elFileInput.value = "";
+      if (!file || !esploader) return;
+
+      elFileName.textContent = file.name;
+      log(`Selected file: ${file.name} (${file.size} bytes)`);
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        let fileArray;
+
+        if (file.name.endsWith(".tar.gz") || file.name.endsWith(".tgz")) {
+          log("Extracting archive…");
+          const tarFiles = await extractTarGz(arrayBuffer);
+          log(`Archive contains ${tarFiles.length} file(s)`);
+          fileArray = matchFlashParts(tarFiles);
+        } else if (file.name.endsWith(".bin")) {
+          // Single .bin file — try to match by filename suffix
+          const matched = RELEASE_FLASH_PARTS.find(p => file.name.endsWith(p.suffix));
+          if (!matched) {
+            log("Error: Cannot determine flash address from filename.");
+            log("Expected filename ending in: " + RELEASE_FLASH_PARTS.map(p => p.suffix).join(", "));
+            setStatus("Unknown file type", "status-error");
+            return;
+          }
+          log(`Matched as ${matched.name} → offset 0x${matched.offset.toString(16)}`);
+          fileArray = [{ data: new Uint8Array(arrayBuffer), address: matched.offset }];
+        } else {
+          log("Error: Unsupported file type. Use a .tar.gz release archive or an individual .bin file.");
+          setStatus("Unsupported file type", "status-error");
+          return;
+        }
+
+        await flashImages(fileArray);
+      } catch (err) {
+        log(`Flash from file failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+        flashing = false;
+        updateUI();
+      } finally {
+        elFileName.textContent = "";
+      }
+    });
+
+    // ── Handle physical USB disconnect ──
+    if (isWebSerialSupported()) {
+      navigator.serial.addEventListener("disconnect", async (event) => {
+        // event.target is the SerialPort that was removed
+        if (port && event.target === port) {
+          log("Device disconnected (USB removed)");
+          await cleanupConnection();
+          setStatus("Device disconnected", "status-disconnected");
+          updateUI();
+        }
+      });
+    }
+
+    // ── Check browser support on load ──
+    window.addEventListener("load", () => {
+      if (!isWebSerialSupported()) {
+        log("⚠ Web Serial API not available. Please use Chrome or Edge 89+.");
+        setStatus("Browser not supported", "status-error");
+        elBtnConnect.disabled = true;
+      } else {
+        log("DECtalk ESPress Web Flasher ready.");
+        log("Click 'Connect' to begin.");
+        fetchReleases();
+      }
+      updateUI();
+    });
+  </script>
+</body>
+</html>

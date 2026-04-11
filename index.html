@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  Dark-themed Pandoc HTML template for DECtalk ESPress GitHub Pages.
+  Used by the deploy-site and release workflows to convert Markdown to HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --table-alt:   #161b22;
+      --table-head:  #1c2128;
+      --kbd-bg:      #2d333b;
+      --blockquote:  #30363d;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+
+    /* ── Main content area ── */
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--heading);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: none;
+    }
+    h1 { font-size: 1.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.4rem;  padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; }
+    h4 { font-size: 1rem; }
+
+    p { margin-bottom: 1rem; }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    strong { color: var(--heading); font-weight: 600; }
+
+    /* ── Lists ── */
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    li > ul, li > ol { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+
+    /* ── Code ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas,
+                   "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: var(--table-alt); }
+
+    /* ── Blockquotes ── */
+    blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--surface);
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-radius: 0 6px 6px 0;
+    }
+    blockquote p { margin-bottom: 0.5rem; }
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { color: var(--text); }
+
+    /* ── Horizontal rules ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Images ── */
+    img { max-width: 100%; height: auto; border-radius: 6px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+    .footer a { color: var(--link); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 0 1rem 3rem; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.2rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 0.45rem 0.55rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a href="/flasher/">Web Flasher</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
+  </nav>
+
+  <main class="container">
+<!-- SPDX-License-Identifier: MIT -->
+
+<!-- Copyright (c) 2025 Leland Lucius -->
+
+<h1 id="dectalk-espress-firmware">DECtalk ESPress Firmware</h1>
+<p>An ESP32-S3 firmware that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol over USB CDC-ACM, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit.</p>
+<p>The speech synthesis itself is provided by the <strong>DECtalk component</strong> (<code>components/dectalk/</code>) which cross-compiles the upstream <code>dapi</code> library as a reusable ESP-IDF component. See the <a href="components/dectalk/README.md">component README</a> for component-specific documentation (language selection, dictionary storage modes, source resolution, porting notes).</p>
+<p>For detailed build instructions, toolchain setup, and architecture notes see <strong><a href="BUILD.md">BUILD.md</a></strong>.</p>
+<h2 id="key-features">Key Features</h2>
+<ul>
+<li><strong>ESPress serial protocol</strong> — drop-in replacement for a real DECtalk Express: plain-ASCII text input, ETX flush, ENQ status query, SO/SI pause/resume, DLE command sequences, XON/XOFF flow control</li>
+<li><strong>USB CDC-ACM host transport</strong> — the native USB port appears as a standard serial (COM / ttyACM) port to the host; no external UART adapter needed</li>
+<li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
+<li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, sample rate, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
+<li><strong>Python host tools</strong> — a serial API module (<code>dectalk_serial.py</code>) and GUI applications for controlling the device from a PC</li>
+<li><strong>Memory diagnostics</strong> — optional runtime task that logs per-task stack high-water marks and heap fragmentation statistics</li>
+<li><strong>Full DECtalk speech synthesis</strong> — provided by the <a href="components/dectalk/README.md">DECtalk component</a>, supporting six languages and three dictionary storage modes</li>
+</ul>
+<h2 id="hardware-requirements">Hardware Requirements</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MCU board</td>
+<td>ESP32 development board with <strong>two USB data ports</strong>: one UART/serial port for flashing and logs, plus one native USB-OTG/device port for ESPress protocol communication</td>
+</tr>
+<tr class="even">
+<td>Flash</td>
+<td>8 MB (configured in <code>sdkconfig.defaults</code>)</td>
+</tr>
+<tr class="odd">
+<td>PSRAM</td>
+<td>Optional for embedded/partition dictionary modes; recommended when loading the dictionary from SPIFFS (around 2 MB is a practical minimum)</td>
+</tr>
+<tr class="even">
+<td>I2S DAC</td>
+<td>PCM5102, MAX98357A, or any I2S-compatible DAC/amplifier</td>
+</tr>
+<tr class="odd">
+<td>USB cables</td>
+<td>Two USB data-capable connections are recommended in practice: UART USB for flashing/debugging and native USB for CDC-ACM host communication</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Board selection note:</strong> An Espressif <strong>ESP32-S3</strong> dev board is the recommended and currently configured option, but the important requirement is a chip/board combination that provides <strong>both</strong> a UART flashing/debug path and a separate native USB-OTG/device port for DECtalk ESPress communication. ESP32-S2 and ESP32-P4 based boards should also be viable in principle, but they are untested here and would require <code>sdkconfig</code> updates (the defaults currently set <code>CONFIG_IDF_TARGET="esp32s3"</code>).</p>
+<p><strong>Port usage:</strong> The UART-side USB connection is for reflashing and console logs. General users will typically only need it when using the <code>flasher</code> tool or <code>idf.py flash</code>, while developers/tinkerers will also use it for debugging. The native USB CDC port is reserved for normal runtime host↔︎ESPress protocol communication.</p>
+<p><strong>Memory note:</strong> PSRAM is not strictly required to run the firmware because the ESPress application itself fits within the base 512 KB RAM budget. However, dictionary storage mode matters: embedded dictionaries and dedicated dictionary partitions can work without PSRAM, while loading the dictionary from a SPIFFS file uses additional heap, so a modest PSRAM size (roughly 2 MB, depending on filesystem size and usage) is recommended.</p>
+</blockquote>
+<h2 id="wiring">Wiring</h2>
+<p>Default I2S pin assignments (configurable via <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>):</p>
+<table>
+<thead>
+<tr class="header">
+<th>ESP32-S3 GPIO</th>
+<th>I2S DAC Pin</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GPIO 8</td>
+<td>BCK</td>
+<td>Bit Clock</td>
+</tr>
+<tr class="even">
+<td>GPIO 3</td>
+<td>WS / LRCK</td>
+<td>Word Select</td>
+</tr>
+<tr class="odd">
+<td>GPIO 18</td>
+<td>DIN / DATA</td>
+<td>Serial Data</td>
+</tr>
+<tr class="even">
+<td>GND</td>
+<td>GND</td>
+<td>Ground</td>
+</tr>
+<tr class="odd">
+<td>3.3 V / 5 V</td>
+<td>VCC</td>
+<td>Power (check your DAC's requirement)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>PCM5102 notes</strong> — short SCK→GND (internal PLL), FLT→GND, DEMP→GND, FMT→GND.</p>
+<p><strong>MAX98357A notes</strong> — connect a 4–8 Ω speaker directly to the amplifier output terminals.</p>
+<h2 id="quick-start">Quick Start</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Source the ESP-IDF environment</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Navigate to the project directory</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> DECtalk_ESPress</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Build (dictionary is compiled automatically)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Flash firmware</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Monitor console logs (UART0)</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span></code></pre></div>
+<p>The device's native USB port will appear as <code>/dev/ttyACM0</code> (Linux) or a COM port (Windows). Open it at any baud rate — the CDC-ACM link ignores baud — and start sending text.</p>
+<p>See <a href="BUILD.md">BUILD.md</a> for full prerequisites and configuration options.</p>
+<h2 id="release-build-workflow">Release Build Workflow</h2>
+<p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release-builds.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
+<h2 id="serial-interfaces">Serial Interfaces</h2>
+<p>The firmware uses <strong>two</strong> serial paths simultaneously:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Interface</th>
+<th>Purpose</th>
+<th>How to access</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>UART0</strong> (<code>CONFIG_ESP_CONSOLE_UART_DEFAULT</code>)</td>
+<td>ESP-IDF console, <code>ESP_LOG</code> output, boot messages</td>
+<td>Connect via the board's UART USB bridge (<code>/dev/ttyUSB0</code> or similar); use <code>idf.py monitor</code></td>
+</tr>
+<tr class="even">
+<td><strong>USB CDC-ACM</strong> (TinyUSB)</td>
+<td>ESPress protocol data — host ↔︎ device text, control chars, DLE sequences</td>
+<td>Connect via the native USB port (<code>/dev/ttyACM0</code> or similar); use <code>host/dectalk_serial.py</code> or any serial terminal</td>
+</tr>
+</tbody>
+</table>
+<p>This separation means log output never corrupts the ESPress byte stream and protocol debugging is straightforward.</p>
+<h2 id="espress-protocol-summary">ESPress Protocol Summary</h2>
+<p>The firmware boots directly into ESPress protocol mode — no handshake or mode-switch command is needed. Opening the USB CDC port asserts DTR, which the firmware detects and responds to with a protocol-state reset and XON.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>Details</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Transport</td>
+<td>USB CDC-ACM (appears as COM / ttyACM)</td>
+</tr>
+<tr class="even">
+<td>Text input</td>
+<td>Plain ASCII + CR for clause boundaries</td>
+</tr>
+<tr class="odd">
+<td>Flush / cancel</td>
+<td>ETX (<code>0x03</code>) — cancels all pending speech</td>
+</tr>
+<tr class="even">
+<td>Status query</td>
+<td>ENQ (<code>0x05</code>) → 4-byte DLE status response</td>
+</tr>
+<tr class="odd">
+<td>Pause / Resume</td>
+<td>SO (<code>0x0E</code>) / SI (<code>0x0F</code>)</td>
+</tr>
+<tr class="even">
+<td>Flow control</td>
+<td>XON (<code>0x11</code>) / XOFF (<code>0x13</code>), application-level, in-band</td>
+</tr>
+<tr class="odd">
+<td>Flush-with-ack</td>
+<td><code>]</code> + ETX + XON → XON + SOH (TSR FLUSH_TEXT sequence)</td>
+</tr>
+<tr class="even">
+<td>DLE sequences</td>
+<td>4-byte packets: DLE + type + param1 + param2</td>
+</tr>
+<tr class="odd">
+<td>Index markers</td>
+<td>DLE INDEX (<code>0x50</code>) followed by DLE STATUS (<code>0x40</code>)</td>
+</tr>
+<tr class="even">
+<td>Device ready</td>
+<td>XON sent on power-up and after each host reconnection</td>
+</tr>
+</tbody>
+</table>
+<p>See <code>main/dectalk_espress.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
+<h2 id="host-tools">Host Tools</h2>
+<p>The <code>host/</code> directory contains Python-based host software. See <strong><a href="host/README.md">host/README.md</a></strong> for full details.</p>
+<ul>
+<li><strong><code>dectalk_serial.py</code></strong> — <code>DECtalkESPressSerial</code> class implementing the ESPress protocol: connect, speak, flush, pause/resume, status query, device detection.</li>
+<li><strong><code>dectalk_espress_gui.py</code></strong> — Tkinter GUI with voice/rate/pitch controls, pause/resume/flush buttons, device status panel, and a communications log.</li>
+</ul>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> DECtalkESPressSerial</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>dt <span class="op">=</span> DECtalkESPressSerial()</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>dt.<span class="ex">connect</span>(<span class="st">&quot;/dev/ttyACM0&quot;</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>dt.speak(<span class="st">&quot;Hello from DECtalk on ESP32.&quot;</span>, voice<span class="op">=</span><span class="st">&quot;Betty&quot;</span>, rate<span class="op">=</span><span class="dv">180</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>dt.disconnect()</span></code></pre></div>
+<h2 id="configuration-menuconfig">Configuration (<code>menuconfig</code>)</h2>
+<p>Settings are split across two menus in <code>idf.py menuconfig</code>:</p>
+<h3 id="dectalk-component-settings">DECtalk (component settings)</h3>
+<p>These settings are defined by the DECtalk component and control the text-to-speech library itself. See the <a href="components/dectalk/README.md">component README</a> for details.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Menu Path</th>
+<th>Key Settings</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><em>DECtalk distribution</em></td>
+<td>Local DECtalk source path; optional GitHub FetchContent fallback and Git ref</td>
+</tr>
+<tr class="even">
+<td><em>DECtalk Language</em></td>
+<td>US English (default), UK English, Spanish, German, Latin American Spanish, French</td>
+</tr>
+<tr class="odd">
+<td><em>Dictionary location</em></td>
+<td>Embedded in firmware, dedicated partition, or SPIFFS file system</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dectalk-espress-firmware-application-settings">DECtalk ESPress Firmware (application settings)</h3>
+<p>These settings are defined by the firmware application and control the ESPress protocol emulation, hardware interfaces, and runtime behaviour.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Menu Path</th>
+<th>Key Settings</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><em>Audio output</em></td>
+<td>I2S BCK/WS/DO GPIO pins, sample rate (8000–48000 Hz, default 11025)</td>
+</tr>
+<tr class="even">
+<td><em>Audio output → Advanced audio tuning</em></td>
+<td>I2S DMA descriptor count, DMA frame count</td>
+</tr>
+<tr class="odd">
+<td><em>Runtime tuning</em></td>
+<td>Text buffer size, speech queue depth, RX timeout, idle flush timeout</td>
+</tr>
+<tr class="even">
+<td><em>Runtime tuning → Advanced task tuning</em></td>
+<td>Speech task core affinity, main ESPress thread stack size</td>
+</tr>
+<tr class="odd">
+<td><em>USB CDC transport</em></td>
+<td>CDC RX stream buffer size</td>
+</tr>
+<tr class="even">
+<td><em>Diagnostics and logging</em></td>
+<td>Enable/disable heap and stack diagnostics; choose the DECtalk firmware log level</td>
+</tr>
+</tbody>
+</table>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Symptom</th>
+<th>Things to check</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>No audio</strong></td>
+<td>I2S wiring; DAC power; speaker connections; amplifier gain</td>
+</tr>
+<tr class="even">
+<td><strong>Garbled audio</strong></td>
+<td>I2S pin config matches wiring; sample rate appropriate for DAC</td>
+</tr>
+<tr class="odd">
+<td><strong>Build fails</strong></td>
+<td>ESP-IDF environment sourced; host C compiler available for dictionary build; try <code>idf.py fullclean</code></td>
+</tr>
+<tr class="even">
+<td><strong>No CDC port on host</strong></td>
+<td>USB cable is data-capable (not charge-only); board has native USB connector; TinyUSB enabled in sdkconfig</td>
+</tr>
+<tr class="odd">
+<td><strong>Device not responding</strong></td>
+<td>Check UART0 console for boot/crash logs; verify CDC DTR is asserted; try resetting board</td>
+</tr>
+<tr class="even">
+<td><strong>WDT timeout</strong></td>
+<td>Speech task must be pinned to CPU 1 (default); ensure <code>CONFIG_ESP_TASK_WDT_EN=n</code> in sdkconfig</td>
+</tr>
+</tbody>
+</table>
+<h2 id="license">License</h2>
+<p>This firmware is licensed under the MIT License — see <a href="LICENSE">LICENSE</a>.</p>
+<h2 id="references">References</h2>
+<ul>
+<li><a href="BUILD.md">BUILD.md</a> — detailed firmware build process and architecture</li>
+<li><a href="host/README.md">host/README.md</a> — Python host tools documentation</li>
+<li><a href="components/dectalk/README.md">components/dectalk/README.md</a> — DECtalk component: language, dictionary, source resolution</li>
+<li><a href="components/dectalk/BUILD.md">components/dectalk/BUILD.md</a> — DECtalk component: build process, porting notes</li>
+<li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html">ESP-IDF Programming Guide</a></li>
+<li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2s.html">ESP-IDF I2S Driver</a></li>
+<li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_device.html">TinyUSB CDC-ACM</a></li>
+</ul>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+</body>
+</html>
