@@ -597,19 +597,27 @@
     // ── Flash from release (download) ──
 
     /**
-     * Build the download URL for a release asset.
+     * Find the GitHub API download URL for a release asset by name.
+     * Uses the asset metadata already fetched from the GitHub API, whose
+     * CORS headers allow cross-origin downloads (unlike the github.com
+     * release download URLs which redirect and may be blocked by CORS).
      */
-    function releaseAssetUrl(tagName, langCode, suffix) {
-      return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${encodeURIComponent(tagName)}/dectalk-espress-${langCode}${suffix}`;
+    function findAssetUrl(tagName, assetName) {
+      const release = releases.find(r => r.tag_name === tagName);
+      if (!release) throw new Error(`Release ${tagName} not found`);
+      const asset = release.assets.find(a => a.name === assetName);
+      if (!asset) throw new Error(`Asset ${assetName} not found in ${tagName}`);
+      return asset.url;   // api.github.com URL
     }
 
     /**
-     * Download a single binary asset from a GitHub release.
+     * Download a single binary asset from a GitHub release via the API.
      */
-    async function downloadAsset(url) {
-      const fileName = decodeURIComponent(url.split("/").pop());
+    async function downloadAsset(apiUrl, fileName) {
       log(`Downloading ${fileName}…`);
-      const resp = await fetch(url);
+      const resp = await fetch(apiUrl, {
+        headers: { "Accept": "application/octet-stream" },
+      });
       if (!resp.ok) {
         throw new Error(`Failed to download ${fileName}: HTTP ${resp.status}`);
       }
@@ -640,8 +648,9 @@
         log(`Preparing ${tagName} / ${langCode}…`);
         const fileArray = [];
         for (const part of RELEASE_FLASH_PARTS) {
-          const url  = releaseAssetUrl(tagName, langCode, part.suffix);
-          const data = await downloadAsset(url);
+          const assetName = `dectalk-espress-${langCode}${part.suffix}`;
+          const url  = findAssetUrl(tagName, assetName);
+          const data = await downloadAsset(url, assetName);
           fileArray.push({ data, address: part.offset });
         }
 
