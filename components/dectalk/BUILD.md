@@ -1,3 +1,7 @@
+---
+title: DECtalk ESP-IDF Component — Build Process & Porting Notes
+---
+
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2025 Leland Lucius -->
 
