@@ -1,0 +1,93 @@
+name: Release builds
+
+on:
+  workflow_dispatch:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.language.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - code: us
+            name: us-english
+            symbol: CONFIG_DECTALK_LANG_US
+          - code: uk
+            name: uk-english
+            symbol: CONFIG_DECTALK_LANG_UK
+          - code: sp
+            name: spanish
+            symbol: CONFIG_DECTALK_LANG_SP
+          - code: gr
+            name: german
+            symbol: CONFIG_DECTALK_LANG_GR
+          - code: la
+            name: latin-american-spanish
+            symbol: CONFIG_DECTALK_LANG_LA
+          - code: fr
+            name: french
+            symbol: CONFIG_DECTALK_LANG_FR
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Write release sdkconfig overrides
+        shell: bash
+        run: |
+          cat > sdkconfig.release <<EOF
+          ${{ matrix.language.symbol }}=y
+          CONFIG_DECTALK_DICT_EMBED=y
+          EOF
+
+      - name: Build firmware
+        uses: espressif/esp-idf-ci-action@v1.2.0
+        with:
+          esp_idf_version: v5.5.2
+          target: esp32s3
+          command: >
+            idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release" build
+
+      - name: Package release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          artifact_root="release-artifacts/${{ matrix.language.code }}"
+          mkdir -p "${artifact_root}/bootloader" "${artifact_root}/partition_table" "${artifact_root}/dicts"
+
+          cp build/dectalk_espress.bin "${artifact_root}/"
+          cp build/bootloader/bootloader.bin "${artifact_root}/bootloader/"
+          cp build/partition_table/partition-table.bin "${artifact_root}/partition_table/"
+          cp build/dicts/dtalk_${{ matrix.language.code }}.dic "${artifact_root}/dicts/"
+          cp build/flasher_args.json "${artifact_root}/"
+          cp build/flash_args "${artifact_root}/"
+          cp sdkconfig "${artifact_root}/"
+          cp sdkconfig.release "${artifact_root}/"
+
+          archive="${PWD}/release-artifacts/dectalk-espress-${{ matrix.language.code }}.tar.gz"
+          tar -C release-artifacts -czf "${archive}" "${{ matrix.language.code }}"
+          echo "archive=${archive}" >> "${GITHUB_ENV}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dectalk-espress-${{ matrix.language.code }}
+          path: ${{ env.archive }}
+          if-no-files-found: error
+
+      - name: Upload release asset
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" "${{ env.archive }}" --clobber
