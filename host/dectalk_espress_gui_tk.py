@@ -28,7 +28,7 @@ import os
 import platform
 import subprocess
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import threading
 import time
 
@@ -229,11 +229,73 @@ class DECtalkESPressGUI:
             style.configure("TCombobox", fieldbackground=field_bg,
                             selectbackground=select_bg,
                             selectforeground=fg)
+            # Style the dropdown Listbox that appears under each Combobox
+            self.root.option_add("*TCombobox*Listbox.background", field_bg)
+            self.root.option_add("*TCombobox*Listbox.foreground", fg)
+            self.root.option_add("*TCombobox*Listbox.selectBackground",
+                                 select_bg)
+            self.root.option_add("*TCombobox*Listbox.selectForeground", fg)
             style.configure("TScale", background=bg, troughcolor="#3e3e42")
             style.map("TScale",
                        background=[("active", "#505058")])
             # Root window background
             self.root.configure(bg=bg)
+
+    # -- Themed Message Dialogs -----------------------------------
+
+    def _show_message(self, title, message, icon="info"):
+        """Show a themed pop-up message dialog.
+
+        Unlike ``tkinter.messagebox``, this respects the dark-mode palette
+        so the dialog doesn't flash a light window on a dark desktop.
+
+        *icon* may be ``"info"``, ``"warning"``, or ``"error"``.
+        """
+        c = self._colors
+        dlg = tk.Toplevel(self.root)
+        dlg.title(title)
+        dlg.resizable(False, False)
+        dlg.transient(self.root)
+        dlg.grab_set()
+        dlg.configure(bg=c["menu_bg"])
+
+        # Icon character
+        icon_chars = {"info": "\u2139", "warning": "\u26A0", "error": "\u274C"}
+        icon_char = icon_chars.get(icon, "\u2139")
+
+        body = tk.Frame(dlg, bg=c["menu_bg"], padx=16, pady=12)
+        body.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(
+            body, text=icon_char, font=("TkDefaultFont", 28),
+            bg=c["menu_bg"], fg=c["menu_fg"],
+        ).pack(side=tk.LEFT, padx=(0, 12))
+
+        tk.Label(
+            body, text=message, bg=c["menu_bg"], fg=c["menu_fg"],
+            wraplength=350, justify=tk.LEFT,
+        ).pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        btn_frame = tk.Frame(dlg, bg=c["menu_bg"], pady=8)
+        btn_frame.pack(fill=tk.X)
+
+        ok_btn = ttk.Button(btn_frame, text="OK", command=dlg.destroy)
+        ok_btn.pack()
+        ok_btn.focus_set()
+        dlg.bind("<Return>", lambda _e: dlg.destroy())
+        dlg.bind("<Escape>", lambda _e: dlg.destroy())
+
+        # Center on parent window
+        dlg.update_idletasks()
+        pw = self.root.winfo_width()
+        ph = self.root.winfo_height()
+        px = self.root.winfo_x()
+        py = self.root.winfo_y()
+        dw = dlg.winfo_width()
+        dh = dlg.winfo_height()
+        dlg.geometry("+%d+%d" % (px + (pw - dw) // 2, py + (ph - dh) // 2))
+
+        dlg.wait_window()
 
     # -- UI Construction ------------------------------------------
 
@@ -617,7 +679,8 @@ class DECtalkESPressGUI:
         """Establish a serial connection using ESPress protocol."""
         port = self.port_var.get()
         if not port:
-            messagebox.showwarning("No Port", "Please select a serial port.")
+            self._show_message("No Port", "Please select a serial port.",
+                               icon="warning")
             return
 
         baud = int(self.baud_var.get())
@@ -660,7 +723,7 @@ class DECtalkESPressGUI:
         self.status_var.set("Connection failed")
         self._log("--", "Connection failed: %s" % message)
         self.connect_btn.config(state=tk.NORMAL)
-        messagebox.showerror("Connection Error", message)
+        self._show_message("Connection Error", message, icon="error")
 
     def _disconnect(self):
         """Close the serial connection."""
@@ -684,13 +747,14 @@ class DECtalkESPressGUI:
         """Send the text box contents to the device via ESPress protocol."""
         text = self.text_box.get("1.0", tk.END).strip()
         if not text:
-            messagebox.showinfo("No Text", "Please enter some text to speak.")
+            self._show_message("No Text", "Please enter some text to speak.")
             return
 
         if not self.ESPress.connected:
-            messagebox.showwarning(
+            self._show_message(
                 "Not Connected",
                 "Please connect to the device first.",
+                icon="warning",
             )
             return
 
