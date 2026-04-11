@@ -9,7 +9,7 @@ set( DECTALK_COMPONENT_REQUIRES
 
 # ESP-IDF loads component CMakeLists in script mode first to collect
 # dependencies. Defer source-tree resolution until the normal configure pass so
-# out-of-tree builds can still reach the FetchContent fallback.
+# builds without a pre-configured path can still reach the FetchContent fallback.
 if( CMAKE_SCRIPT_MODE_FILE )
     idf_component_register( REQUIRES ${DECTALK_COMPONENT_REQUIRES} )
     return()
@@ -46,25 +46,13 @@ if( DT_PATH_HINT )
         message( WARNING
                  "Configured DECtalk source path '${DT_PATH_HINT}' does not "
                  "contain dapi/src or src/dapi/src.  Trying auto-detection "
-                 "and FetchContent fallbacks.  If you copied this project "
-                 "out of a previous build tree, delete the sdkconfig file "
+                 "and FetchContent fallbacks.  If you see path errors "
+                 "after moving the project, delete the sdkconfig file "
                  "and reconfigure." )
     endif()
 endif()
 
-# --- Step 2: auto-detect the standard repository layout ----------------------
-# This component lives four directories beneath the repo root:
-# ports/esp32/components/dectalk/.
-if( NOT DT_DIR )
-    get_filename_component( _repo_root
-                            "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE )
-    if( EXISTS "${_repo_root}/src/dapi/src" )
-        resolve_dectalk_source_tree( DT_DIR "${_repo_root}" )
-    endif()
-    unset( _repo_root )
-endif()
-
-# --- Step 3: FetchContent from GitHub ----------------------------------------
+# --- Step 2: FetchContent from GitHub ----------------------------------------
 if( NOT DT_DIR AND CONFIG_DECTALK_FETCH_SOURCE )
     set( DECTALK_FETCH_GIT_TAG "${CONFIG_DECTALK_FETCH_GIT_TAG}" )
     if( NOT DECTALK_FETCH_GIT_TAG )
@@ -114,7 +102,7 @@ if( NOT DT_DIR )
           "  - Set a valid 'Path to DECtalk library source tree' in"
           "    DECtalk ESPress Configuration -> DECtalk distribution"
           "  - Enable 'Fetch DECtalk source from GitHub' in the same menu"
-          "  - If you copied this project out of a previous build tree,"
+          "  - If you see path errors after moving the project,"
           "    delete the sdkconfig file and run idf.py menuconfig again"
           "=====================================================" )
 

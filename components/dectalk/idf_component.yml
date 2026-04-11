@@ -3,10 +3,10 @@
 # Copyright (c) 2025 Leland Lucius
 version: "1.0.0"
 description: "DECtalk text-to-speech engine compiled as an ESP-IDF component"
-url: "https://github.com/lllucius/dectalk/tree/develop/ports/esp32/components/dectalk"
-repository: "https://github.com/lllucius/dectalk"
-documentation: "https://github.com/lllucius/dectalk/blob/develop/ports/esp32/components/dectalk/README.md"
-issues: "https://github.com/lllucius/dectalk/issues"
+url: "https://github.com/lllucius/DECtalk_ESPress/tree/main/components/dectalk"
+repository: "https://github.com/lllucius/DECtalk_ESPress"
+documentation: "https://github.com/lllucius/DECtalk_ESPress/blob/main/components/dectalk/README.md"
+issues: "https://github.com/lllucius/DECtalk_ESPress/issues"
 license: "MIT"
 targets:
   - esp32s2

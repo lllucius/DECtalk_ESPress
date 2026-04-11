@@ -14,16 +14,14 @@ menu "DECtalk component"
                 repository root (it must contain src/dapi/src) or directly at
                 the library source tree (it must contain dapi/src).
 
-                Relative paths are resolved from
-                ports/esp32/components/dectalk.
+                Relative paths are resolved from the component directory.
 
-                Leave this empty to auto-detect when the component lives
-                inside a DECtalk repository checkout, or to fall through to
-                the FetchContent download (if enabled).
+                Leave this empty to fall through to the FetchContent
+                download (if enabled).
 
-                If you copied this project out of a previous build tree
-                and see path errors, delete the sdkconfig file and
-                reconfigure so the defaults are regenerated.
+                If you see path errors after moving the project, delete
+                the sdkconfig file and reconfigure so the defaults are
+                regenerated.
 
         config DECTALK_FETCH_SOURCE
             bool "Fetch DECtalk source from GitHub if local path is unavailable"
