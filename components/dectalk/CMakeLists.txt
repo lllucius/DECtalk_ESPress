@@ -325,12 +325,20 @@ if( NOT HOST_CC )
                          "Set HOST_CC to your host compiler." )
 endif()
 
+# Tell the host compiler to look for sub-programs (as, ld, …) in the same
+# directory where it lives.  Inside the ESP-IDF Docker image the Xtensa
+# cross-toolchain's "as" appears on the PATH before the system assembler,
+# so the host GCC would otherwise invoke the wrong assembler and fail with
+# "as: unrecognized option '--64'".
+get_filename_component( HOST_CC_DIR "${HOST_CC}" DIRECTORY )
+
 function( generate_dict_at_configure )
     file( MAKE_DIRECTORY "${DIC_OUTPUT_DIR}" )
 
     execute_process(
         COMMAND
             ${HOST_CC}
+                "-B${HOST_CC_DIR}"
                 ${DIC_INCLUDES}
                 ${DIC_DEFINES}
                 -o "${DIC_COMPILER}" "${DIC_DIR}/dic.c"
