@@ -423,11 +423,13 @@ target_compile_options(
         -Wno-deprecated-declarations
         -Wno-empty-body
         -Wno-error=address
+        -Wno-error=bool-compare
         -Wno-error=char-subscripts
         -Wno-error=comment
         -Wno-error=dangling-else
         -Wno-error=format
         -Wno-error=implicit-function-declaration
+        -Wno-error=logical-not-parentheses
         -Wno-error=maybe-uninitialized
         -Wno-error=misleading-indentation
         -Wno-error=missing-braces
