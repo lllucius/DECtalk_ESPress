@@ -164,21 +164,32 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq pandoc
 
-      - name: Build index.html from README.md
+      - name: Build HTML pages from Markdown
         shell: bash
         run: |
           set -euo pipefail
 
-          python3 pages/strip-frontmatter.py README.md > /tmp/readme-clean.md
+          convert() {
+            local src="$1" dst="$2" title="$3"
+            python3 pages/strip-frontmatter.py --rewrite-links "$src" \
+              | pandoc \
+                  --from gfm \
+                  --to html5 \
+                  --template pages/template.html \
+                  --metadata title="$title" \
+                  --standalone \
+                  --wrap=none \
+                  --output "$dst"
+          }
 
-          pandoc /tmp/readme-clean.md \
-            --from gfm \
-            --to html5 \
-            --template pages/template.html \
-            --metadata title="DECtalk ESPress" \
-            --standalone \
-            --wrap=none \
-            --output /tmp/index.html
+          mkdir -p /tmp/build/components/dectalk /tmp/build/host
+
+          convert README.md                    /tmp/build/index.html                       "DECtalk ESPress"
+          convert README.md                    /tmp/build/README.html                      "DECtalk ESPress"
+          convert BUILD.md                     /tmp/build/BUILD.html                       "DECtalk ESPress — Build"
+          convert components/dectalk/README.md /tmp/build/components/dectalk/README.html   "DECtalk Component"
+          convert components/dectalk/BUILD.md  /tmp/build/components/dectalk/BUILD.html    "DECtalk Component — Build"
+          convert host/README.md               /tmp/build/host/README.html                 "DECtalk Host Tools"
 
       - name: Deploy firmware to GitHub Pages
         env:
@@ -194,7 +205,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # Save site files from the current branch
-          cp /tmp/index.html /tmp/site-index.html
+          cp /tmp/build/index.html /tmp/site-index.html
+          cp /tmp/build/README.html /tmp/site-README.html
+          cp /tmp/build/BUILD.html /tmp/site-BUILD.html
+          cp /tmp/build/components/dectalk/README.html /tmp/site-comp-README.html
+          cp /tmp/build/components/dectalk/BUILD.html /tmp/site-comp-BUILD.html
+          cp /tmp/build/host/README.html /tmp/site-host-README.html
+          cp LICENSE /tmp/LICENSE
           cp flasher/index.html /tmp/flasher-index.html
           cp CNAME /tmp/CNAME
 
@@ -216,10 +233,16 @@ jobs:
           # Download the individual bin files from the release
           gh release download "${tag}" --pattern "*.bin" --dir "firmware/${tag}"
 
-          # Update the site: README-based index at root, flasher under /flasher/
+          # Update the site: all documentation pages + flasher
           cp /tmp/site-index.html index.html
-          mkdir -p flasher
+          cp /tmp/site-README.html README.html
+          cp /tmp/site-BUILD.html BUILD.html
+          cp /tmp/LICENSE LICENSE
+          mkdir -p flasher components/dectalk host
           cp /tmp/flasher-index.html flasher/index.html
+          cp /tmp/site-comp-README.html components/dectalk/README.html
+          cp /tmp/site-comp-BUILD.html components/dectalk/BUILD.html
+          cp /tmp/site-host-README.html host/README.html
           cp /tmp/CNAME CNAME
 
           # Commit and push

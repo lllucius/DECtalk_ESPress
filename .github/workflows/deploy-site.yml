@@ -1,8 +1,8 @@
 # Deploy the project site to GitHub Pages (gh-pages branch).
 #
-# Converts README.md to a dark-themed index.html using Pandoc and pushes
-# the result to the gh-pages branch, preserving any firmware files that were
-# previously deployed by the release workflow.
+# Converts Markdown documentation to dark-themed HTML pages using Pandoc
+# and pushes the result to the gh-pages branch, preserving any firmware
+# files that were previously deployed by the release workflow.
 name: Deploy site to GitHub Pages
 
 on:
@@ -10,6 +10,11 @@ on:
     branches: ["main"]
     paths:
       - "README.md"
+      - "BUILD.md"
+      - "LICENSE"
+      - "components/dectalk/README.md"
+      - "components/dectalk/BUILD.md"
+      - "host/README.md"
       - "pages/**"
       - "flasher/**"
       - "CNAME"
@@ -38,29 +43,50 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq pandoc
 
-      - name: Build index.html from README.md
+      - name: Build HTML pages from Markdown
         run: |
           set -euo pipefail
 
-          python3 pages/strip-frontmatter.py README.md > /tmp/readme-clean.md
+          convert() {
+            local src="$1" dst="$2" title="$3"
+            python3 pages/strip-frontmatter.py --rewrite-links "$src" \
+              | pandoc \
+                  --from gfm \
+                  --to html5 \
+                  --template pages/template.html \
+                  --metadata title="$title" \
+                  --standalone \
+                  --wrap=none \
+                  --output "$dst"
+          }
 
-          pandoc /tmp/readme-clean.md \
-            --from gfm \
-            --to html5 \
-            --template pages/template.html \
-            --metadata title="DECtalk ESPress" \
-            --standalone \
-            --wrap=none \
-            --output /tmp/index.html
+          mkdir -p /tmp/build/components/dectalk /tmp/build/host
+
+          convert README.md                    /tmp/build/index.html                       "DECtalk ESPress"
+          convert README.md                    /tmp/build/README.html                      "DECtalk ESPress"
+          convert BUILD.md                     /tmp/build/BUILD.html                       "DECtalk ESPress — Build"
+          convert components/dectalk/README.md /tmp/build/components/dectalk/README.html   "DECtalk Component"
+          convert components/dectalk/BUILD.md  /tmp/build/components/dectalk/BUILD.html    "DECtalk Component — Build"
+          convert host/README.md               /tmp/build/host/README.html                 "DECtalk Host Tools"
 
       - name: Prepare site files
         run: |
           set -euo pipefail
 
-          mkdir -p /tmp/site/flasher
-          cp /tmp/index.html /tmp/site/index.html
+          mkdir -p /tmp/site/flasher /tmp/site/components/dectalk /tmp/site/host
+
+          # HTML pages converted from Markdown
+          cp /tmp/build/index.html                      /tmp/site/index.html
+          cp /tmp/build/README.html                     /tmp/site/README.html
+          cp /tmp/build/BUILD.html                      /tmp/site/BUILD.html
+          cp /tmp/build/components/dectalk/README.html  /tmp/site/components/dectalk/README.html
+          cp /tmp/build/components/dectalk/BUILD.html   /tmp/site/components/dectalk/BUILD.html
+          cp /tmp/build/host/README.html                /tmp/site/host/README.html
+
+          # Static files
+          cp LICENSE           /tmp/site/LICENSE
           cp flasher/index.html /tmp/site/flasher/index.html
-          cp CNAME /tmp/site/CNAME
+          cp CNAME             /tmp/site/CNAME
 
       - name: Deploy to gh-pages
         run: |
@@ -83,9 +109,15 @@ jobs:
 
           # Copy the built site (preserves existing firmware/ directory)
           cp /tmp/site/index.html index.html
+          cp /tmp/site/README.html README.html
+          cp /tmp/site/BUILD.html BUILD.html
+          cp /tmp/site/LICENSE LICENSE
           cp /tmp/site/CNAME CNAME
-          mkdir -p flasher
+          mkdir -p flasher components/dectalk host
           cp /tmp/site/flasher/index.html flasher/index.html
+          cp /tmp/site/components/dectalk/README.html components/dectalk/README.html
+          cp /tmp/site/components/dectalk/BUILD.html components/dectalk/BUILD.html
+          cp /tmp/site/host/README.html host/README.html
 
           # Commit and push
           git add -A
