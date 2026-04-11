@@ -10,6 +10,30 @@ For the DECtalk component build process (dapi source compilation, dictionary
 cross-compilation, porting notes), see the
 [component BUILD.md](components/dectalk/BUILD.md).
 
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+  - [Installing ESP-IDF](#installing-esp-idf)
+- [Directory Layout](#directory-layout)
+- [How the Build Works](#how-the-build-works)
+  - [1. Project Bootstrapping](#1-project-bootstrapping)
+  - [2. Component: `dectalk` (the TTS library)](#2-component-dectalk-the-tts-library)
+  - [3. Component: `main` (Firmware Application)](#3-component-main-firmware-application)
+  - [4. Partition Table](#4-partition-table)
+  - [5. `sdkconfig.defaults`](#5-sdkconfigdefaults)
+- [Firmware Architecture](#firmware-architecture)
+  - [Thread Model](#thread-model)
+  - [Data Flow](#data-flow)
+  - [TTS In-Memory Mode](#tts-in-memory-mode)
+  - [USB CDC Transport](#usb-cdc-transport)
+  - [Dictionary Loading](#dictionary-loading)
+  - [Flow Control](#flow-control)
+  - [Idle Flush](#idle-flush)
+- [Build Commands Reference](#build-commands-reference)
+  - [Changing Language](#changing-language)
+  - [Changing Dictionary Storage Mode](#changing-dictionary-storage-mode)
+- [Porting Notes](#porting-notes)
+
 ---
 
 ## Prerequisites

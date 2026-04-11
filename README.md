@@ -19,6 +19,23 @@ resolution, porting notes).
 For detailed build instructions, toolchain setup, and architecture notes see
 **[BUILD.md](BUILD.md)**.
 
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Hardware Requirements](#hardware-requirements)
+- [Wiring](#wiring)
+- [Quick Start](#quick-start)
+- [Release Build Workflow](#release-build-workflow)
+- [Serial Interfaces](#serial-interfaces)
+- [ESPress Protocol Summary](#espress-protocol-summary)
+- [Host Tools](#host-tools)
+- [Configuration (`menuconfig`)](#configuration-menuconfig)
+  - [DECtalk (component settings)](#dectalk-component-settings)
+  - [DECtalk ESPress Firmware (application settings)](#dectalk-espress-firmware-application-settings)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
+- [References](#references)
+
 ## Key Features
 
 - **ESPress serial protocol** — drop-in replacement for a real DECtalk
