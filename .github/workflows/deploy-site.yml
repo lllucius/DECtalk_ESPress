@@ -1,0 +1,98 @@
+# Deploy the project site to GitHub Pages (gh-pages branch).
+#
+# Converts README.md to a dark-themed index.html using Pandoc and pushes
+# the result to the gh-pages branch, preserving any firmware files that were
+# previously deployed by the release workflow.
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "README.md"
+      - "pages/**"
+      - "flasher/**"
+      - "CNAME"
+      - ".github/workflows/deploy-site.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build index.html from README.md
+        run: |
+          set -euo pipefail
+
+          # Strip any YAML front-matter block before converting
+          python3 -c "
+          import re, sys
+          text = open('README.md').read()
+          text = re.sub(r'^---\n.*?\n---\n*', '', text, count=1, flags=re.DOTALL)
+          sys.stdout.write(text)
+          " > /tmp/readme-clean.md
+
+          pandoc /tmp/readme-clean.md \
+            --from gfm \
+            --to html5 \
+            --template pages/template.html \
+            --metadata title="DECtalk ESPress" \
+            --standalone \
+            --wrap=none \
+            --output /tmp/index.html
+
+      - name: Prepare site files
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/site/flasher
+          cp /tmp/index.html /tmp/site/index.html
+          cp flasher/index.html /tmp/site/flasher/index.html
+          cp CNAME /tmp/site/CNAME
+
+      - name: Deploy to gh-pages
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Check out or create the gh-pages branch
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git checkout gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Prevent Jekyll processing
+          touch .nojekyll
+
+          # Copy the built site (preserves existing firmware/ directory)
+          cp /tmp/site/index.html index.html
+          cp /tmp/site/CNAME CNAME
+          mkdir -p flasher
+          cp /tmp/site/flasher/index.html flasher/index.html
+
+          # Commit and push
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "Deploy site from ${GITHUB_SHA::7}"
+            git push origin gh-pages
+          fi

@@ -1,7 +1,3 @@
----
-title: DECtalk ESP-IDF Component
----
-
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2025 Leland Lucius -->
 
