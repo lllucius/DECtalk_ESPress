@@ -12,6 +12,22 @@ For details on how the firmware application (ESPress protocol, I2S audio,
 USB CDC transport) uses this component, see the
 [project-level README](../../README.md) and [BUILD.md](../../BUILD.md).
 
+## Table of Contents
+
+- [Features](#features)
+- [ESP Component Registry Installation](#esp-component-registry-installation)
+  - [Add to a Project](#add-to-a-project)
+  - [Offline / Air-Gapped Builds](#offline--air-gapped-builds)
+- [Kconfig Settings](#kconfig-settings)
+- [Directory Layout](#directory-layout)
+- [Quick Start](#quick-start)
+  - [From the Project Root](#from-the-project-root)
+  - [Setting a Local DECtalk Source Path](#setting-a-local-dectalk-source-path)
+- [Language Selection](#language-selection)
+- [Dictionary Storage Modes](#dictionary-storage-modes)
+- [Build Details](#build-details)
+- [License](#license)
+
 ## Features
 
 - **Full DECtalk TTS engine** — the complete `dapi` pipeline

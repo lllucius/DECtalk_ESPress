@@ -7,6 +7,25 @@ This directory contains a Python Tkinter GUI application and serial API module
 for controlling the DECtalk text-to-speech engine running on an ESP32
 microcontroller.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [GUI Features](#gui-features)
+  - [Voice Selection](#voice-selection)
+  - [Rate Control](#rate-control)
+  - [Pitch Control](#pitch-control)
+  - [Text Editing](#text-editing)
+  - [DECtalk Inline Commands](#dectalk-inline-commands)
+- [ESPress GUI (`dectalk_espress_gui_tk.py`)](#espress-gui-dectalk_espress_gui_tkpy)
+- [ESPress GUI - Qt Version (`dectalk_espress_gui_qt.py`)](#espress-gui---qt-version-dectalk_espress_gui_qtpy)
+- [DECtalk ESPress Protocol](#dectalk-espress-protocol)
+  - [Key Protocol Elements](#key-protocol-elements)
+- [Python API Module](#python-api-module)
+  - [Available Voices](#available-voices)
+  - [Building DECtalk Command Strings](#building-dectalk-command-strings)
+
 ## Overview
 
 The host communicates with the ESP32 over USB using the DECtalk ESPress serial

@@ -8,6 +8,20 @@ the DECtalk ESP-IDF component.  For the firmware-level build process
 (project bootstrapping, partition table, sdkconfig, build commands), see
 the [project-level BUILD.md](../../BUILD.md).
 
+## Table of Contents
+
+- [Source Resolution](#source-resolution)
+  - [Registry-Installed Usage](#registry-installed-usage)
+- [Dictionary Build (Host-Side Cross-Compilation)](#dictionary-build-host-side-cross-compilation)
+- [Cross-Compiling the dapi Sources](#cross-compiling-the-dapi-sources)
+  - [Compile Definitions](#compile-definitions)
+  - [Linker Wrapping](#linker-wrapping)
+- [Porting Notes](#porting-notes)
+  - [What was Adapted from Upstream](#what-was-adapted-from-upstream)
+  - [ESP32-Specific Considerations](#esp32-specific-considerations)
+- [Partition Management](#partition-management)
+- [References](#references)
+
 ---
 
 ## Source Resolution
