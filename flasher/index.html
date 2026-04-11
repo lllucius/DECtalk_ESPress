@@ -263,7 +263,7 @@
       <li>Select a <strong>Release</strong> and <strong>Language</strong>, then click <strong>Flash Firmware</strong>.</li>
       <li>Alternatively, click <strong>Flash from File…</strong> to flash a previously downloaded release archive.</li>
     </ol>
-    <span>For more info, see the <a href="https://github.com/lllucius/DECtalk_ESPress#readme" target="_blank" rel="noopener">README</a>.</span>
+    <span>For more info, see the <a href="https://github.com/lllucius/DECtalk_ESPress#readme" target="_blank" rel="noopener noreferrer">README</a>.</span>
   </div>
 
   <!-- Connection -->
@@ -767,10 +767,7 @@
         if (file.name.endsWith(".tar.gz") || file.name.endsWith(".tgz")) {
           log("Extracting archive…");
           const tarFiles = await extractTarGz(arrayBuffer);
-          log(`Archive contains ${tarFiles.length} file(s):`);
-          for (const f of tarFiles) {
-            log(`  ${f.name} (${f.data.length} bytes)`);
-          }
+          log(`Archive contains ${tarFiles.length} file(s)`);
           fileArray = matchFlashParts(tarFiles);
         } else if (file.name.endsWith(".bin")) {
           // Single .bin file — try to match by filename suffix
