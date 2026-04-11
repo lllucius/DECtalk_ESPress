@@ -285,7 +285,7 @@ class DECtalkESPressGUI:
         dlg.bind("<Return>", lambda _e: dlg.destroy())
         dlg.bind("<Escape>", lambda _e: dlg.destroy())
 
-        # Centre on parent window
+        # Center on parent window
         dlg.update_idletasks()
         pw = self.root.winfo_width()
         ph = self.root.winfo_height()
