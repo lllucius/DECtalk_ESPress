@@ -42,17 +42,32 @@ For detailed build instructions, toolchain setup, and architecture notes see
 
 | Component | Details |
 |-----------|---------|
-| MCU board | **ESP32-S3** development board with native USB connector (e.g. ESP32-S3-DevKitC-1) |
+| MCU board | ESP32 development board with **two USB data ports**: one UART/serial port for flashing and logs, plus one native USB-OTG/device port for ESPress protocol communication |
 | Flash | 8 MB (configured in `sdkconfig.defaults`) |
-| PSRAM | Octal SPI PSRAM enabled (`CONFIG_SPIRAM=y`) |
+| PSRAM | Optional for embedded/partition dictionary modes; recommended when loading the dictionary from SPIFFS (around 2 MB is a practical minimum) |
 | I2S DAC | PCM5102, MAX98357A, or any I2S-compatible DAC/amplifier |
-| USB cable | USB data cable for power, flashing, and CDC-ACM host communication |
+| USB cables | Two USB data-capable connections are recommended in practice: UART USB for flashing/debugging and native USB for CDC-ACM host communication |
 
-> **Note:** The `sdkconfig.defaults` targets **ESP32-S3** specifically
-> (`CONFIG_IDF_TARGET="esp32s3"`) with 8 MB flash, octal PSRAM at 80 MHz,
-> and TinyUSB CDC enabled.  Other ESP32 variants (original ESP32, S2, C3)
-> are _not_ tested and would require `sdkconfig` changes and possibly
-> different USB transport code.
+> **Board selection note:** An Espressif **ESP32-S3** dev board is the
+> recommended and currently configured option, but the important requirement is
+> a chip/board combination that provides **both** a UART flashing/debug path
+> and a separate native USB-OTG/device port for DECtalk ESPress communication.
+> ESP32-S2 and ESP32-P4 based boards should also be viable in principle, but
+> they are untested here and would require `sdkconfig` updates (the defaults
+> currently set `CONFIG_IDF_TARGET="esp32s3"`).
+>
+> **Port usage:** The UART-side USB connection is for reflashing and console
+> logs.  General users will typically only need it when using the `flasher`
+> tool or `idf.py flash`, while developers/tinkerers will also use it for
+> debugging.  The native USB CDC port is reserved for normal runtime
+> host↔ESPress protocol communication.
+>
+> **Memory note:** PSRAM is not strictly required to run the firmware because
+> the ESPress application itself fits within the base 512 KB RAM budget.
+> However, dictionary storage mode matters: embedded dictionaries and dedicated
+> dictionary partitions can work without PSRAM, while loading the dictionary
+> from a SPIFFS file uses additional heap, so a modest PSRAM size (roughly
+> 2 MB, depending on filesystem size and usage) is recommended.
 
 ## Wiring
 
