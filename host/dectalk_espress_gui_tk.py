@@ -25,6 +25,8 @@ Usage:
 
 import sys
 import os
+import platform
+import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -52,6 +54,94 @@ from dectalk_serial import (
 )
 
 
+# -- Theme Detection & Color Palettes ----------------------------
+
+# Colors for non-themed widgets (tk.Text, tk.Menu) and explicit
+# foregrounds on ttk.Labels.  The ttk theme itself handles the
+# remaining widgets (buttons, comboboxes, frames, sliders, etc.).
+
+_LIGHT_COLORS = {
+    "text_bg":          "white",
+    "text_fg":          "black",
+    "text_insert":      "black",
+    "text_select_bg":   "#b0c4de",
+    "log_bg":           "#f0f0f0",
+    "log_fg":           "black",
+    "menu_bg":          "#f0f0f0",
+    "menu_fg":          "black",
+    "status_fg":        "gray30",
+    "inactive_fg":      "gray70",
+    "ready_fg":         "green4",
+    "transmitting_fg":  "DodgerBlue",
+    "flushing_fg":      "orange",
+    "index_fg":         "purple",
+}
+
+_DARK_COLORS = {
+    "text_bg":          "#1e1e1e",
+    "text_fg":          "#d4d4d4",
+    "text_insert":      "#d4d4d4",
+    "text_select_bg":   "#264f78",
+    "log_bg":           "#252526",
+    "log_fg":           "#cccccc",
+    "menu_bg":          "#2d2d30",
+    "menu_fg":          "#d4d4d4",
+    "status_fg":        "#b0b0b0",
+    "inactive_fg":      "#555555",
+    "ready_fg":         "#4ec94e",
+    "transmitting_fg":  "#69b4f0",
+    "flushing_fg":      "#e0a030",
+    "index_fg":         "#c080e0",
+}
+
+
+def _is_dark_mode():
+    """Detect whether the OS is using a dark color scheme.
+
+    Checks platform-specific settings on macOS, Windows, and Linux
+    (freedesktop / GNOME / KDE).  Returns ``False`` when detection fails.
+    """
+    system = platform.system()
+
+    if system == "Darwin":
+        try:
+            result = subprocess.run(
+                ["defaults", "read", "-g", "AppleInterfaceStyle"],
+                capture_output=True, text=True, timeout=2,
+            )
+            return result.stdout.strip().lower() == "dark"
+        except Exception:
+            return False
+
+    if system == "Windows":
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            )
+            value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            winreg.CloseKey(key)
+            return value == 0
+        except Exception:
+            return False
+
+    # Linux / BSD – try freedesktop color-scheme first, then GTK theme name
+    for cmd in (
+        ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+        ["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
+    ):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    timeout=2)
+            if "dark" in result.stdout.lower():
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
 class DECtalkESPressGUI:
     """Main GUI application for DECtalk ESPress host control."""
 
@@ -63,6 +153,10 @@ class DECtalkESPressGUI:
         self.root.title("DECtalk ESPress - Host GUI")
         self.root.minsize(700, 650)
         self.root.geometry("1097x650")
+
+        # Detect OS theme and pick colours
+        self._dark = _is_dark_mode()
+        self._colors = _DARK_COLORS if self._dark else _LIGHT_COLORS
 
         self.ESPress = DECtalkESPressSerial()
         self._paused = False
@@ -77,11 +171,69 @@ class DECtalkESPressGUI:
         self.status_var = tk.StringVar(value="Disconnected")
         self.device_status_var = tk.StringVar(value="--")
 
+        self._apply_theme()
         self._build_ui()
         self._refresh_ports()
 
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # -- Theme Setup ------------------------------------------------
+
+    def _apply_theme(self):
+        """Select a ttk theme appropriate for the platform and mode.
+
+        On macOS the built-in 'aqua' theme already follows the system
+        appearance, so nothing extra is needed.  On other platforms we
+        use 'clam' as a solid cross-platform theme and, when in dark
+        mode, override its palette so that themed widgets (frames,
+        buttons, labels, etc.) render with dark colours.
+        """
+        style = ttk.Style(self.root)
+
+        if platform.system() == "Darwin":
+            # Aqua theme tracks macOS dark/light automatically.
+            try:
+                style.theme_use("aqua")
+            except tk.TclError:
+                pass
+            return
+
+        # Windows / Linux — use clam and override for dark mode.
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        if self._dark:
+            bg = "#2d2d30"
+            fg = "#d4d4d4"
+            field_bg = "#1e1e1e"
+            select_bg = "#264f78"
+            border = "#555555"
+            style.configure(".", background=bg, foreground=fg,
+                            fieldbackground=field_bg,
+                            troughcolor="#3e3e42",
+                            selectbackground=select_bg,
+                            selectforeground=fg,
+                            bordercolor=border,
+                            darkcolor=bg, lightcolor=bg)
+            style.configure("TLabelframe", background=bg)
+            style.configure("TLabelframe.Label", background=bg,
+                            foreground=fg)
+            style.configure("TButton", background="#3e3e42",
+                            foreground=fg, bordercolor=border)
+            style.map("TButton",
+                       background=[("active", "#505058"),
+                                   ("pressed", "#606068")])
+            style.configure("TCombobox", fieldbackground=field_bg,
+                            selectbackground=select_bg,
+                            selectforeground=fg)
+            style.configure("TScale", background=bg, troughcolor="#3e3e42")
+            style.map("TScale",
+                       background=[("active", "#505058")])
+            # Root window background
+            self.root.configure(bg=bg)
 
     # -- UI Construction ------------------------------------------
 
@@ -231,6 +383,10 @@ class DECtalkESPressGUI:
             wrap=tk.NONE,
             undo=True,
             font=("TkFixedFont", 10),
+            bg=self._colors["text_bg"],
+            fg=self._colors["text_fg"],
+            insertbackground=self._colors["text_insert"],
+            selectbackground=self._colors["text_select_bg"],
             yscrollcommand=v_scroll.set,
             xscrollcommand=h_scroll.set,
         )
@@ -239,7 +395,9 @@ class DECtalkESPressGUI:
         h_scroll.config(command=self.text_box.xview)
 
         # Right-click context menu
-        self.context_menu = tk.Menu(self.text_box, tearoff=0)
+        self.context_menu = tk.Menu(self.text_box, tearoff=0,
+                                    bg=self._colors["menu_bg"],
+                                    fg=self._colors["menu_fg"])
         self.context_menu.add_command(
             label="Cut", accelerator="Ctrl+X", command=self._cut
         )
@@ -307,7 +465,7 @@ class DECtalkESPressGUI:
         ttk.Label(status_row, text="Status:").pack(side=tk.LEFT, padx=(0, 4))
         self.device_status_label = ttk.Label(
             status_row, textvariable=self.device_status_var,
-            font=("TkFixedFont", 9), foreground="gray30"
+            font=("TkFixedFont", 9), foreground=self._colors["status_fg"]
         )
         self.device_status_label.pack(side=tk.LEFT, padx=(0, 16))
 
@@ -315,7 +473,7 @@ class DECtalkESPressGUI:
         self._status_indicators = {}
         for name in ["Ready", "Transmitting", "Flushing", "Index"]:
             lbl = ttk.Label(status_row, text="(*) " + name,
-                            foreground="gray70")
+                            foreground=self._colors["inactive_fg"])
             lbl.pack(side=tk.LEFT, padx=(0, 12))
             self._status_indicators[name] = lbl
 
@@ -348,14 +506,19 @@ class DECtalkESPressGUI:
             font=("TkFixedFont", 9),
             state=tk.DISABLED,
             wrap=tk.WORD,
-            bg="#f0f0f0",
+            bg=self._colors["log_bg"],
+            fg=self._colors["log_fg"],
+            insertbackground=self._colors["text_insert"],
+            selectbackground=self._colors["text_select_bg"],
             yscrollcommand=log_scroll.set,
         )
         self.log_text.grid(row=0, column=0, sticky=tk.NSEW)
         log_scroll.config(command=self.log_text.yview)
 
         # Right-click context menu for the log widget
-        self._log_context_menu = tk.Menu(self.log_text, tearoff=0)
+        self._log_context_menu = tk.Menu(self.log_text, tearoff=0,
+                                         bg=self._colors["menu_bg"],
+                                         fg=self._colors["menu_fg"])
         self._log_context_menu.add_command(
             label="Copy", command=self._log_copy
         )
@@ -667,18 +830,19 @@ class DECtalkESPressGUI:
 
     def _update_status_indicators(self, status):
         """Update the colored status indicator labels."""
+        c = self._colors
         indicators = {
-            "Ready":        (ESPRESS_STAT_RR_CHAR | ESPRESS_STAT_CMD_READY, "green4"),
-            "Transmitting": (ESPRESS_STAT_TR_CHAR, "DodgerBlue"),
-            "Flushing":     (ESPRESS_STAT_FLUSHING, "orange"),
-            "Index":        (ESPRESS_STAT_NEW_INDEX, "purple"),
+            "Ready":        (ESPRESS_STAT_RR_CHAR | ESPRESS_STAT_CMD_READY, c["ready_fg"]),
+            "Transmitting": (ESPRESS_STAT_TR_CHAR, c["transmitting_fg"]),
+            "Flushing":     (ESPRESS_STAT_FLUSHING, c["flushing_fg"]),
+            "Index":        (ESPRESS_STAT_NEW_INDEX, c["index_fg"]),
         }
         for name, (mask, color) in indicators.items():
             lbl = self._status_indicators[name]
             if status & mask:
                 lbl.config(foreground=color)
             else:
-                lbl.config(foreground="gray70")
+                lbl.config(foreground=c["inactive_fg"])
 
     def _poll_status_loop(self):
         """Background thread that periodically polls device status."""
