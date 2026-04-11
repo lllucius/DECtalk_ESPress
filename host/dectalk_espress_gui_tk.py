@@ -226,9 +226,15 @@ class DECtalkESPressGUI:
             style.map("TButton",
                        background=[("active", "#505058"),
                                    ("pressed", "#606068")])
-            style.configure("TCombobox", fieldbackground=field_bg,
+            style.configure("TCombobox", foreground=fg,
+                            fieldbackground=field_bg,
                             selectbackground=select_bg,
                             selectforeground=fg)
+            style.map("TCombobox",
+                       fieldbackground=[("readonly", field_bg)],
+                       foreground=[("readonly", fg)],
+                       selectbackground=[("readonly", select_bg)],
+                       selectforeground=[("readonly", fg)])
             # Style the dropdown Listbox that appears under each Combobox
             self.root.option_add("*TCombobox*Listbox.background", field_bg)
             self.root.option_add("*TCombobox*Listbox.foreground", fg)
