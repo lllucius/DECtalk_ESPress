@@ -14,4 +14,4 @@ targets:
   - esp32p4
 dependencies:
   idf:
-    version: ">=5.0.0"
+    version: ">=5.5.0"
