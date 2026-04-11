@@ -79,8 +79,8 @@ output terminals.
 # 1. Source the ESP-IDF environment
 . ~/esp/esp-idf/export.sh
 
-# 2. Navigate to the port directory
-cd ports/esp32
+# 2. Navigate to the project directory
+cd DECtalk_ESPress
 
 # 3. Build (dictionary is compiled automatically)
 idf.py build
@@ -195,7 +195,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 ## License
 
-This firmware follows the same license as the main DECtalk project.
+This firmware is licensed under the MIT License — see [LICENSE](LICENSE).
 
 ## References
 

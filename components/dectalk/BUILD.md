@@ -17,9 +17,7 @@ in the following order:
 
 1. **Configured path** — the value of *Path to DECtalk library source tree*
    in menuconfig (`CONFIG_DECTALK_SRC_ROOT`).
-2. **Auto-detection** — if the component is still inside a DECtalk checkout
-   (`../../..` from the component is the repo root with `src/dapi/src`).
-3. **FetchContent** — if enabled in menuconfig (default: **enabled**), CMake
+2. **FetchContent** — if enabled in menuconfig (default: **enabled**), CMake
    clones `https://github.com/dectalk/dectalk` into the build directory.
    This is the mechanism used when the component is installed via the
    ESP Component Registry.
@@ -32,9 +30,9 @@ The path may point at the DECtalk repository root (containing
 
 When the component is installed via the ESP Component Registry
 (`idf.py add-dependency "lllucius__dectalk>=1.0.0"`), it lands in the
-project's `managed_components/lllucius__dectalk/` directory.  In that
-location auto-detection (step 2) will not find a DECtalk checkout, so CMake
-falls through to the FetchContent step.  Because `DECTALK_FETCH_SOURCE`
+project's `managed_components/lllucius__dectalk/` directory.  Since no
+local source path is configured by default, CMake falls through to the
+FetchContent step.  Because `DECTALK_FETCH_SOURCE`
 defaults to `y`, the upstream source tree is cloned automatically on the
 first configure run.  Subsequent builds reuse the cached checkout from the
 CMake build directory.

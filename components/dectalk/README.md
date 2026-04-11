@@ -23,9 +23,9 @@ USB CDC transport) uses this component, see the
   on a dedicated flash partition, or loaded from a SPIFFS file system
 - **Zero upstream patches** — all adaptations achieved through compile
   definitions, header shims, libc stubs, and linker wrapping
-- **Standalone or in-tree** — works inside the main DECtalk repository,
-  copied out of tree (with local path or FetchContent from GitHub), or
-  installed via the ESP Component Registry
+- **Standalone component** — works as a standalone project, installed via
+  the ESP Component Registry, or with a local DECtalk source path / FetchContent
+  from GitHub
 - **Configurable via `menuconfig`** — language, dictionary location, source
   paths; all under the **DECtalk** menu
 
@@ -33,7 +33,8 @@ USB CDC transport) uses this component, see the
 
 The component is published on the
 [ESP Component Registry](https://components.espressif.com/) as
-**`lllucius/dectalk`**.
+**`lllucius/dectalk`** (the ESP-IDF component wrapper published from this
+repository).
 
 ### Add to a Project
 
@@ -56,8 +57,8 @@ If network access is unavailable, download the DECtalk upstream source tree
 manually and point the component at it:
 
 1. Clone the upstream DECtalk source: `https://github.com/dectalk/dectalk`
-   (this is the TTS engine source, separate from the component repository
-   `https://github.com/lllucius/dectalk`).
+   (this is the TTS engine source, separate from this project's repository
+   `https://github.com/lllucius/DECtalk_ESPress`).
 2. In `idf.py menuconfig`, navigate to
    *DECtalk → DECtalk distribution → Path to DECtalk library source tree*
    and enter the path to your local clone.
@@ -107,42 +108,24 @@ components/dectalk/
 
 ## Quick Start
 
-### From the ESP Component Registry
+### From the Project Root
 
 ```bash
-# In your ESP-IDF project directory
-idf.py add-dependency "lllucius__dectalk>=1.0.0"
 idf.py build   # fetches upstream source automatically on first run
 ```
 
-### Inside the DECtalk Repository (in-tree)
+### Setting a Local DECtalk Source Path
 
-When this component lives inside the DECtalk repository at
-`ports/esp32/components/dectalk/`, it locates the `src/` tree automatically.
-Just build the firmware project:
-
-```bash
-cd ports/esp32
-idf.py build
-```
-
-### Out-of-Tree Usage
-
-If you copy this component (or the entire `ports/esp32` directory) outside
-the DECtalk repository:
+If you have a local checkout of the DECtalk source tree:
 
 1. **Set a local path** — in `idf.py menuconfig`, navigate to
    *DECtalk → DECtalk distribution → Path to DECtalk library source tree*
    and point it at your local DECtalk checkout.
 
 2. **Or rely on FetchContent** — FetchContent is enabled by default
-   (`DECTALK_FETCH_SOURCE=y`).  If no local path is configured and the
-   component is not inside a DECtalk checkout, CMake will automatically
-   clone the upstream source tree from GitHub into the build directory.
-
-> **Stale `sdkconfig`**: If you previously built inside the DECtalk tree
-> and then copied the directory elsewhere, delete the `sdkconfig` file and
-> reconfigure so the defaults are regenerated.
+   (`DECTALK_FETCH_SOURCE=y`).  If no local path is configured, CMake will
+   automatically clone the upstream source tree from GitHub into the build
+   directory.
 
 ## Language Selection
 
@@ -200,12 +183,12 @@ linker wrapping, see **[BUILD.md](BUILD.md)**.
 
 ## License
 
-This component follows the same license as the main DECtalk project.
+This component wrapper (the files in this directory: `idf_component.yml`,
+`CMakeLists.txt`, `Kconfig.projbuild`, `project_include.cmake`, and files
+under `include/` and `src/`) is licensed under the MIT License — see
+[LICENSE](../../LICENSE).
+
 The upstream DECtalk TTS engine source (fetched from
 `https://github.com/dectalk/dectalk`, the upstream source repository) is
-covered by the FONIX proprietary license (see
-[LICENCE](../../../../LICENCE)).  The component wrapper files in this
-directory (`idf_component.yml`, `CMakeLists.txt`, `Kconfig.projbuild`,
-`project_include.cmake`, and files under `include/` and `src/`) are part of
-`https://github.com/lllucius/dectalk` and share the same overall project
-license.
+covered by the FONIX proprietary license (see the `LICENCE` file in that
+repository).

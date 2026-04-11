@@ -55,7 +55,7 @@ which bundles Git, Python, CMake, Ninja, and the Xtensa/RISC-V toolchains.
 ## Directory Layout
 
 ```
-ports/esp32/
+DECtalk_ESPress/
 ├── CMakeLists.txt                  # Top-level ESP-IDF project file
 ├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
 ├── partitions.csv                  # Custom partition table
@@ -323,12 +323,6 @@ idf.py menuconfig
 # Set target (only needed once, or after fullclean)
 idf.py set-target esp32s3
 ```
-
-### Out-of-Tree Builds
-
-See the [component README](components/dectalk/README.md) for instructions
-on setting the DECtalk source path or enabling FetchContent when building
-outside the DECtalk repository.
 
 ### Changing Language
 
