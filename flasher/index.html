@@ -328,6 +328,12 @@
     const GITHUB_OWNER = "lllucius";
     const GITHUB_REPO  = "DECtalk_ESPress";
 
+    // GitHub Pages base URL for CORS-friendly firmware downloads.
+    // GitHub's release-asset CDN does not return Access-Control-Allow-Origin
+    // headers, so browsers block direct fetch() calls.  GitHub Pages, on the
+    // other hand, serves every response with Access-Control-Allow-Origin: *.
+    const FIRMWARE_BASE_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/firmware`;
+
     // ESP32-S3 flash addresses (fixed for this project's partition layout)
     const RELEASE_FLASH_PARTS = [
       { name: "bootloader",      suffix: "-bootloader.bin",      offset: 0x0 },
@@ -597,28 +603,23 @@
     // ── Flash from release (download) ──
 
     /**
-     * Find the GitHub API download URL for a release asset by name.
-     * Uses the asset metadata already fetched from the GitHub API, whose
-     * CORS headers allow cross-origin downloads (unlike the github.com
-     * release download URLs which redirect and may be blocked by CORS).
+     * Download a single firmware binary from GitHub Pages.
+     * GitHub Pages serves with Access-Control-Allow-Origin: *, so this
+     * avoids the CORS issues that occur when fetching from the GitHub
+     * release-asset CDN (which has no CORS headers).
      */
-    function findAssetUrl(tagName, assetName) {
-      const release = releases.find(r => r.tag_name === tagName);
-      if (!release) throw new Error(`Release ${tagName} not found`);
-      const asset = release.assets.find(a => a.name === assetName);
-      if (!asset) throw new Error(`Asset ${assetName} not found in ${tagName}`);
-      return asset.url;   // api.github.com URL
-    }
-
-    /**
-     * Download a single binary asset from a GitHub release via the API.
-     */
-    async function downloadAsset(apiUrl, fileName) {
+    async function downloadAsset(tagName, fileName) {
       log(`Downloading ${fileName}…`);
-      const resp = await fetch(apiUrl, {
-        headers: { "Accept": "application/octet-stream" },
-      });
+      const url = `${FIRMWARE_BASE_URL}/${tagName}/${fileName}`;
+      const resp = await fetch(url);
       if (!resp.ok) {
+        if (resp.status === 404) {
+          throw new Error(
+            `${fileName} not found on GitHub Pages. ` +
+            `This release may not be available for web flashing yet. ` +
+            `Use "Flash from File…" with a downloaded release archive instead.`
+          );
+        }
         throw new Error(`Failed to download ${fileName}: HTTP ${resp.status}`);
       }
       const buf = await resp.arrayBuffer();
@@ -649,8 +650,7 @@
         const fileArray = [];
         for (const part of RELEASE_FLASH_PARTS) {
           const assetName = `dectalk-espress-${langCode}${part.suffix}`;
-          const url  = findAssetUrl(tagName, assetName);
-          const data = await downloadAsset(url, assetName);
+          const data = await downloadAsset(tagName, assetName);
           fileArray.push({ data, address: part.offset });
         }
 
