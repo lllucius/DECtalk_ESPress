@@ -96,7 +96,7 @@ _DARK_COLORS = {
 
 
 def _is_dark_mode():
-    """Detect whether the OS is using a dark colour scheme.
+    """Detect whether the OS is using a dark color scheme.
 
     Checks platform-specific settings on macOS, Windows, and Linux
     (freedesktop / GNOME / KDE).  Returns ``False`` when detection fails.
@@ -107,7 +107,7 @@ def _is_dark_mode():
         try:
             result = subprocess.run(
                 ["defaults", "read", "-g", "AppleInterfaceStyle"],
-                capture_output=True, text=True,
+                capture_output=True, text=True, timeout=2,
             )
             return result.stdout.strip().lower() == "dark"
         except Exception:
@@ -115,7 +115,7 @@ def _is_dark_mode():
 
     if system == "Windows":
         try:
-            import winreg  # noqa: F811 (stdlib on Windows)
+            import winreg
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
@@ -132,7 +132,8 @@ def _is_dark_mode():
         ["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"],
     ):
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    timeout=2)
             if "dark" in result.stdout.lower():
                 return True
         except Exception:
