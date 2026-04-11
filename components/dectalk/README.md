@@ -33,8 +33,7 @@ USB CDC transport) uses this component, see the
 
 The component is published on the
 [ESP Component Registry](https://components.espressif.com/) as
-**`lllucius/dectalk`** (the ESP-IDF component wrapper published from this
-repository).
+**`lllucius/dectalk`**.
 
 ### Add to a Project
 
@@ -183,12 +182,5 @@ linker wrapping, see **[BUILD.md](BUILD.md)**.
 
 ## License
 
-This component wrapper (the files in this directory: `idf_component.yml`,
-`CMakeLists.txt`, `Kconfig.projbuild`, `project_include.cmake`, and files
-under `include/` and `src/`) is licensed under the MIT License — see
-[LICENSE](../../LICENSE).
+This component is licensed under the MIT License — see [LICENSE](LICENSE).
 
-The upstream DECtalk TTS engine source (fetched from
-`https://github.com/dectalk/dectalk`, the upstream source repository) is
-covered by the FONIX proprietary license (see the `LICENCE` file in that
-repository).
