@@ -35,41 +35,70 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      padding: 2rem;
+      padding: 1rem 1.25rem;
       min-height: 100vh;
     }
 
     h1 {
-      font-size: 1.5rem;
-      margin-bottom: 0.25rem;
+      font-size: 1.3rem;
+      margin-bottom: 0.15rem;
     }
 
     .subtitle {
       color: var(--muted);
-      font-size: 0.85rem;
-      margin-bottom: 1.5rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .instructions {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.6rem 0.85rem;
+      margin-bottom: 0.75rem;
+      max-width: 640px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .instructions ol {
+      margin: 0.25rem 0 0.25rem 1.25rem;
+      padding: 0;
+    }
+
+    .instructions li {
+      margin-bottom: 0.1rem;
+    }
+
+    .instructions a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .instructions a:hover {
+      text-decoration: underline;
     }
 
     .panel {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.25rem;
-      margin-bottom: 1rem;
+      border-radius: 6px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.6rem;
       max-width: 640px;
     }
 
     .panel h2 {
-      font-size: 1rem;
-      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
       color: var(--accent);
     }
 
     .form-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
       flex-wrap: wrap;
     }
 
@@ -78,40 +107,26 @@
     }
 
     label {
-      font-size: 0.85rem;
-      min-width: 90px;
+      font-size: 0.8rem;
+      min-width: 70px;
     }
 
-    select, input[type="text"] {
+    select {
       background: var(--bg);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 4px;
-      padding: 0.4rem 0.6rem;
-      font-size: 0.85rem;
-    }
-
-    select {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.8rem;
       min-width: 180px;
-    }
-
-    input[type="text"] {
-      width: 100px;
-      font-family: monospace;
     }
 
     input[type="file"] {
       display: none;
     }
 
-    .file-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
     .file-name {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--muted);
       max-width: 250px;
       overflow: hidden;
@@ -124,8 +139,8 @@
       color: #fff;
       border: none;
       border-radius: 4px;
-      padding: 0.45rem 1rem;
-      font-size: 0.85rem;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.8rem;
       cursor: pointer;
       transition: background 0.15s;
     }
@@ -154,9 +169,9 @@
     }
 
     #status {
-      font-size: 0.85rem;
-      padding: 0.5rem 0;
-      min-height: 1.5rem;
+      font-size: 0.8rem;
+      padding: 0.3rem 0;
+      min-height: 1.3rem;
     }
 
     .status-connected {
@@ -180,8 +195,8 @@
     }
 
     #log-container h2 {
-      font-size: 1rem;
-      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
       color: var(--accent);
       display: flex;
       justify-content: space-between;
@@ -189,18 +204,18 @@
     }
 
     #log-container h2 button {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.6rem;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
     }
 
     #log {
       background: #111;
       color: #0f0;
       font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
-      font-size: 0.8rem;
-      padding: 0.75rem;
+      font-size: 0.75rem;
+      padding: 0.6rem;
       border-radius: 6px;
-      height: 300px;
+      height: 220px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
@@ -212,8 +227,8 @@
       background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 4px;
-      height: 20px;
-      margin-top: 0.5rem;
+      height: 18px;
+      margin-top: 0.4rem;
       overflow: hidden;
       display: none;
       max-width: 640px;
@@ -225,21 +240,31 @@
       width: 0%;
       transition: width 0.2s;
       text-align: center;
-      font-size: 0.7rem;
-      line-height: 20px;
+      font-size: 0.65rem;
+      line-height: 18px;
       color: #fff;
     }
 
     button.compact {
-      padding: 0.4rem 0.6rem;
-      font-size: 0.85rem;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.8rem;
       min-width: auto;
     }
   </style>
 </head>
 <body>
   <h1>🔌 DECtalk ESPress Web Flasher</h1>
-  <p class="subtitle">Flash firmware via USB serial from GitHub releases or local files</p>
+  <p class="subtitle">Flash firmware via USB serial — requires Chrome or Edge 89+</p>
+
+  <!-- Instructions -->
+  <div class="instructions">
+    <ol>
+      <li>Connect your ESP32-S3 board via USB and click <strong>Connect</strong>.</li>
+      <li>Select a <strong>Release</strong> and <strong>Language</strong>, then click <strong>Flash Firmware</strong>.</li>
+      <li>Alternatively, click <strong>Flash from File…</strong> to flash a previously downloaded release archive.</li>
+    </ol>
+    <span>For more info, see the <a href="https://github.com/lllucius/DECtalk_ESPress#readme" target="_blank" rel="noopener">README</a>.</span>
+  </div>
 
   <!-- Connection -->
   <div class="panel">
@@ -277,35 +302,10 @@
     <div class="form-row">
       <div class="btn-group">
         <button id="btn-flash-release" disabled>Flash Firmware</button>
+        <button id="btn-flash-from-file" disabled>Flash from File…</button>
+        <input type="file" id="file-input" accept=".tar.gz,.tgz,.bin">
       </div>
-    </div>
-  </div>
-
-  <!-- Flash Local File (advanced) -->
-  <div class="panel">
-    <h2>Flash Local File</h2>
-    <div class="form-row">
-      <label for="partition">Partition:</label>
-      <select id="partition">
-        <option value="">(connect to read partitions)</option>
-      </select>
-    </div>
-    <div class="form-row">
-      <label for="address">Address:</label>
-      <input type="text" id="address" value="" readonly>
-    </div>
-    <div class="form-row">
-      <label>Firmware:</label>
-      <div class="file-label">
-        <button id="btn-browse" type="button">Browse for file…</button>
-        <input type="file" id="file-input" accept=".bin,.dic">
-        <span class="file-name" id="file-name">No file selected</span>
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="btn-group">
-        <button id="btn-flash" disabled>Flash File</button>
-      </div>
+      <span class="file-name" id="file-name"></span>
     </div>
   </div>
 
@@ -335,145 +335,36 @@
       { name: "application",     suffix: "-app.bin",             offset: 0x10000 },
     ];
 
-    // ── Partition table constants ──
-    const PARTITION_TABLE_ADDR = 0x8000;
-    const PARTITION_TABLE_SIZE = 0x1000;
-    const PARTITION_ENTRY_SIZE = 32;
-    const PARTITION_MAGIC      = 0x50AA;  // little-endian for bytes 0xAA 0x50
-    const PARTITION_MD5_MAGIC  = 0xEBEB;
-
-    const PART_TYPE_APP  = 0x00;
-    const PART_TYPE_DATA = 0x01;
-
-    const APP_SUBTYPE_NAMES = {
-      0x00: "factory",
-      0x10: "ota_0",  0x11: "ota_1",  0x12: "ota_2",  0x13: "ota_3",
-      0x14: "ota_4",  0x15: "ota_5",  0x16: "ota_6",  0x17: "ota_7",
-      0x18: "ota_8",  0x19: "ota_9",  0x1a: "ota_10", 0x1b: "ota_11",
-      0x1c: "ota_12", 0x1d: "ota_13", 0x1e: "ota_14", 0x1f: "ota_15",
-      0x20: "test",
-    };
-
-    const DATA_SUBTYPE_NAMES = {
-      0x00: "ota",     0x01: "phy",      0x02: "nvs",
-      0x03: "coredump", 0x04: "nvs_keys", 0x05: "efuse",
-      0x81: "fat",     0x82: "spiffs",
-    };
-
-    // Subtypes that are internal/system and should not be offered for flashing
-    const SYSTEM_DATA_SUBTYPES = new Set([0x00, 0x01, 0x02, 0x04, 0x05]);
-
-    /**
-     * Parse ESP32 binary partition table data.
-     * @param {Uint8Array} data  Raw bytes read from flash at 0x8000
-     * @returns {Array<{type:number, subtype:number, offset:number, size:number, label:string, flags:number}>}
-     */
-    function parsePartitionTable(data) {
-      const partitions = [];
-      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-
-      for (let i = 0; i + PARTITION_ENTRY_SIZE <= data.length; i += PARTITION_ENTRY_SIZE) {
-        const magic = view.getUint16(i, true);
-        if (magic === PARTITION_MD5_MAGIC) break;
-        if (magic !== PARTITION_MAGIC) break;
-
-        const type    = data[i + 2];
-        const subtype = data[i + 3];
-        const offset  = view.getUint32(i + 4, true);
-        const size    = view.getUint32(i + 8, true);
-
-        let label = "";
-        for (let j = 0; j < 16; j++) {
-          const ch = data[i + 12 + j];
-          if (ch === 0) break;
-          label += String.fromCharCode(ch);
-        }
-
-        const flags = view.getUint32(i + 28, true);
-        partitions.push({ type, subtype, offset, size, label, flags });
-      }
-      return partitions;
-    }
-
-    /**
-     * Return a human-readable description for a partition entry.
-     */
-    function describePartition(p) {
-      let typeName, subtypeName;
-      if (p.type === PART_TYPE_APP) {
-        typeName = "app";
-        subtypeName = APP_SUBTYPE_NAMES[p.subtype] || `0x${p.subtype.toString(16)}`;
-      } else if (p.type === PART_TYPE_DATA) {
-        typeName = "data";
-        subtypeName = DATA_SUBTYPE_NAMES[p.subtype] || `0x${p.subtype.toString(16)}`;
-      } else {
-        typeName = `0x${p.type.toString(16)}`;
-        subtypeName = `0x${p.subtype.toString(16)}`;
-      }
-      return { typeName, subtypeName };
-    }
-
-    /**
-     * Format byte size to human-readable string.
-     */
-    function formatSize(bytes) {
-      if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "") + " MB";
-      if (bytes >= 1024)        return (bytes / 1024).toFixed(1).replace(/\.0$/, "") + " KB";
-      return bytes + " B";
-    }
-
-    /**
-     * Determine if a partition should be offered as a flash target.
-     * Show app partitions and non-system data partitions.
-     */
-    function isFlashable(p) {
-      if (p.type === PART_TYPE_APP) return true;
-      if (p.type === PART_TYPE_DATA && !SYSTEM_DATA_SUBTYPES.has(p.subtype)) return true;
-      return false;
-    }
-
-    // ── Discovered partitions (populated after connect) ──
-    let partitions = [];
-
-    /**
-     * Update the address field to reflect the currently selected partition.
-     */
-    function updateAddressFromPartition() {
-      const idx = parseInt(elPartition.value, 10);
-      if (!isNaN(idx) && partitions[idx]) {
-        elAddress.value = "0x" + partitions[idx].offset.toString(16);
-      } else {
-        elAddress.value = "";
-      }
-    }
+    // File patterns for matching files inside a release tar archive
+    const TAR_FLASH_PARTS = [
+      { pattern: /\/bootloader\/bootloader\.bin$/,         offset: 0x0,     name: "bootloader" },
+      { pattern: /\/partition_table\/partition-table\.bin$/,offset: 0x8000,  name: "partition-table" },
+      { pattern: /\/dectalk_espress\.bin$/,                offset: 0x10000, name: "application" },
+    ];
 
     // ── DOM refs ──
-    const elBtnConnect    = document.getElementById("btn-connect");
-    const elBtnDisconnect = document.getElementById("btn-disconnect");
-    const elBtnBrowse     = document.getElementById("btn-browse");
-    const elBtnFlash      = document.getElementById("btn-flash");
-    const elBtnClearLog   = document.getElementById("btn-clear-log");
-    const elPartition     = document.getElementById("partition");
-    const elAddress       = document.getElementById("address");
-    const elFileInput     = document.getElementById("file-input");
-    const elFileName      = document.getElementById("file-name");
-    const elStatus        = document.getElementById("status");
-    const elLog           = document.getElementById("log");
-    const elProgressCont  = document.getElementById("progress-container");
-    const elProgressBar   = document.getElementById("progress-bar");
+    const elBtnConnect      = document.getElementById("btn-connect");
+    const elBtnDisconnect   = document.getElementById("btn-disconnect");
+    const elBtnClearLog     = document.getElementById("btn-clear-log");
+    const elStatus          = document.getElementById("status");
+    const elLog             = document.getElementById("log");
+    const elProgressCont    = document.getElementById("progress-container");
+    const elProgressBar     = document.getElementById("progress-bar");
 
     // Release-flash DOM refs
     const elRelease         = document.getElementById("release");
     const elLanguage        = document.getElementById("language");
     const elBtnFlashRelease = document.getElementById("btn-flash-release");
     const elBtnRefresh      = document.getElementById("btn-refresh-releases");
+    const elBtnFlashFromFile = document.getElementById("btn-flash-from-file");
+    const elFileInput       = document.getElementById("file-input");
+    const elFileName        = document.getElementById("file-name");
 
     // ── State ──
     let port      = null;
     let transport = null;
     let esploader = null;
     let chipName  = null;
-    let fileData  = null;
     let flashing  = false;
 
     /**
@@ -488,8 +379,6 @@
       transport  = null;
       port       = null;
       chipName   = null;
-      partitions = [];
-      populatePartitionDropdown();
 
       if (t) {
         try { await t.disconnect(); } catch (_) { /* best-effort */ }
@@ -534,57 +423,19 @@
 
     // ── UI state ──
     function updateUI() {
-      const connected = esploader !== null;
-      const hasFile   = fileData !== null;
-      const hasPartition = elPartition.value !== "";
+      const connected  = esploader !== null;
       const hasRelease = elRelease.value !== "";
 
-      elBtnConnect.disabled    = connected || flashing;
-      elBtnDisconnect.disabled = !connected || flashing;
-      elBtnFlash.disabled      = !connected || !hasFile || !hasPartition || flashing;
-      elBtnBrowse.disabled     = flashing;
-      elPartition.disabled     = flashing;
+      elBtnConnect.disabled      = connected || flashing;
+      elBtnDisconnect.disabled   = !connected || flashing;
 
       // Release flash controls
-      elBtnFlashRelease.disabled = !connected || !hasRelease || flashing;
-      elRelease.disabled         = flashing;
-      elLanguage.disabled        = flashing;
-      elBtnRefresh.disabled      = flashing;
+      elBtnFlashRelease.disabled  = !connected || !hasRelease || flashing;
+      elBtnFlashFromFile.disabled = !connected || flashing;
+      elRelease.disabled          = flashing;
+      elLanguage.disabled         = flashing;
+      elBtnRefresh.disabled       = flashing;
     }
-
-    // ── Partition selection → address ──
-    elPartition.addEventListener("change", () => {
-      updateAddressFromPartition();
-    });
-
-    // ── File selection ──
-    elBtnBrowse.addEventListener("click", () => elFileInput.click());
-
-    elFileInput.addEventListener("change", () => {
-      const file = elFileInput.files[0];
-      if (!file) {
-        fileData = null;
-        elFileName.textContent = "No file selected";
-        updateUI();
-        return;
-      }
-
-      elFileName.textContent = file.name;
-      log(`Selected file: ${file.name} (${file.size} bytes)`);
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        fileData = new Uint8Array(e.target.result);
-        log(`File loaded: ${fileData.length} bytes`);
-        updateUI();
-      };
-      reader.onerror = () => {
-        log("Error reading file");
-        fileData = null;
-        updateUI();
-      };
-      reader.readAsArrayBuffer(file);
-    });
 
     // ── Browser support check ──
     function isWebSerialSupported() {
@@ -624,9 +475,6 @@
         log(`Connected: ${chipName}`);
         setStatus(`Connected: ${chipName}`, "status-connected");
 
-        // Read and parse the partition table from flash
-        await readPartitionTable();
-
         updateUI();
       } catch (err) {
         log(`Connection failed: ${err.message}`);
@@ -640,66 +488,6 @@
       }
     });
 
-    /**
-     * Read the partition table from flash and populate the UI.
-     */
-    async function readPartitionTable() {
-      try {
-        log("Reading partition table...");
-        const data = await esploader.readFlash(PARTITION_TABLE_ADDR, PARTITION_TABLE_SIZE);
-        partitions = parsePartitionTable(data);
-
-        if (partitions.length === 0) {
-          log("Warning: No partitions found in partition table");
-        } else {
-          log(`Found ${partitions.length} partition(s):`);
-          for (const p of partitions) {
-            const { typeName, subtypeName } = describePartition(p);
-            log(`  ${p.label.padEnd(16)} ${typeName}/${subtypeName}  ` +
-                `@ 0x${p.offset.toString(16)}  ${formatSize(p.size)}`);
-          }
-        }
-
-        populatePartitionDropdown();
-      } catch (err) {
-        log(`Warning: Could not read partition table: ${err.message}`);
-        partitions = [];
-        populatePartitionDropdown();
-      }
-    }
-
-    /**
-     * Populate the partition dropdown with flashable partitions.
-     */
-    function populatePartitionDropdown() {
-      elPartition.innerHTML = "";
-
-      const flashable = partitions
-        .map((p, i) => ({ ...p, index: i }))
-        .filter(p => isFlashable(p));
-
-      if (flashable.length === 0) {
-        const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "(no flashable partitions)";
-        elPartition.appendChild(opt);
-        elAddress.value = "";
-        return;
-      }
-
-      for (const p of flashable) {
-        const { typeName, subtypeName } = describePartition(p);
-        const opt = document.createElement("option");
-        opt.value = String(p.index);
-        opt.textContent = `${p.label} (${typeName}/${subtypeName}, ${formatSize(p.size)})`;
-        elPartition.appendChild(opt);
-      }
-
-      // Select the first flashable partition and update address
-      elPartition.selectedIndex = 0;
-      updateAddressFromPartition();
-    }
-
     // ── Disconnect ──
     elBtnDisconnect.addEventListener("click", async () => {
       log("Disconnecting...");
@@ -709,27 +497,13 @@
       log("Disconnected");
     });
 
-    // ── Flash ──
-    elBtnFlash.addEventListener("click", async () => {
-      if (!esploader || !fileData) return;
+    // ── Clear log ──
+    elBtnClearLog.addEventListener("click", () => {
+      elLog.textContent = "";
+    });
 
-      const idx = parseInt(elPartition.value, 10);
-      if (isNaN(idx) || !partitions[idx]) {
-        log("No partition selected");
-        return;
-      }
-
-      const part = partitions[idx];
-      const { typeName, subtypeName } = describePartition(part);
-      const partitionLabel = `${part.label} (${typeName}/${subtypeName})`;
-      const address = part.offset;
-
-      if (fileData.length > part.size) {
-        log(`Error: File size (${formatSize(fileData.length)}) exceeds partition size (${formatSize(part.size)})`);
-        setStatus("File too large for partition", "status-error");
-        return;
-      }
-
+    // ── Flash helper ──
+    async function flashImages(fileArray) {
       flashing = true;
       updateUI();
       setStatus("Flashing…", "status-busy");
@@ -737,12 +511,11 @@
       elProgressBar.style.width = "0%";
       elProgressBar.textContent = "0%";
 
-      log(`Flashing ${partitionLabel} at 0x${address.toString(16)}...`);
-      log(`Image size: ${fileData.length} bytes`);
-
       try {
+        log(`Flashing ${fileArray.length} image(s)…`);
+
         const flashOptions = {
-          fileArray: [{ data: fileData, address: address }],
+          fileArray,
           flashSize: "keep",
           flashMode: "keep",
           flashFreq: "keep",
@@ -768,12 +541,7 @@
         flashing = false;
         updateUI();
       }
-    });
-
-    // ── Clear log ──
-    elBtnClearLog.addEventListener("click", () => {
-      elLog.textContent = "";
-    });
+    }
 
     // ── Release fetching ──
     let releases = [];
@@ -826,7 +594,7 @@
 
     elBtnRefresh.addEventListener("click", () => fetchReleases());
 
-    // ── Flash from release ──
+    // ── Flash from release (download) ──
 
     /**
      * Build the download URL for a release asset.
@@ -878,35 +646,157 @@
         }
 
         // Flash all files
-        setStatus("Flashing…", "status-busy");
-        log(`Flashing ${fileArray.length} images…`);
-
-        const flashOptions = {
-          fileArray,
-          flashSize: "keep",
-          flashMode: "keep",
-          flashFreq: "keep",
-          eraseAll: false,
-          compress: true,
-          reportProgress: (fileIndex, written, total) => {
-            const pct = Math.round((written / total) * 100);
-            elProgressBar.style.width = pct + "%";
-            elProgressBar.textContent = pct + "%";
-          },
-        };
-
-        await esploader.writeFlash(flashOptions);
-
-        log("Flash complete!");
-        setStatus(`Flash complete — ${chipName}`, "status-connected");
-        elProgressBar.style.width = "100%";
-        elProgressBar.textContent = "100%";
+        await flashImages(fileArray);
       } catch (err) {
         log(`Flash failed: ${err.message}`);
         setStatus("Flash failed", "status-error");
-      } finally {
         flashing = false;
         updateUI();
+      }
+    });
+
+    // ── Flash from local file (browse for previously downloaded release) ──
+
+    /**
+     * Extract files from a tar archive (uncompressed).
+     * @param {Uint8Array} data  Raw tar bytes
+     * @returns {Array<{name: string, data: Uint8Array}>}
+     */
+    function parseTar(data) {
+      const files = [];
+      const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+      let offset = 0;
+
+      while (offset + 512 <= data.length) {
+        // Check for end-of-archive (all-zero block)
+        let allZero = true;
+        for (let i = 0; i < 512; i++) {
+          if (data[offset + i] !== 0) { allZero = false; break; }
+        }
+        if (allZero) break;
+
+        // Extract filename (bytes 0–99, null-terminated)
+        let name = "";
+        for (let i = 0; i < 100 && data[offset + i] !== 0; i++) {
+          name += String.fromCharCode(data[offset + i]);
+        }
+
+        // USTAR prefix (bytes 345–499) extends the filename
+        const ustarMagic = String.fromCharCode(...data.slice(offset + 257, offset + 262));
+        if (ustarMagic === "ustar") {
+          let prefix = "";
+          for (let i = 345; i < 500 && data[offset + i] !== 0; i++) {
+            prefix += String.fromCharCode(data[offset + i]);
+          }
+          if (prefix) name = prefix + "/" + name;
+        }
+
+        // File type (byte 156): '0' or '\0' = regular file
+        const typeFlag = data[offset + 156];
+
+        // File size in octal (bytes 124–135)
+        let sizeStr = "";
+        for (let i = 124; i < 136 && data[offset + i] !== 0; i++) {
+          sizeStr += String.fromCharCode(data[offset + i]);
+        }
+        const size = parseInt(sizeStr.trim(), 8) || 0;
+
+        offset += 512; // skip header
+
+        if ((typeFlag === 0x30 || typeFlag === 0) && size > 0) {
+          files.push({ name, data: data.slice(offset, offset + size) });
+        }
+
+        // Advance past file data (padded to 512-byte blocks)
+        offset += Math.ceil(size / 512) * 512;
+      }
+
+      return files;
+    }
+
+    /**
+     * Decompress a gzip blob and parse the inner tar archive.
+     * @param {ArrayBuffer} arrayBuffer  Raw .tar.gz bytes
+     * @returns {Promise<Array<{name: string, data: Uint8Array}>>}
+     */
+    async function extractTarGz(arrayBuffer) {
+      const ds = new DecompressionStream("gzip");
+      const stream = new Blob([arrayBuffer]).stream().pipeThrough(ds);
+      const decompressed = await new Response(stream).arrayBuffer();
+      return parseTar(new Uint8Array(decompressed));
+    }
+
+    /**
+     * Match extracted tar files to the flash parts we need.
+     * @param {Array<{name: string, data: Uint8Array}>} tarFiles
+     * @returns {Array<{data: Uint8Array, address: number}>}
+     */
+    function matchFlashParts(tarFiles) {
+      const fileArray = [];
+
+      for (const part of TAR_FLASH_PARTS) {
+        const match = tarFiles.find(f => part.pattern.test(f.name));
+        if (!match) {
+          throw new Error(`Required file not found in archive: ${part.name}`);
+        }
+        log(`  ${part.name}: ${match.name} (${match.data.length} bytes)`);
+        fileArray.push({ data: match.data, address: part.offset });
+      }
+
+      return fileArray;
+    }
+
+    // "Flash from File…" button opens the file picker
+    elBtnFlashFromFile.addEventListener("click", () => {
+      elFileInput.click();
+    });
+
+    elFileInput.addEventListener("change", async () => {
+      const file = elFileInput.files[0];
+      // Reset so the same file can be re-selected later
+      elFileInput.value = "";
+      if (!file || !esploader) return;
+
+      elFileName.textContent = file.name;
+      log(`Selected file: ${file.name} (${file.size} bytes)`);
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        let fileArray;
+
+        if (file.name.endsWith(".tar.gz") || file.name.endsWith(".tgz")) {
+          log("Extracting archive…");
+          const tarFiles = await extractTarGz(arrayBuffer);
+          log(`Archive contains ${tarFiles.length} file(s):`);
+          for (const f of tarFiles) {
+            log(`  ${f.name} (${f.data.length} bytes)`);
+          }
+          fileArray = matchFlashParts(tarFiles);
+        } else if (file.name.endsWith(".bin")) {
+          // Single .bin file — try to match by filename suffix
+          const matched = RELEASE_FLASH_PARTS.find(p => file.name.endsWith(p.suffix));
+          if (!matched) {
+            log("Error: Cannot determine flash address from filename.");
+            log("Expected filename ending in: " + RELEASE_FLASH_PARTS.map(p => p.suffix).join(", "));
+            setStatus("Unknown file type", "status-error");
+            return;
+          }
+          log(`Matched as ${matched.name} → offset 0x${matched.offset.toString(16)}`);
+          fileArray = [{ data: new Uint8Array(arrayBuffer), address: matched.offset }];
+        } else {
+          log("Error: Unsupported file type. Use a .tar.gz release archive or an individual .bin file.");
+          setStatus("Unsupported file type", "status-error");
+          return;
+        }
+
+        await flashImages(fileArray);
+      } catch (err) {
+        log(`Flash from file failed: ${err.message}`);
+        setStatus("Flash failed", "status-error");
+        flashing = false;
+        updateUI();
+      } finally {
+        elFileName.textContent = "";
       }
     });
 
