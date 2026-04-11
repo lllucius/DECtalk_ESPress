@@ -159,6 +159,22 @@ jobs:
         with:
           token: ${{ github.token }}
 
+      - name: Build index.html from README.md
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 pages/strip-frontmatter.py README.md > /tmp/readme-clean.md
+
+          pandoc /tmp/readme-clean.md \
+            --from gfm \
+            --to html5 \
+            --template pages/template.html \
+            --metadata title="DECtalk ESPress" \
+            --standalone \
+            --wrap=none \
+            --output /tmp/index.html
+
       - name: Deploy firmware to GitHub Pages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,8 +188,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Save the flasher HTML from the current branch
+          # Save site files from the current branch
+          cp /tmp/index.html /tmp/site-index.html
           cp flasher/index.html /tmp/flasher-index.html
+          cp CNAME /tmp/CNAME
 
           # Check out or create the gh-pages branch
           if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
@@ -193,8 +211,11 @@ jobs:
           # Download the individual bin files from the release
           gh release download "${tag}" --pattern "*.bin" --dir "firmware/${tag}"
 
-          # Update the flasher page
-          cp /tmp/flasher-index.html index.html
+          # Update the site: README-based index at root, flasher under /flasher/
+          cp /tmp/site-index.html index.html
+          mkdir -p flasher
+          cp /tmp/flasher-index.html flasher/index.html
+          cp /tmp/CNAME CNAME
 
           # Commit and push
           git add -A

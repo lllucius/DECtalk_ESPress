@@ -1,7 +1,3 @@
----
-title: DECtalk ESPress Firmware — Build Process & Architecture
----
-
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2025 Leland Lucius -->
 
