@@ -98,6 +98,14 @@ and start sending text.
 
 See [BUILD.md](BUILD.md) for full prerequisites and configuration options.
 
+## Release Build Workflow
+
+GitHub Actions includes a release-build workflow at
+`.github/workflows/release-builds.yml`.  It builds firmware binaries and the
+matching dictionary for all six DECtalk languages, uploads each language as a
+workflow artifact, and attaches the packaged artifacts to published GitHub
+releases.
+
 ## Serial Interfaces
 
 The firmware uses **two** serial paths simultaneously:
