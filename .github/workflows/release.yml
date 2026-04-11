@@ -164,13 +164,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Strip any YAML front-matter block before converting
-          python3 -c "
-          import re, sys
-          text = open('README.md').read()
-          text = re.sub(r'^---\n.*?\n---\n*', '', text, count=1, flags=re.DOTALL)
-          sys.stdout.write(text)
-          " > /tmp/readme-clean.md
+          python3 pages/strip-frontmatter.py README.md > /tmp/readme-clean.md
 
           pandoc /tmp/readme-clean.md \
             --from gfm \
