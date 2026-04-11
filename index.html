@@ -210,6 +210,25 @@
 <p>An ESP32-S3 firmware that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol over USB CDC-ACM, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit.</p>
 <p>The speech synthesis itself is provided by the <strong>DECtalk component</strong> (<code>components/dectalk/</code>) which cross-compiles the upstream <code>dapi</code> library as a reusable ESP-IDF component. See the <a href="components/dectalk/README.md">component README</a> for component-specific documentation (language selection, dictionary storage modes, source resolution, porting notes).</p>
 <p>For detailed build instructions, toolchain setup, and architecture notes see <strong><a href="BUILD.md">BUILD.md</a></strong>.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ul>
+<li><a href="#key-features">Key Features</a></li>
+<li><a href="#hardware-requirements">Hardware Requirements</a></li>
+<li><a href="#wiring">Wiring</a></li>
+<li><a href="#quick-start">Quick Start</a></li>
+<li><a href="#release-build-workflow">Release Build Workflow</a></li>
+<li><a href="#serial-interfaces">Serial Interfaces</a></li>
+<li><a href="#espress-protocol-summary">ESPress Protocol Summary</a></li>
+<li><a href="#host-tools">Host Tools</a></li>
+<li><a href="#configuration-menuconfig">Configuration (<code>menuconfig</code>)</a>
+<ul>
+<li><a href="#dectalk-component-settings">DECtalk (component settings)</a></li>
+<li><a href="#dectalk-espress-firmware-application-settings">DECtalk ESPress Firmware (application settings)</a></li>
+</ul></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#license">License</a></li>
+<li><a href="#references">References</a></li>
+</ul>
 <h2 id="key-features">Key Features</h2>
 <ul>
 <li><strong>ESPress serial protocol</strong> — drop-in replacement for a real DECtalk Express: plain-ASCII text input, ETX flush, ENQ status query, SO/SI pause/resume, DLE command sequences, XON/XOFF flow control</li>
