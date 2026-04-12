@@ -108,8 +108,6 @@ jobs:
           cp build/dectalk_espress.bin "${artifact_root}/"
           cp build/bootloader/bootloader.bin "${artifact_root}/bootloader/"
           cp build/partition_table/partition-table.bin "${artifact_root}/partition_table/"
-          cp build/dicts/dtalk_${{ matrix.language.code }}.dic "${artifact_root}/dicts/"
-          cp build/flasher_args.json "${artifact_root}/"
           cp build/flash_args "${artifact_root}/"
           cp sdkconfig "${artifact_root}/"
           cp sdkconfig.release "${artifact_root}/"
@@ -125,14 +123,6 @@ jobs:
           path: ${{ env.archive }}
           if-no-files-found: error
 
-      - name: Prepare web-flasher bin files
-        shell: bash
-        run: |
-          lang="${{ matrix.language.code }}"
-          cp build/bootloader/bootloader.bin "dectalk-espress-${lang}-bootloader.bin"
-          cp build/partition_table/partition-table.bin "dectalk-espress-${lang}-partition-table.bin"
-          cp build/dectalk_espress.bin "dectalk-espress-${lang}-app.bin"
-
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -143,9 +133,6 @@ jobs:
           lang="${{ matrix.language.code }}"
           gh release upload "${{ needs.prepare_release.outputs.tag }}" \
             "${{ env.archive }}" \
-            "dectalk-espress-${lang}-bootloader.bin" \
-            "dectalk-espress-${lang}-partition-table.bin" \
-            "dectalk-espress-${lang}-app.bin" \
             --clobber
 
   deploy_pages:
