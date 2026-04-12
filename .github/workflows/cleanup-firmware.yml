@@ -1,0 +1,63 @@
+# Remove firmware files from GitHub Pages when a release is deleted.
+#
+# The release workflow deploys firmware tarballs to the gh-pages branch
+# under firmware/{tag}/. This workflow cleans them up when the
+# corresponding release is deleted.
+name: Cleanup firmware on release deletion
+
+on:
+  release:
+    types: [deleted]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Remove firmware from GitHub Pages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6.0.2
+        with:
+          token: ${{ github.token }}
+
+      - name: Remove firmware directory from gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${{ github.event.release.tag_name }}"
+
+          if [ -z "${tag}" ]; then
+            echo "::error::No tag name found on deleted release"
+            exit 1
+          fi
+
+          # Configure git identity
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch the gh-pages branch
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "gh-pages branch does not exist, nothing to clean up"
+            exit 0
+          fi
+
+          git fetch origin gh-pages
+          git checkout gh-pages
+
+          # Remove the firmware directory for this tag
+          if [ -d "firmware/${tag}" ]; then
+            git rm -rf "firmware/${tag}"
+            git commit -m "Remove firmware ${tag} from GitHub Pages"
+            git push origin gh-pages
+            echo "Removed firmware/${tag}"
+          else
+            echo "firmware/${tag} does not exist, nothing to clean up"
+          fi
