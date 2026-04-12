@@ -19,6 +19,13 @@ resolution, porting notes).
 For detailed build instructions, toolchain setup, and architecture notes see
 **[BUILD.md](BUILD.md)**.
 
+## Acknowledgments
+
+This project wouldn't exist without the efforts of the
+[dectalk/dectalk](https://github.com/dectalk/dectalk) project and the
+[DECtalk community](https://dectalk.de/).  Thank you for preserving and
+advancing DECtalk for everyone.
+
 ## Table of Contents
 
 - [Key Features](#key-features)
