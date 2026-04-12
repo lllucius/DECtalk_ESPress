@@ -302,6 +302,45 @@
     }
     .footer a { color: var(--link); }
 
+    /* ── Confirm-flash modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.visible { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal h3 {
+      color: var(--heading);
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .modal p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    .modal .btn-group {
+      justify-content: flex-end;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 640px) {
       .container { padding: 0 1rem 3rem; }
@@ -388,6 +427,20 @@
     </div>
   </main>
 
+  <!-- Confirm-flash modal -->
+  <div class="modal-overlay" id="confirm-flash-overlay">
+    <div class="modal">
+      <h3>⚠️ Confirm Flash</h3>
+      <p id="confirm-flash-msg">
+        This will overwrite the firmware on your connected device. Are you sure you want to continue?
+      </p>
+      <div class="btn-group">
+        <button id="btn-confirm-cancel">Cancel</button>
+        <button id="btn-confirm-flash" class="danger">Flash</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="footer">
     <p>
       <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
@@ -428,6 +481,12 @@
     const elBtnFlashFromFile = document.getElementById("btn-flash-from-file");
     const elFileInput       = document.getElementById("file-input");
     const elFileName        = document.getElementById("file-name");
+
+    // Confirm-flash modal DOM refs
+    const elConfirmOverlay  = document.getElementById("confirm-flash-overlay");
+    const elConfirmMsg      = document.getElementById("confirm-flash-msg");
+    const elBtnConfirmFlash = document.getElementById("btn-confirm-flash");
+    const elBtnConfirmCancel = document.getElementById("btn-confirm-cancel");
 
     // ── State ──
     let port      = null;
@@ -571,6 +630,34 @@
       elLog.textContent = "";
     });
 
+    // ── Confirm-flash dialog ──
+    /**
+     * Show a confirmation dialog and return a Promise that resolves to true
+     * (user confirmed) or false (user cancelled).
+     * @param {string} detail  Extra context shown in the dialog body
+     * @returns {Promise<boolean>}
+     */
+    function confirmFlash(detail) {
+      return new Promise((resolve) => {
+        elConfirmMsg.textContent =
+          `This will overwrite the firmware on your connected device` +
+          (detail ? ` (${detail})` : "") +
+          `. Are you sure you want to continue?`;
+        elConfirmOverlay.classList.add("visible");
+
+        function cleanup() {
+          elConfirmOverlay.classList.remove("visible");
+          elBtnConfirmFlash.removeEventListener("click", onConfirm);
+          elBtnConfirmCancel.removeEventListener("click", onCancel);
+        }
+        function onConfirm() { cleanup(); resolve(true); }
+        function onCancel()  { cleanup(); resolve(false); }
+
+        elBtnConfirmFlash.addEventListener("click", onConfirm);
+        elBtnConfirmCancel.addEventListener("click", onCancel);
+      });
+    }
+
     // ── Flash helper ──
     async function flashImages(fileArray) {
       flashing = true;
@@ -703,6 +790,8 @@
         log("Please select a release and language");
         return;
       }
+
+      if (!await confirmFlash(`${tagName} / ${langCode}`)) return;
 
       flashing = true;
       updateUI();
@@ -864,6 +953,11 @@
 
       elFileName.textContent = file.name;
       log(`Selected file: ${file.name} (${file.size} bytes)`);
+
+      if (!await confirmFlash(file.name)) {
+        elFileName.textContent = "";
+        return;
+      }
 
       try {
         const arrayBuffer = await file.arrayBuffer();
