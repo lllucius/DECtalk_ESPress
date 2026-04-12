@@ -27,8 +27,25 @@ jobs:
           script: |
             const branch = context.payload.pull_request.head.ref;
             console.log(`Deleting branch: ${branch}`);
-            await github.rest.git.deleteRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `heads/${branch}`,
-            });
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+              });
+            } catch (error) {
+              const message = error.response?.data?.message ?? error.message ?? '';
+              const missingRef =
+                error.status === 404 ||
+                (error.status === 422 && message.includes('Reference does not exist'));
+
+              if (missingRef) {
+                console.log(`Branch already deleted, skipping: ${branch}`);
+                return;
+              }
+              console.error(
+                `Failed to delete branch '${branch}': ${error.status ?? 'unknown'} - ${message}`,
+                error,
+              );
+              throw error;
+            }
