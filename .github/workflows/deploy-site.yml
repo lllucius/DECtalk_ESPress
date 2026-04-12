@@ -17,7 +17,6 @@ on:
       - "host/README.md"
       - "pages/**"
       - "flasher/**"
-      - "CNAME"
       - ".github/workflows/deploy-site.yml"
 
   workflow_dispatch:
@@ -86,7 +85,6 @@ jobs:
           # Static files
           cp LICENSE           /tmp/site/LICENSE
           cp flasher/index.html /tmp/site/flasher/index.html
-          cp CNAME             /tmp/site/CNAME
 
       - name: Deploy to gh-pages
         run: |
@@ -112,7 +110,6 @@ jobs:
           cp /tmp/site/README.html README.html
           cp /tmp/site/BUILD.html BUILD.html
           cp /tmp/site/LICENSE LICENSE
-          cp /tmp/site/CNAME CNAME
           mkdir -p flasher components/dectalk host
           cp /tmp/site/flasher/index.html flasher/index.html
           cp /tmp/site/components/dectalk/README.html components/dectalk/README.html
