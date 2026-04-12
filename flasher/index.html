@@ -370,7 +370,7 @@
         <div class="btn-group">
           <button id="btn-flash-release" disabled>Flash Firmware</button>
           <button id="btn-flash-from-file" disabled>Flash from File…</button>
-          <input type="file" id="file-input" accept=".tar.gz,.tgz,.bin">
+          <input type="file" id="file-input" accept=".tar.gz,.tgz">
         </div>
         <span class="file-name" id="file-name"></span>
       </div>
@@ -409,19 +409,8 @@
     // other hand, serves every response with Access-Control-Allow-Origin: *.
     const FIRMWARE_BASE_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/firmware`;
 
-    // ESP32-S3 flash addresses (fixed for this project's partition layout)
-    const RELEASE_FLASH_PARTS = [
-      { name: "bootloader",      suffix: "-bootloader.bin",      offset: 0x0 },
-      { name: "partition-table",  suffix: "-partition-table.bin", offset: 0x8000 },
-      { name: "application",     suffix: "-app.bin",             offset: 0x10000 },
-    ];
-
-    // File patterns for matching files inside a release tar archive
-    const TAR_FLASH_PARTS = [
-      { pattern: /\/bootloader\/bootloader\.bin$/,         offset: 0x0,     name: "bootloader" },
-      { pattern: /\/partition_table\/partition-table\.bin$/,offset: 0x8000,  name: "partition-table" },
-      { pattern: /\/dectalk_espress\.bin$/,                offset: 0x10000, name: "application" },
-    ];
+    // File pattern for finding flash_args inside a release tar archive
+    const FLASH_ARGS_PATTERN = /(?:^|\/|\\)flash_args$/;
 
     // ── DOM refs ──
     const elBtnConnect      = document.getElementById("btn-connect");
@@ -678,28 +667,33 @@
     // ── Flash from release (download) ──
 
     /**
-     * Download a single firmware binary from GitHub Pages.
+     * Download a release tarball from GitHub Pages and extract it.
      * GitHub Pages serves with Access-Control-Allow-Origin: *, so this
      * avoids the CORS issues that occur when fetching from the GitHub
      * release-asset CDN (which has no CORS headers).
      */
-    async function downloadAsset(tagName, fileName) {
-      log(`Downloading ${fileName}…`);
-      const url = `${FIRMWARE_BASE_URL}/${tagName}/${fileName}`;
+    async function downloadReleaseTarball(tagName, langCode) {
+      const assetName = `dectalk-espress-${langCode}.tar.gz`;
+      log(`Downloading ${assetName}…`);
+      const url = `${FIRMWARE_BASE_URL}/${tagName}/${assetName}`;
       const resp = await fetch(url);
       if (!resp.ok) {
         if (resp.status === 404) {
           throw new Error(
-            `${fileName} not found on GitHub Pages. ` +
+            `${assetName} not found on GitHub Pages. ` +
             `This release may not be available for web flashing yet. ` +
             `Use "Flash from File…" with a downloaded release archive instead.`
           );
         }
-        throw new Error(`Failed to download ${fileName}: HTTP ${resp.status}`);
+        throw new Error(`Failed to download ${assetName}: HTTP ${resp.status}`);
       }
-      const buf = await resp.arrayBuffer();
-      log(`Downloaded ${fileName}: ${buf.byteLength} bytes`);
-      return new Uint8Array(buf);
+      const arrayBuffer = await resp.arrayBuffer();
+      log(`Downloaded ${assetName}: ${arrayBuffer.byteLength} bytes`);
+
+      log("Extracting archive…");
+      const tarFiles = await extractTarGz(arrayBuffer);
+      log(`Archive contains ${tarFiles.length} file(s)`);
+      return matchFlashParts(tarFiles);
     }
 
     elBtnFlashRelease.addEventListener("click", async () => {
@@ -720,16 +714,8 @@
       elProgressBar.textContent = "0%";
 
       try {
-        // Download all required bin files
         log(`Preparing ${tagName} / ${langCode}…`);
-        const fileArray = [];
-        for (const part of RELEASE_FLASH_PARTS) {
-          const assetName = `dectalk-espress-${langCode}${part.suffix}`;
-          const data = await downloadAsset(tagName, assetName);
-          fileArray.push({ data, address: part.offset });
-        }
-
-        // Flash all files
+        const fileArray = await downloadReleaseTarball(tagName, langCode);
         await flashImages(fileArray);
       } catch (err) {
         log(`Flash failed: ${err.message}`);
@@ -811,20 +797,57 @@
     }
 
     /**
-     * Match extracted tar files to the flash parts we need.
+     * Parse an ESP-IDF flash_args file and return offset/path pairs.
+     * Format: --flag value … 0xOFFSET path 0xOFFSET path …
+     * @param {string} text  Contents of the flash_args file
+     * @returns {Array<{offset: number, path: string}>}
+     */
+    function parseFlashArgs(text) {
+      const tokens = text.trim().split(/\s+/);
+      const entries = [];
+      for (let i = 0; i < tokens.length - 1; i++) {
+        if (/^0x[0-9a-fA-F]+$/i.test(tokens[i])) {
+          const offset = parseInt(tokens[i], 16);
+          const path = tokens[i + 1];
+          if (!path.startsWith("--")) {
+            entries.push({ offset, path });
+            i++; // skip the path token
+          }
+        }
+      }
+      return entries;
+    }
+
+    /**
+     * Match extracted tar files using flash_args from the archive.
      * @param {Array<{name: string, data: Uint8Array}>} tarFiles
      * @returns {Array<{data: Uint8Array, address: number}>}
      */
     function matchFlashParts(tarFiles) {
-      const fileArray = [];
+      const argsFile = tarFiles.find(f => FLASH_ARGS_PATTERN.test(f.name));
+      if (!argsFile) {
+        throw new Error("flash_args not found in archive");
+      }
 
-      for (const part of TAR_FLASH_PARTS) {
-        const match = tarFiles.find(f => part.pattern.test(f.name));
+      const argsText = new TextDecoder().decode(argsFile.data);
+      log(`  flash_args: ${argsText.trim()}`);
+
+      const entries = parseFlashArgs(argsText);
+      if (entries.length === 0) {
+        throw new Error("No flash entries found in flash_args");
+      }
+
+      const fileArray = [];
+      for (const entry of entries) {
+        const match = tarFiles.find(f =>
+          f.name === entry.path ||
+          f.name.endsWith("/" + entry.path)
+        );
         if (!match) {
-          throw new Error(`Required file not found in archive: ${part.name}`);
+          throw new Error(`Required file not found in archive: ${entry.path}`);
         }
-        log(`  ${part.name}: ${match.name} (${match.data.length} bytes)`);
-        fileArray.push({ data: match.data, address: part.offset });
+        log(`  ${entry.path} (${match.data.length} bytes) @ 0x${entry.offset.toString(16)}`);
+        fileArray.push({ data: match.data, address: entry.offset });
       }
 
       return fileArray;
@@ -853,19 +876,8 @@
           const tarFiles = await extractTarGz(arrayBuffer);
           log(`Archive contains ${tarFiles.length} file(s)`);
           fileArray = matchFlashParts(tarFiles);
-        } else if (file.name.endsWith(".bin")) {
-          // Single .bin file — try to match by filename suffix
-          const matched = RELEASE_FLASH_PARTS.find(p => file.name.endsWith(p.suffix));
-          if (!matched) {
-            log("Error: Cannot determine flash address from filename.");
-            log("Expected filename ending in: " + RELEASE_FLASH_PARTS.map(p => p.suffix).join(", "));
-            setStatus("Unknown file type", "status-error");
-            return;
-          }
-          log(`Matched as ${matched.name} → offset 0x${matched.offset.toString(16)}`);
-          fileArray = [{ data: new Uint8Array(arrayBuffer), address: matched.offset }];
         } else {
-          log("Error: Unsupported file type. Use a .tar.gz release archive or an individual .bin file.");
+          log("Error: Unsupported file type. Use a .tar.gz release archive.");
           setStatus("Unsupported file type", "status-error");
           return;
         }
