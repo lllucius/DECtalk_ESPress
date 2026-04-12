@@ -5,7 +5,7 @@
 # Name,     Type,   SubType,    Offset, Size,    Flags
 nvs,        data,   nvs,        ,       24K,
 phy_init,   data,   phy,        ,       4K,
-factory,    app,    factory,    ,       2m,
+factory,    app,    factory,    ,       1536k,
 
 #
 # Dictionary files can be stored in a filesystem

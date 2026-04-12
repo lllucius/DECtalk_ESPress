@@ -112,7 +112,7 @@ menu "DECtalk ESPress Firmware"
     menu "Diagnostics and logging"
         config DECTALK_ENABLE_DIAG_MEM
             bool "Enable heap and stack diagnostics"
-            default y
+            default n
             select FREERTOS_USE_TRACE_FACILITY
             help
                 Start a low-priority background task that periodically logs
@@ -125,7 +125,7 @@ menu "DECtalk ESPress Firmware"
 
         choice DECTALK_LOG_LEVEL
             prompt "DECtalk log level"
-            default DECTALK_LOG_LEVEL_INFO
+            default DECTALK_LOG_LEVEL_ERROR
             help
                 Select the runtime log level used by the DECtalk ESPress
                 application, USB CDC transport, and optional diagnostics task.
