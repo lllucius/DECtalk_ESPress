@@ -217,8 +217,8 @@ jobs:
           # Create firmware directory for this release
           mkdir -p "firmware/${tag}"
 
-          # Download the individual bin files from the release
-          gh release download "${tag}" --pattern "*.bin" --dir "firmware/${tag}"
+          # Download the release tarballs
+          gh release download "${tag}" --pattern "*.tar.gz" --dir "firmware/${tag}"
 
           # Update the site: all documentation pages + flasher
           cp /tmp/site-index.html index.html
