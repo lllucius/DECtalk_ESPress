@@ -403,11 +403,10 @@
     const GITHUB_OWNER = "lllucius";
     const GITHUB_REPO  = "DECtalk_ESPress";
 
-    // GitHub Pages base URL for CORS-friendly firmware downloads.
-    // GitHub's release-asset CDN does not return Access-Control-Allow-Origin
-    // headers, so browsers block direct fetch() calls.  GitHub Pages, on the
-    // other hand, serves every response with Access-Control-Allow-Origin: *.
-    const FIRMWARE_BASE_URL = `https://${GITHUB_OWNER}.github.io/${GITHUB_REPO}/firmware`;
+    // Base URL for firmware downloads, derived from the current page origin
+    // so it works whether the site is served from GitHub Pages (github.io)
+    // or a custom domain (e.g. via CNAME).
+    const FIRMWARE_BASE_URL = `${window.location.origin}/firmware`;
 
     // File pattern for finding flash_args inside a release tar archive
     const FLASH_ARGS_PATTERN = /(?:^|\/|\\)flash_args$/;
@@ -667,10 +666,9 @@
     // ── Flash from release (download) ──
 
     /**
-     * Download a release tarball from GitHub Pages and extract it.
-     * GitHub Pages serves with Access-Control-Allow-Origin: *, so this
-     * avoids the CORS issues that occur when fetching from the GitHub
-     * release-asset CDN (which has no CORS headers).
+     * Download a release tarball from the same origin and extract it.
+     * Firmware is hosted alongside the flasher on GitHub Pages, so the
+     * fetch is same-origin and avoids CORS restrictions.
      */
     async function downloadReleaseTarball(tagName, langCode) {
       const assetName = `dectalk-espress-${langCode}.tar.gz`;
