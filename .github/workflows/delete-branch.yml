@@ -43,6 +43,9 @@ jobs:
                 console.log(`Branch already deleted, skipping: ${branch}`);
                 return;
               }
-              console.error('Failed to delete branch', { branch, error });
+              console.error(
+                `Failed to delete branch '${branch}': ${error.status ?? 'unknown'} - ${message}`,
+                error,
+              );
               throw error;
             }
