@@ -261,7 +261,7 @@ int __wrap_load_dictionary(void **dict_index,
         return MMSYSERR_ERROR;
     }
 
-    dict_mem = (S32 *) dicMapStartAddr;
+    dict_mem = (S32 *) *dicMapStartAddr;
 
 #else
 
@@ -332,5 +332,4 @@ void __wrap_unload_dictionary(void **dict_index,
     *dicMapObject=0;
     *dicFileHandle=0;
 }
-
 
