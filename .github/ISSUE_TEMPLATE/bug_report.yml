@@ -1,0 +1,121 @@
+name: Bug report
+description: Report a problem with DECtalk ESPress firmware, host tools, build flow, or flasher behavior.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a DECtalk ESPress problem.
+
+        Please include the details needed to reproduce it on your hardware or host setup.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of the project is showing the problem?
+      options:
+        - Firmware runtime on device
+        - DECtalk component / speech synthesis
+        - Build system / ESP-IDF integration
+        - Host Python tools
+        - Web flasher / GitHub Pages site
+        - Documentation
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release tag, commit SHA, or branch name where you observed the issue.
+      placeholder: v0.1.0 or 0123abcd
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and wiring
+      description: Describe your ESP board, flash/PSRAM, DAC or amplifier, and anything notable about wiring.
+      placeholder: |
+        Board: ESP32-S3 DevKit
+        Flash/PSRAM: 8 MB / 8 MB
+        DAC: MAX98357A on GPIO 8/3/18
+        USB setup: UART for logs, native USB for CDC
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Host environment
+      description: Include OS, ESP-IDF version, Python version, browser version, or serial tooling as relevant.
+      placeholder: |
+        OS: Ubuntu 24.04
+        ESP-IDF: v5.5.2
+        Python: 3.12
+        Browser: Firefox 137
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration details
+      description: Include any relevant menuconfig changes, DECtalk language, dictionary storage mode, or custom build flags.
+      placeholder: |
+        Language: US English
+        Dictionary mode: embedded
+        Relevant sdkconfig changes:
+        - CONFIG_DECTALK_LANG_US=y
+        - CONFIG_TINYUSB_CDC_ENABLED=y
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Tell us exactly how to trigger the issue.
+      placeholder: |
+        1. Flash the firmware
+        2. Connect to the native USB CDC port
+        3. Send "[:phoneme on] hello"
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, serial output, screenshots, or recordings
+      description: Paste UART logs, host tool tracebacks, browser console output, or anything else helpful.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for the same problem.
+          required: true
+        - label: I included enough detail to reproduce the problem.
+          required: true

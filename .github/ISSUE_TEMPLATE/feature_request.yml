@@ -1,0 +1,90 @@
+name: Feature request
+description: Suggest an improvement for DECtalk ESPress firmware, tooling, or project workflow.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to DECtalk ESPress.
+
+        Please focus on the user problem or workflow gap you want solved.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Requested area
+      description: Which part of the project would this affect most?
+      options:
+        - Firmware runtime on device
+        - DECtalk component / speech synthesis
+        - Build system / ESP-IDF integration
+        - Host Python tools
+        - Web flasher / GitHub Pages site
+        - Documentation
+        - Project releases / CI workflow
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the limitation, pain point, or missing workflow.
+      placeholder: It is hard to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the behavior, interface, or workflow you would like to see.
+      placeholder: I would like DECtalk ESPress to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case and context
+      description: Explain your hardware setup, host workflow, or speech synthesis scenario.
+      placeholder: |
+        I use DECtalk ESPress with ...
+        This would help when ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds considered
+      description: Describe any current workaround or competing approach.
+    validations:
+      required: false
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Mention anything that should remain compatible, such as ESPress protocol behavior, supported boards, languages, or host tools.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Add references, mockups, logs, related issues, or links.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for similar requests.
+          required: true
+        - label: This request is scoped to DECtalk ESPress rather than a general question.
+          required: true
