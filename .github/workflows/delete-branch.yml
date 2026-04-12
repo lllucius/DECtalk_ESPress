@@ -1,0 +1,34 @@
+# Automatically delete branches created by Copilot when the pull request
+# is closed (merged or not).
+#
+# Only branches whose name starts with "copilot/" are affected.  Other
+# head branches and branches from forks are left alone.
+name: Delete Copilot branch on PR close
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    name: Delete Copilot branch
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'copilot/')
+
+    steps:
+      - name: Delete head branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.pull_request.head.ref;
+            console.log(`Deleting branch: ${branch}`);
+            await github.rest.git.deleteRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${branch}`,
+            });
