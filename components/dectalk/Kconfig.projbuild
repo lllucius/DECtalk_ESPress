@@ -131,4 +131,55 @@ menu "DECtalk component"
                     root directory.
     endchoice
 
+    menu "Thread stack sizes"
+        config DECTALK_SYNC_STACK_SIZE
+            int "Sync thread stack size"
+            default 8192
+            range 4096 65536
+            help
+                Stack size in bytes for the DECtalk sync thread (dt_sync).
+
+        config DECTALK_VTM_STACK_SIZE
+            int "VTM thread stack size"
+            default 8192
+            range 4096 65536
+            help
+                Stack size in bytes for the DECtalk vocal tract model
+                thread (dt_vtm).
+
+        config DECTALK_PH_STACK_SIZE
+            int "PH thread stack size"
+            default 8192
+            range 4096 65536
+            help
+                Stack size in bytes for the DECtalk phonetics thread
+                (dt_ph).
+
+        config DECTALK_LTS_STACK_SIZE
+            int "LTS thread stack size"
+            default 8192
+            range 4096 65536
+            help
+                Stack size in bytes for the DECtalk letter-to-sound
+                thread (dt_lts).
+
+        config DECTALK_CMD_STACK_SIZE
+            int "CMD thread stack size"
+            default 65536
+            range 4096 131072
+            help
+                Stack size in bytes for the DECtalk command thread
+                (dt_cmd).  The default is larger than the other threads
+                because the German language model requires additional
+                stack space.
+
+        config DECTALK_TXT_STACK_SIZE
+            int "TXT thread stack size"
+            default 8192
+            range 4096 65536
+            help
+                Stack size in bytes for the DECtalk text-to-speech
+                system thread (dt_txt).
+    endmenu
+
 endmenu
