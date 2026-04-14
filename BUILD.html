@@ -257,8 +257,8 @@
 <tbody>
 <tr class="odd">
 <td><strong>ESP-IDF</strong></td>
-<td>v5.5+ (tested with v5.5.2)</td>
-<td>The <code>sdkconfig.defaults</code> header references ESP-IDF 5.5.2</td>
+<td>v6.0+ (tested with v6.0)</td>
+<td>The <code>sdkconfig.defaults</code> header references ESP-IDF 6.0</td>
 </tr>
 <tr class="even">
 <td><strong>Python</strong></td>
@@ -293,7 +293,7 @@
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> ~/esp <span class="kw">&amp;&amp;</span> <span class="bu">cd</span> ~/esp</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="at">--recursive</span> https://github.com/espressif/esp-idf.git</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> esp-idf</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout v5.5.2   <span class="co"># or latest stable release</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout v6.0   <span class="co"># or latest stable release</span></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Install toolchains (ESP32-S3 target)</span></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> esp32s3</span>
@@ -543,14 +543,9 @@
 <td>Enable PSRAM</td>
 </tr>
 <tr class="odd">
-<td><code>CONFIG_SPIRAM_MODE_OCT</code></td>
+<td><code>CONFIG_SPIRAM_MODE_OCTAL</code></td>
 <td><code>y</code></td>
 <td>Octal SPI PSRAM</td>
-</tr>
-<tr class="even">
-<td><code>CONFIG_SPIRAM_SPEED_80M</code></td>
-<td><code>y</code></td>
-<td>80 MHz PSRAM clock</td>
 </tr>
 </tbody>
 </table>
