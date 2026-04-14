@@ -1,3 +1,5 @@
 [submodule "components/dectalk/dectalk"]
 	path = components/dectalk/dectalk
 	url = https://github.com/dectalk/dectalk.git
+	branch = develop
+	shallow = true
