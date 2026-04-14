@@ -233,11 +233,11 @@
 <p>The component resolves the upstream DECtalk source tree (<code>src/dapi/src/</code>) in the following order:</p>
 <ol type="1">
 <li><strong>Configured path</strong> — the value of <em>Path to DECtalk library source tree</em> in menuconfig (<code>CONFIG_DECTALK_SRC_ROOT</code>).</li>
-<li><strong>FetchContent</strong> — if enabled in menuconfig (default: <strong>enabled</strong>), CMake clones <code>https://github.com/dectalk/dectalk</code> into the build directory. This is the mechanism used when the component is installed via the ESP Component Registry.</li>
+<li><strong>Bundled submodule</strong> — the git submodule at <code>components/dectalk/dectalk</code> which tracks the upstream <code>https://github.com/dectalk/dectalk</code> repository.</li>
 </ol>
 <p>The path may point at the DECtalk repository root (containing <code>src/dapi/src</code>) or directly at the library source tree (containing <code>dapi/src</code>).</p>
 <h3 id="registry-installed-usage">Registry-Installed Usage</h3>
-<p>When the component is installed via the ESP Component Registry (<code>idf.py add-dependency "lllucius__dectalk&gt;=1.0.0"</code>), it lands in the project's <code>managed_components/lllucius__dectalk/</code> directory. Since no local source path is configured by default, CMake falls through to the FetchContent step. Because <code>DECTALK_FETCH_SOURCE</code> defaults to <code>y</code>, the upstream source tree is cloned automatically on the first configure run. Subsequent builds reuse the cached checkout from the CMake build directory.</p>
+<p>When the component is installed via the ESP Component Registry (<code>idf.py add-dependency "lllucius__dectalk&gt;=1.0.0"</code>), it lands in the project's <code>managed_components/lllucius__dectalk/</code> directory. Since no local source path is configured by default, CMake falls through to the bundled submodule at <code>components/dectalk/dectalk</code>. Make sure you have initialised submodules with <code>git submodule update --init --recursive</code> before the first build.</p>
 <hr />
 <h2 id="dictionary-build-host-side-cross-compilation">Dictionary Build (Host-Side Cross-Compilation)</h2>
 <p>The DECtalk dictionary (<code>.dic</code>) is a binary file generated from a text source (<code>src/dapi/src/dic/Dic_&lt;lang&gt;.txt</code>) by a host-native tool compiled from <code>src/dapi/src/dic/dic.c</code>.</p>
