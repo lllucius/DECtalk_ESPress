@@ -32,6 +32,7 @@ advancing DECtalk for everyone.
 - [Hardware Requirements](#hardware-requirements)
 - [Wiring](#wiring)
 - [Quick Start](#quick-start)
+- [Web Flasher](#web-flasher)
 - [Release Build Workflow](#release-build-workflow)
 - [Serial Interfaces](#serial-interfaces)
 - [ESPress Protocol Summary](#espress-protocol-summary)
@@ -136,6 +137,25 @@ port (Windows).  Open it at any baud rate — the CDC-ACM link ignores baud —
 and start sending text.
 
 See [BUILD.md](BUILD.md) for full prerequisites and configuration options.
+
+## Web Flasher
+
+The published project site includes a browser-based flasher for installing
+released firmware without setting up ESP-IDF locally.
+
+1. Open the project site and click **Web Flasher** in the top navigation.
+2. Use **Chrome** or **Edge** (version 89 or newer) so the page can access the
+   board over the browser's Web Serial API.
+3. Connect the board's **UART flashing/debug USB port** to your computer, click
+   **Connect**, and choose the serial device for that port.
+4. Select the desired **Release** and **Language**, then click
+   **Flash Firmware**.
+5. If you already downloaded a release archive from GitHub, click
+   **Flash from File…** and select the `.tar.gz` / `.tgz` file instead.
+
+After flashing finishes, unplug or close the UART connection if needed and use
+the board's **native USB CDC port** for normal DECtalk ESPress runtime
+communication.
 
 ## Release Build Workflow
 
