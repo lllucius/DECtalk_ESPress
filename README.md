@@ -231,7 +231,7 @@ text-to-speech library itself.  See the
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *DECtalk distribution* | Local DECtalk source path; optional GitHub FetchContent fallback and Git ref |
+| *DECtalk distribution* | Local DECtalk source path (overrides bundled submodule) |
 | *DECtalk Language* | US English (default), UK English, Spanish, German, Latin American Spanish, French |
 | *Dictionary location* | Embedded in firmware, dedicated partition, or SPIFFS file system |
 

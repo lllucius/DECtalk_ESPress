@@ -31,10 +31,9 @@ in the following order:
 
 1. **Configured path** — the value of *Path to DECtalk library source tree*
    in menuconfig (`CONFIG_DECTALK_SRC_ROOT`).
-2. **FetchContent** — if enabled in menuconfig (default: **enabled**), CMake
-   clones `https://github.com/dectalk/dectalk` into the build directory.
-   This is the mechanism used when the component is installed via the
-   ESP Component Registry.
+2. **Bundled submodule** — the git submodule at
+   `components/dectalk/dectalk` which tracks the upstream
+   `https://github.com/dectalk/dectalk` repository.
 
 The path may point at the DECtalk repository root (containing
 `src/dapi/src`) or directly at the library source tree (containing
@@ -46,10 +45,9 @@ When the component is installed via the ESP Component Registry
 (`idf.py add-dependency "lllucius__dectalk>=1.0.0"`), it lands in the
 project's `managed_components/lllucius__dectalk/` directory.  Since no
 local source path is configured by default, CMake falls through to the
-FetchContent step.  Because `DECTALK_FETCH_SOURCE`
-defaults to `y`, the upstream source tree is cloned automatically on the
-first configure run.  Subsequent builds reuse the cached checkout from the
-CMake build directory.
+bundled submodule at `components/dectalk/dectalk`.  Make sure you have
+initialised submodules with `git submodule update --init --recursive`
+before the first build.
 
 ---
 

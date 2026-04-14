@@ -9,13 +9,11 @@ set( DECTALK_COMPONENT_REQUIRES
 
 # ESP-IDF loads component CMakeLists in script mode first to collect
 # dependencies. Defer source-tree resolution until the normal configure pass so
-# builds without a pre-configured path can still reach the FetchContent fallback.
+# builds without a pre-configured path can still reach the submodule fallback.
 if( CMAKE_SCRIPT_MODE_FILE )
     idf_component_register( REQUIRES ${DECTALK_COMPONENT_REQUIRES} )
     return()
 endif()
-
-include( FetchContent )
 
 function( resolve_dectalk_source_tree out_src_dir candidate )
     set( resolved "" )
@@ -45,45 +43,22 @@ if( DT_PATH_HINT )
     if( NOT DT_DIR )
         message( WARNING
                  "Configured DECtalk source path '${DT_PATH_HINT}' does not "
-                 "contain dapi/src or src/dapi/src.  Trying auto-detection "
-                 "and FetchContent fallbacks.  If you see path errors "
-                 "after moving the project, delete the sdkconfig file "
-                 "and reconfigure." )
+                 "contain dapi/src or src/dapi/src.  Trying the bundled "
+                 "submodule.  If you see path errors after moving the project, "
+                 "delete the sdkconfig file and reconfigure." )
     endif()
 endif()
 
-# --- Step 2: FetchContent from GitHub ----------------------------------------
-if( NOT DT_DIR AND CONFIG_DECTALK_FETCH_SOURCE )
-    set( DECTALK_FETCH_GIT_TAG "${CONFIG_DECTALK_FETCH_GIT_TAG}" )
-    if( NOT DECTALK_FETCH_GIT_TAG )
-        set( DECTALK_FETCH_GIT_TAG "main" )
-    endif()
-
-    FetchContent_Declare(
-        dectalk_upstream
-        GIT_REPOSITORY https://github.com/dectalk/dectalk.git
-        GIT_TAG "${DECTALK_FETCH_GIT_TAG}"
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_GetProperties( dectalk_upstream )
-    if( NOT dectalk_upstream_POPULATED )
-        if( POLICY CMP0169 )
-            cmake_policy( PUSH )
-            cmake_policy( SET CMP0169 OLD )
-        endif()
-        FetchContent_Populate( dectalk_upstream )
-        if( POLICY CMP0169 )
-            cmake_policy( POP )
-        endif()
-    endif()
-    resolve_dectalk_source_tree( DT_DIR "${dectalk_upstream_SOURCE_DIR}" )
+# --- Step 2: bundled git submodule -------------------------------------------
+if( NOT DT_DIR )
+    resolve_dectalk_source_tree( DT_DIR "${CMAKE_CURRENT_LIST_DIR}/dectalk" )
 endif()
 
 # --- Final check -------------------------------------------------------------
 # When the source tree is not found, register a minimal (empty) component and
 # defer the error to build time via fail_at_build_time().  This keeps
-# "idf.py menuconfig" working so the user can fix paths or enable the
-# FetchContent fallback without being locked out by a configure-time fatal.
+# "idf.py menuconfig" working so the user can fix paths without being locked
+# out by a configure-time fatal.
 if( NOT DT_DIR )
     set( _dt_msgs )
     list( APPEND _dt_msgs "=====================================================" )
@@ -92,16 +67,13 @@ if( NOT DT_DIR )
         list( APPEND _dt_msgs
               "  Configured path '${DT_PATH_HINT}' is invalid." )
     endif()
-    if( NOT CONFIG_DECTALK_FETCH_SOURCE )
-        list( APPEND _dt_msgs
-              "  GitHub FetchContent fallback is disabled." )
-    endif()
     list( APPEND _dt_msgs
           ""
           "Solutions:"
-          "  - Set a valid 'Path to DECtalk library source tree' in"
+          "  - Initialise the bundled git submodule:"
+          "    git submodule update --init components/dectalk/dectalk"
+          "  - Or set a valid 'Path to DECtalk library source tree' in"
           "    DECtalk ESPress Configuration -> DECtalk distribution"
-          "  - Enable 'Fetch DECtalk source from GitHub' in the same menu"
           "  - If you see path errors after moving the project,"
           "    delete the sdkconfig file and run idf.py menuconfig again"
           "=====================================================" )

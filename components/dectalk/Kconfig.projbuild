@@ -16,38 +16,12 @@ menu "DECtalk component"
 
                 Relative paths are resolved from the component directory.
 
-                Leave this empty to fall through to the FetchContent
-                download (if enabled).
+                Leave this empty to use the bundled git submodule
+                (components/dectalk/dectalk).
 
                 If you see path errors after moving the project, delete
                 the sdkconfig file and reconfigure so the defaults are
                 regenerated.
-
-        config DECTALK_FETCH_SOURCE
-            bool "Fetch DECtalk source from GitHub if local path is unavailable"
-            default y
-            help
-                If the configured local DECtalk path cannot be resolved, use
-                CMake FetchContent to clone https://github.com/dectalk/dectalk
-                into the build directory and build against that checkout
-                instead.
-
-                This is enabled by default so that the component works
-                out-of-the-box when installed via the ESP Component Registry
-                (idf.py add-dependency lllucius__dectalk) without any
-                additional source-path configuration.
-
-                When disabled, a missing or invalid local source path will
-                produce a warning during configuration and an error at build
-                time, but will not block access to menuconfig.
-
-        config DECTALK_FETCH_GIT_TAG
-            string "DECtalk Git ref to fetch"
-            default "develop"
-            depends on DECTALK_FETCH_SOURCE
-            help
-                Git branch, tag, or commit to fetch when the local DECtalk
-                source path cannot be used.
     endmenu
 
     choice DECTALK_LANGUAGE
