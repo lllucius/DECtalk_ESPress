@@ -468,7 +468,14 @@ target_link_libraries(
     INTERFACE
         "-Wl,--wrap=load_dictionary"
         "-Wl,--wrap=unload_dictionary"
-        "-Wl,--wrap=OP_CreateThread"
+)
+
+# Rename the upstream OP_CreateThread() in opthread.c so our replacement in
+# thread_wrappers.c is the sole definition.  The other functions in opthread.c
+# (OP_CreateMutex, OP_CreateEvent, etc.) are unaffected.
+set_source_files_properties(
+    ${DAPI_DIR}/nt/opthread.c
+    PROPERTIES COMPILE_DEFINITIONS "OP_CreateThread=_upstream_OP_CreateThread"
 )
 
 #
