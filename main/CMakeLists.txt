@@ -13,4 +13,5 @@ idf_component_register(
         driver
         pthread
         esp_timer
+        esp_driver_i2s
 )
