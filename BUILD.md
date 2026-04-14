@@ -14,6 +14,7 @@ cross-compilation, porting notes), see the
 
 - [Prerequisites](#prerequisites)
   - [Installing ESP-IDF](#installing-esp-idf)
+  - [Cloning the Repository](#cloning-the-repository)
 - [Directory Layout](#directory-layout)
 - [How the Build Works](#how-the-build-works)
   - [1. Project Bootstrapping](#1-project-bootstrapping)
@@ -21,6 +22,8 @@ cross-compilation, porting notes), see the
   - [3. Component: `main` (Firmware Application)](#3-component-main-firmware-application)
   - [4. Partition Table](#4-partition-table)
   - [5. `sdkconfig.defaults`](#5-sdkconfigdefaults)
+  - [6. `sdkconfig.devel` (Development Overrides)](#6-sdkconfigdevel-development-overrides)
+  - [7. Combining sdkconfig Files](#7-combining-sdkconfig-files)
 - [Firmware Architecture](#firmware-architecture)
   - [Thread Model](#thread-model)
   - [Data Flow](#data-flow)
@@ -74,6 +77,22 @@ git checkout v5.5.2   # or latest stable release
 Use the [ESP-IDF Windows Installer](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/windows-setup.html)
 which bundles Git, Python, CMake, Ninja, and the Xtensa/RISC-V toolchains.
 
+### Cloning the Repository
+
+The upstream DECtalk source tree is included as a Git submodule at
+`components/dectalk/dectalk`.  You must initialise it when you clone:
+
+```bash
+git clone --recursive https://github.com/lllucius/DECtalk_ESPress.git
+cd DECtalk_ESPress
+```
+
+If you already cloned without `--recursive`, pull the submodule manually:
+
+```bash
+git submodule update --init --recursive
+```
+
 ---
 
 ## Directory Layout
@@ -82,6 +101,7 @@ which bundles Git, Python, CMake, Ninja, and the Xtensa/RISC-V toolchains.
 DECtalk_ESPress/
 ├── CMakeLists.txt                  # Top-level ESP-IDF project file
 ├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
+├── sdkconfig.devel                 # Optional development overrides (diagnostics, PSRAM, debugging)
 ├── partitions.csv                  # Custom partition table
 ├── BUILD.md                        # ← this file (firmware build & architecture)
 ├── README.md                       # Firmware overview and quick-start
@@ -186,24 +206,61 @@ The `project_include.cmake` file registers the custom `udict` subtype
 
 ### 5. `sdkconfig.defaults`
 
-Key settings baked into the default configuration:
+These are the minimal settings required for the project.  ESP-IDF applies
+them automatically whenever the `sdkconfig` file is created or recreated
+(e.g. after `idf.py fullclean` or `idf.py set-target`):
 
 | Setting | Value | Rationale |
 |---------|-------|-----------|
+| `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240` | `y` | Maximum CPU clock for synthesis performance |
+| `CONFIG_ESP_TASK_WDT_EN` | `n` | Task watchdog disabled (speech synthesis is CPU-intensive) |
 | `CONFIG_IDF_TARGET` | `esp32s3` | Target SoC |
+| `CONFIG_PARTITION_TABLE_CUSTOM` | `y` | Use the project's `partitions.csv` |
+| `CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT` | `8192` | Default pthread stack (8 KB) |
+| `CONFIG_TINYUSB_CDC_ENABLED` | `y` | Enable TinyUSB CDC-ACM for host protocol |
+
+### 6. `sdkconfig.devel` (Development Overrides)
+
+`sdkconfig.devel` contains additional settings useful during development
+and debugging.  These are **not** applied automatically — you must
+explicitly combine them with `sdkconfig.defaults` (see
+[Combining sdkconfig Files](#7-combining-sdkconfig-files) below).
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `CONFIG_COMPILER_STACK_CHECK_MODE_STRONG` | `y` | Strong stack-smashing detection |
+| `CONFIG_DECTALK_ENABLE_DIAG_MEM` | `y` | Enable heap/stack diagnostics task |
+| `CONFIG_DECTALK_LOG_LEVEL_VERBOSE` | `y` | Verbose ESP_LOG output |
 | `CONFIG_ESPTOOLPY_FLASHSIZE_8MB` | `y` | 8 MB flash for firmware + dictionary |
+| `CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE` | `y` | Auto-update flash size in binary header |
+| `CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT` | `y` | Print backtrace and halt on panic |
+| `CONFIG_FREERTOS_USE_TRACE_FACILITY` | `y` | Enable FreeRTOS task trace (for diagnostics) |
+| `CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS` | `y` | Hard-fail on OOM for easier debugging |
+| `CONFIG_HEAP_POISONING_COMPREHENSIVE` | `y` | Full heap poisoning for corruption detection |
 | `CONFIG_SPIRAM` | `y` | Enable PSRAM |
 | `CONFIG_SPIRAM_MODE_OCT` | `y` | Octal SPI PSRAM |
 | `CONFIG_SPIRAM_SPEED_80M` | `y` | 80 MHz PSRAM clock |
-| `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240` | `y` | Maximum CPU clock for synthesis performance |
-| `CONFIG_ESP_CONSOLE_UART_DEFAULT` | `y` | Console/ESP_LOG on UART0 (not USB) |
-| `CONFIG_ESP_CONSOLE_SECONDARY_NONE` | `y` | No secondary console |
-| `CONFIG_ESP_TASK_WDT_EN` | `n` | Task watchdog disabled (speech synthesis is CPU-intensive) |
-| `CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS` | `y` | Hard-fail on OOM for easier debugging |
-| `CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT` | `8192` | Default pthread stack (8 KB) |
-| `CONFIG_TINYUSB_CDC_ENABLED` | `y` | Enable TinyUSB CDC-ACM for host protocol |
-| `CONFIG_PARTITION_TABLE_CUSTOM` | `y` | Use the project's `partitions.csv` |
-| `CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT` | `y` | Print backtrace and halt on panic |
+
+### 7. Combining sdkconfig Files
+
+ESP-IDF can merge multiple defaults files at configuration time using the
+`-D SDKCONFIG_DEFAULTS` CMake variable.  This is useful for layering the
+development overrides on top of the base defaults:
+
+```bash
+# Create (or recreate) sdkconfig with both base and devel settings:
+idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.devel" build
+```
+
+Settings in later files override earlier ones, so `sdkconfig.devel` values
+take precedence over `sdkconfig.defaults`.
+
+> **When do you need to do this?**  Only when the `sdkconfig` file needs to
+> be created or recreated — for example after `idf.py fullclean`,
+> `idf.py set-target`, or when cloning the project for the first time.
+> Once `sdkconfig` exists, subsequent `idf.py build` commands reuse it and
+> you do not need to pass `-D SDKCONFIG_DEFAULTS` again.  You can also
+> make further changes interactively with `idf.py menuconfig` at any time.
 
 ---
 
@@ -328,6 +385,9 @@ CR.
 ```bash
 # Full clean build
 idf.py fullclean && idf.py build
+
+# Full clean build with development overrides
+idf.py fullclean && idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.devel" build
 
 # Build only
 idf.py build
