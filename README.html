@@ -218,6 +218,7 @@
 <li><a href="#hardware-requirements">Hardware Requirements</a></li>
 <li><a href="#wiring">Wiring</a></li>
 <li><a href="#quick-start">Quick Start</a></li>
+<li><a href="#web-flasher">Web Flasher</a></li>
 <li><a href="#release-build-workflow">Release Build Workflow</a></li>
 <li><a href="#serial-interfaces">Serial Interfaces</a></li>
 <li><a href="#espress-protocol-summary">ESPress Protocol Summary</a></li>
@@ -334,6 +335,16 @@
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span></code></pre></div>
 <p>The device's native USB port will appear as <code>/dev/ttyACM0</code> (Linux) or a COM port (Windows). Open it at any baud rate — the CDC-ACM link ignores baud — and start sending text.</p>
 <p>See <a href="BUILD.html">BUILD.md</a> for full prerequisites and configuration options.</p>
+<h2 id="web-flasher">Web Flasher</h2>
+<p>The published project site includes a browser-based flasher for installing released firmware without setting up ESP-IDF locally.</p>
+<ol type="1">
+<li>Open the project site and click <strong>Web Flasher</strong> in the top navigation.</li>
+<li>Use <strong>Chrome</strong> or <strong>Edge</strong> (version 89 or newer) so the page can access the board over the browser's Web Serial API.</li>
+<li>Connect the board's <strong>UART flashing/debug USB port</strong> to your computer, click <strong>Connect</strong>, and choose the serial device for that port.</li>
+<li>Select the desired <strong>Release</strong> and <strong>Language</strong>, then click <strong>Flash Firmware</strong>.</li>
+<li>If you already downloaded a release archive from GitHub, click <strong>Flash from File…</strong> and select the <code>.tar.gz</code> / <code>.tgz</code> file instead.</li>
+</ol>
+<p>After flashing finishes, unplug or close the UART connection if needed and use the board's <strong>native USB CDC port</strong> for normal DECtalk ESPress runtime communication.</p>
 <h2 id="release-build-workflow">Release Build Workflow</h2>
 <p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release-builds.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
 <h2 id="serial-interfaces">Serial Interfaces</h2>
