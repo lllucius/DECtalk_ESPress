@@ -1,22 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Leland Lucius
 // ----------------------------------------------------------------
-// GNU ld Symbol Wrapping for DECtalk Thread Naming
+// DECtalk Thread Creation Replacement
 //
 // This file is intentionally local to the ESP-IDF project so we can
 // assign meaningful names to each pthread created by the DECtalk
 // engine without modifying upstream sources.
 //
 // StartDecTalkSystemThread() is declared static in ttsapi.c, so it
-// cannot be intercepted with --wrap.  Instead we wrap the non-static
+// cannot be intercepted directly.  Instead we replace the non-static
 // OP_CreateThread() that it calls to actually create pthreads.  The
 // ThreadRoutine pointer is compared against known DECtalk thread
 // entry functions to determine the thread's purpose and assign a
 // descriptive name via esp_pthread_set_cfg().
 //
-// Requires the final link to include:
-//   -Wl,--wrap=OP_CreateThread
+// The upstream OP_CreateThread() in opthread.c is excluded from the
+// build via a compile definition that renames it, allowing this
+// replacement to be the sole definition.
 // ----------------------------------------------------------------
+
+#include <stdlib.h>
 
 #include "esp_log.h"
 #include "esp_pthread.h"
@@ -36,20 +39,15 @@ extern void cmd_main(void *);
 // TextToSpeechThreadMain is static in ttsapi.c, so it cannot be
 // referenced directly.  It is identified by elimination below.
 
-// Provided by the linker via --wrap
-extern HTHREAD_T __real_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
-                                        THREAD_PROCEDURE_T ThreadRoutine,
-                                        void *pThreadData);
-
 // ----------------------------------------------------------------
-// __wrap_OP_CreateThread()
+// OP_CreateThread()
 //
-// Wrapped replacement for the upstream OP_CreateThread().  Compares
+// Complete replacement for the upstream OP_CreateThread().  Compares
 // the ThreadRoutine pointer against the known DECtalk thread entry
 // functions to determine the thread name.  When a match is found
 // (or when the routine is the remaining TextToSpeechThreadMain),
-// the name is set via esp_pthread_set_cfg() before calling the
-// real OP_CreateThread(), then the configuration is restored.
+// the name is set via esp_pthread_set_cfg() before creating the
+// thread with pthread_create(), then the configuration is restored.
 //
 // Arguments:
 //   StackSize      Thread stack size (0 = default)
@@ -57,11 +55,11 @@ extern HTHREAD_T __real_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
 //   pThreadData    Opaque data passed to the thread (typically phTTS)
 //
 // Returns:
-//   HTHREAD_T handle, or NULL on failure (same as OP_CreateThread)
+//   HTHREAD_T handle, or NULL on failure
 // ----------------------------------------------------------------
-HTHREAD_T __wrap_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
-                                 THREAD_PROCEDURE_T ThreadRoutine,
-                                 void *pThreadData)
+HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
+                           THREAD_PROCEDURE_T ThreadRoutine,
+                           void *pThreadData)
 {
     // Match ThreadRoutine to known DECtalk thread functions
     const char *name = NULL;
@@ -103,7 +101,7 @@ HTHREAD_T __wrap_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
     bool had_cfg = (esp_pthread_get_cfg(&old_cfg) == ESP_OK);
 
     // Apply thread name via esp_pthread_set_cfg so the next
-    // pthread_create() (inside __real_OP_CreateThread) picks it up
+    // pthread_create() picks it up
     esp_pthread_cfg_t new_cfg = esp_pthread_get_default_config();
     if (had_cfg)
     {
@@ -113,9 +111,31 @@ HTHREAD_T __wrap_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
     new_cfg.stack_size = stack;
     esp_pthread_set_cfg(&new_cfg);
 
-    // Create the thread with the configured name
-    HTHREAD_T result = __real_OP_CreateThread(StackSize, ThreadRoutine,
-                                              pThreadData);
+    // Create the thread using POSIX routines (replaces upstream
+    // OP_CreateThread logic)
+    HTHREAD_T pThread = (HTHREAD_T)malloc(sizeof(pthread_t));
+    if (pThread != NULL)
+    {
+        THREAD_ATTR_T ThreadAttr;
+
+        if (pthread_attr_init(&ThreadAttr) != 0)
+        {
+            free(pThread);
+            pThread = NULL;
+        }
+        else
+        {
+            if (pthread_create(pThread, &ThreadAttr,
+                               (THREAD_PROCEDURE_T)ThreadRoutine,
+                               pThreadData) != 0)
+            {
+                free(pThread);
+                pThread = NULL;
+            }
+
+            pthread_attr_destroy(&ThreadAttr);
+        }
+    }
 
     // Restore the previous pthread configuration
     if (had_cfg)
@@ -128,5 +148,5 @@ HTHREAD_T __wrap_OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
         esp_pthread_set_cfg(&default_cfg);
     }
 
-    return result;
+    return pThread;
 }
