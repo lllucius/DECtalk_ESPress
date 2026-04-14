@@ -287,10 +287,20 @@ list( TRANSFORM DIC_INCLUDES PREPEND "-I" )
 # Build the dictionary compiler for the host using the host CC.
 # We explicitly use "cc" (not CMAKE_C_COMPILER) because CMAKE_C_COMPILER
 # is the ESP32 cross-compiler; the dictionary compiler must run on the host.
-find_program( HOST_CC cc )
+#
+# In ESP-IDF v6.0+ the cross-toolchain directories (esp-clang,
+# xtensa-esp-elf, riscv32-esp-elf) are prepended to PATH and may contain
+# unprefixed programs (cc, as, ld, …) that shadow the native system tools.
+# Search well-known system paths first to ensure we locate the host
+# compiler, then fall back to an unrestricted search.
+find_program( HOST_CC
+    NAMES cc gcc
+    PATHS /usr/local/bin /usr/bin /bin
+    NO_DEFAULT_PATH
+)
 
 if( NOT HOST_CC )
-    find_program( HOST_CC gcc )
+    find_program( HOST_CC NAMES cc gcc )
 endif()
 
 if( NOT HOST_CC )
@@ -299,11 +309,16 @@ if( NOT HOST_CC )
 endif()
 
 # Tell the host compiler to look for sub-programs (as, ld, …) in the same
-# directory where it lives.  Inside the ESP-IDF Docker image the Xtensa
-# cross-toolchain's "as" appears on the PATH before the system assembler,
-# so the host GCC would otherwise invoke the wrong assembler and fail with
-# "as: unrecognized option '--64'".
-get_filename_component( HOST_CC_DIR "${HOST_CC}" DIRECTORY )
+# directory where it lives.  Inside the ESP-IDF Docker image and local
+# ESP-IDF environments the cross-toolchain's "as" appears on the PATH
+# before the system assembler, so the host GCC would otherwise invoke the
+# wrong assembler and fail with "as: unrecognized option '--64'".
+#
+# Resolve symlinks (REALPATH) so the -B directory reliably contains the
+# compiler's companion binutils even when HOST_CC is a symlink managed by
+# update-alternatives or similar.
+get_filename_component( HOST_CC_REAL "${HOST_CC}" REALPATH )
+get_filename_component( HOST_CC_DIR "${HOST_CC_REAL}" DIRECTORY )
 
 function( generate_dict_at_configure )
     file( MAKE_DIRECTORY "${DIC_OUTPUT_DIR}" )

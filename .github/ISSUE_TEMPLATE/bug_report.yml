@@ -54,7 +54,7 @@ body:
       description: Include OS, ESP-IDF version, Python version, browser version, or serial tooling as relevant.
       placeholder: |
         OS: Ubuntu 24.04
-        ESP-IDF: v5.5.2
+        ESP-IDF: v6.0
         Python: 3.12
         Browser: Firefox 137
     validations:

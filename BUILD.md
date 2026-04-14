@@ -43,7 +43,7 @@ cross-compilation, porting notes), see the
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
-| **ESP-IDF** | v5.5+ (tested with v5.5.2) | The `sdkconfig.defaults` header references ESP-IDF 5.5.2 |
+| **ESP-IDF** | v6.0+ (tested with v6.0) | The `sdkconfig.defaults` header references ESP-IDF 6.0 |
 | **Python** | 3.8+ | Required by ESP-IDF tools |
 | **Host C compiler** | `cc` or `gcc` | Used at build time to compile the dictionary compiler that runs on the host |
 | **CMake** | 3.5+ | Bundled with ESP-IDF |
@@ -63,7 +63,7 @@ sudo apt-get install git wget flex bison gperf python3 python3-pip \
 mkdir -p ~/esp && cd ~/esp
 git clone --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf
-git checkout v5.5.2   # or latest stable release
+git checkout v6.0   # or latest stable release
 
 # Install toolchains (ESP32-S3 target)
 ./install.sh esp32s3
@@ -238,8 +238,7 @@ explicitly combine them with `sdkconfig.defaults` (see
 | `CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS` | `y` | Hard-fail on OOM for easier debugging |
 | `CONFIG_HEAP_POISONING_COMPREHENSIVE` | `y` | Full heap poisoning for corruption detection |
 | `CONFIG_SPIRAM` | `y` | Enable PSRAM |
-| `CONFIG_SPIRAM_MODE_OCT` | `y` | Octal SPI PSRAM |
-| `CONFIG_SPIRAM_SPEED_80M` | `y` | 80 MHz PSRAM clock |
+| `CONFIG_SPIRAM_MODE_OCTAL` | `y` | Octal SPI PSRAM |
 
 ### 7. Combining sdkconfig Files
 
