@@ -109,7 +109,7 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
         new_cfg = old_cfg;
     }
     new_cfg.thread_name = name;
-    new_cfg.stack_size = StackSize;
+    new_cfg.stack_size = StackSize ? StackSize : new_cfg.stack_size;
     esp_pthread_set_cfg(&new_cfg);
 
     // Create the thread using POSIX routines (replaces upstream
