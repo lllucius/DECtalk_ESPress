@@ -40,8 +40,8 @@ USB CDC transport) uses this component, see the
 - **Zero upstream patches** — all adaptations achieved through compile
   definitions, header shims, libc stubs, and linker wrapping
 - **Standalone component** — works as a standalone project, installed via
-  the ESP Component Registry, or with a local DECtalk source path / FetchContent
-  from GitHub
+  the ESP Component Registry, or with a local DECtalk source path; the
+  upstream source is bundled as a git submodule
 - **Configurable via `menuconfig`** — language, dictionary location, source
   paths; all under the **DECtalk** menu
 
@@ -58,18 +58,18 @@ idf.py add-dependency "lllucius__dectalk>=1.0.0"
 ```
 
 This downloads the component to your project's `managed_components/`
-directory.  On the first `idf.py build` (or `idf.py reconfigure`), CMake
-will automatically clone the upstream DECtalk source tree from GitHub via
-FetchContent — no manual source-tree configuration required.
+directory.  The upstream DECtalk source tree is bundled as a git submodule
+inside the component — no manual source-tree configuration required.
 
-> **Internet access required on first build.** CMake fetches
-> `https://github.com/dectalk/dectalk` (branch `develop`) into the build
-> directory.  Subsequent builds reuse the cached checkout.
+> **Submodule initialisation:** If you cloned this repository without
+> `--recurse-submodules`, run
+> `git submodule update --init --recursive` to populate the DECtalk
+> source tree before the first build.
 
 ### Offline / Air-Gapped Builds
 
-If network access is unavailable, download the DECtalk upstream source tree
-manually and point the component at it:
+If network access is unavailable or you prefer a specific checkout, download
+the DECtalk upstream source tree manually and point the component at it:
 
 1. Clone the upstream DECtalk source: `https://github.com/dectalk/dectalk`
    (this is the TTS engine source, separate from this project's repository
@@ -77,11 +77,9 @@ manually and point the component at it:
 2. In `idf.py menuconfig`, navigate to
    *DECtalk → DECtalk distribution → Path to DECtalk library source tree*
    and enter the path to your local clone.
-3. Disable *Fetch DECtalk source from GitHub if local path is unavailable*
-   (optional, but avoids a network attempt).
 
 ```bash
-idf.py menuconfig   # set source path, optionally disable FetchContent
+idf.py menuconfig   # set source path
 idf.py build
 ```
 
@@ -91,7 +89,7 @@ All component settings appear under **DECtalk** in `idf.py menuconfig`:
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *DECtalk distribution* | Local DECtalk source path; optional GitHub FetchContent fallback (enabled by default) and Git ref |
+| *DECtalk distribution* | Local DECtalk source path (overrides bundled submodule) |
 | *DECtalk Language* | US English (default), UK English, Spanish, German, Latin American Spanish, French |
 | *Dictionary location* | Embedded in firmware, dedicated partition, or SPIFFS file system |
 
@@ -137,10 +135,10 @@ If you have a local checkout of the DECtalk source tree:
    *DECtalk → DECtalk distribution → Path to DECtalk library source tree*
    and point it at your local DECtalk checkout.
 
-2. **Or rely on FetchContent** — FetchContent is enabled by default
-   (`DECTALK_FETCH_SOURCE=y`).  If no local path is configured, CMake will
-   automatically clone the upstream source tree from GitHub into the build
-   directory.
+2. **Or use the bundled submodule** — if no local path is configured, CMake
+   will automatically use the upstream source tree from the git submodule
+   at `components/dectalk/dectalk`.  Make sure you have initialised
+   submodules (`git submodule update --init --recursive`).
 
 ## Language Selection
 

@@ -80,6 +80,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6.0.2
+        with:
+          submodules: recursive
 
       - name: Write release sdkconfig overrides
         shell: bash
