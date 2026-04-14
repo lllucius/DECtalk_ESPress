@@ -214,6 +214,7 @@
 <li><a href="#prerequisites">Prerequisites</a>
 <ul>
 <li><a href="#installing-esp-idf">Installing ESP-IDF</a></li>
+<li><a href="#cloning-the-repository">Cloning the Repository</a></li>
 </ul></li>
 <li><a href="#directory-layout">Directory Layout</a></li>
 <li><a href="#how-the-build-works">How the Build Works</a>
@@ -223,6 +224,8 @@
 <li><a href="#3-component-main-firmware-application">3. Component: <code>main</code> (Firmware Application)</a></li>
 <li><a href="#4-partition-table">4. Partition Table</a></li>
 <li><a href="#5-sdkconfigdefaults">5. <code>sdkconfig.defaults</code></a></li>
+<li><a href="#6-sdkconfigdevel-development-overrides">6. <code>sdkconfig.devel</code> (Development Overrides)</a></li>
+<li><a href="#7-combining-sdkconfig-files">7. Combining sdkconfig Files</a></li>
 </ul></li>
 <li><a href="#firmware-architecture">Firmware Architecture</a>
 <ul>
@@ -299,11 +302,18 @@
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span></code></pre></div>
 <h4 id="windows">Windows</h4>
 <p>Use the <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/windows-setup.html">ESP-IDF Windows Installer</a> which bundles Git, Python, CMake, Ninja, and the Xtensa/RISC-V toolchains.</p>
+<h3 id="cloning-the-repository">Cloning the Repository</h3>
+<p>The upstream DECtalk source tree is included as a Git submodule at <code>components/dectalk/dectalk</code>. You must initialise it when you clone:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="at">--recursive</span> https://github.com/lllucius/DECtalk_ESPress.git</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> DECtalk_ESPress</span></code></pre></div>
+<p>If you already cloned without <code>--recursive</code>, pull the submodule manually:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> submodule update <span class="at">--init</span> <span class="at">--recursive</span></span></code></pre></div>
 <hr />
 <h2 id="directory-layout">Directory Layout</h2>
 <pre><code>DECtalk_ESPress/
 ├── CMakeLists.txt                  # Top-level ESP-IDF project file
 ├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
+├── sdkconfig.devel                 # Optional development overrides (diagnostics, PSRAM, debugging)
 ├── partitions.csv                  # Custom partition table
 ├── BUILD.md                        # ← this file (firmware build &amp; architecture)
 ├── README.md                       # Firmware overview and quick-start
@@ -344,9 +354,9 @@
 <h2 id="how-the-build-works">How the Build Works</h2>
 <h3 id="1-project-bootstrapping">1. Project Bootstrapping</h3>
 <p><code>CMakeLists.txt</code> is a minimal ESP-IDF project file:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode cmake"><code class="sourceCode cmake"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">cmake_minimum_required</span>(<span class="ot">VERSION</span> <span class="dt">3.5</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">include</span>(<span class="fl">$ENV{IDF_PATH}</span>/tools/cmake/project.cmake)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">project</span>(dectalk_espress)</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode cmake"><code class="sourceCode cmake"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">cmake_minimum_required</span>(<span class="ot">VERSION</span> <span class="dt">3.5</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">include</span>(<span class="fl">$ENV{IDF_PATH}</span>/tools/cmake/project.cmake)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">project</span>(dectalk_espress)</span></code></pre></div>
 <p>ESP-IDF discovers the <code>components/dectalk/</code> and <code>main/</code> components automatically.</p>
 <h3 id="2-component-dectalk-the-tts-library">2. Component: <code>dectalk</code> (the TTS library)</h3>
 <p>The DECtalk component handles source resolution, language selection, dictionary cross-compilation, and dapi library compilation. For full details see the <a href="components/dectalk/BUILD.html">component BUILD.md</a>.</p>
@@ -429,7 +439,7 @@
 </ul>
 <p>The <code>project_include.cmake</code> file registers the custom <code>udict</code> subtype (<code>0x40</code>) with ESP-IDF and manages dynamic partition table extension.</p>
 <h3 id="5-sdkconfigdefaults">5. <code>sdkconfig.defaults</code></h3>
-<p>Key settings baked into the default configuration:</p>
+<p>These are the minimal settings required for the project. ESP-IDF applies them automatically whenever the <code>sdkconfig</code> file is created or recreated (e.g. after <code>idf.py fullclean</code> or <code>idf.py set-target</code>):</p>
 <table>
 <thead>
 <tr class="header">
@@ -440,54 +450,24 @@
 </thead>
 <tbody>
 <tr class="odd">
+<td><code>CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240</code></td>
+<td><code>y</code></td>
+<td>Maximum CPU clock for synthesis performance</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESP_TASK_WDT_EN</code></td>
+<td><code>n</code></td>
+<td>Task watchdog disabled (speech synthesis is CPU-intensive)</td>
+</tr>
+<tr class="odd">
 <td><code>CONFIG_IDF_TARGET</code></td>
 <td><code>esp32s3</code></td>
 <td>Target SoC</td>
 </tr>
 <tr class="even">
-<td><code>CONFIG_ESPTOOLPY_FLASHSIZE_8MB</code></td>
+<td><code>CONFIG_PARTITION_TABLE_CUSTOM</code></td>
 <td><code>y</code></td>
-<td>8 MB flash for firmware + dictionary</td>
-</tr>
-<tr class="odd">
-<td><code>CONFIG_SPIRAM</code></td>
-<td><code>y</code></td>
-<td>Enable PSRAM</td>
-</tr>
-<tr class="even">
-<td><code>CONFIG_SPIRAM_MODE_OCT</code></td>
-<td><code>y</code></td>
-<td>Octal SPI PSRAM</td>
-</tr>
-<tr class="odd">
-<td><code>CONFIG_SPIRAM_SPEED_80M</code></td>
-<td><code>y</code></td>
-<td>80 MHz PSRAM clock</td>
-</tr>
-<tr class="even">
-<td><code>CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240</code></td>
-<td><code>y</code></td>
-<td>Maximum CPU clock for synthesis performance</td>
-</tr>
-<tr class="odd">
-<td><code>CONFIG_ESP_CONSOLE_UART_DEFAULT</code></td>
-<td><code>y</code></td>
-<td>Console/ESP_LOG on UART0 (not USB)</td>
-</tr>
-<tr class="even">
-<td><code>CONFIG_ESP_CONSOLE_SECONDARY_NONE</code></td>
-<td><code>y</code></td>
-<td>No secondary console</td>
-</tr>
-<tr class="odd">
-<td><code>CONFIG_ESP_TASK_WDT_EN</code></td>
-<td><code>n</code></td>
-<td>Task watchdog disabled (speech synthesis is CPU-intensive)</td>
-</tr>
-<tr class="even">
-<td><code>CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS</code></td>
-<td><code>y</code></td>
-<td>Hard-fail on OOM for easier debugging</td>
+<td>Use the project's <code>partitions.csv</code></td>
 </tr>
 <tr class="odd">
 <td><code>CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT</code></td>
@@ -499,18 +479,89 @@
 <td><code>y</code></td>
 <td>Enable TinyUSB CDC-ACM for host protocol</td>
 </tr>
+</tbody>
+</table>
+<h3 id="6-sdkconfigdevel-development-overrides">6. <code>sdkconfig.devel</code> (Development Overrides)</h3>
+<p><code>sdkconfig.devel</code> contains additional settings useful during development and debugging. These are <strong>not</strong> applied automatically — you must explicitly combine them with <code>sdkconfig.defaults</code> (see <a href="#7-combining-sdkconfig-files">Combining sdkconfig Files</a> below).</p>
+<table>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th>Value</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
 <tr class="odd">
-<td><code>CONFIG_PARTITION_TABLE_CUSTOM</code></td>
+<td><code>CONFIG_COMPILER_STACK_CHECK_MODE_STRONG</code></td>
 <td><code>y</code></td>
-<td>Use the project's <code>partitions.csv</code></td>
+<td>Strong stack-smashing detection</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_DECTALK_ENABLE_DIAG_MEM</code></td>
+<td><code>y</code></td>
+<td>Enable heap/stack diagnostics task</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_DECTALK_LOG_LEVEL_VERBOSE</code></td>
+<td><code>y</code></td>
+<td>Verbose ESP_LOG output</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_ESPTOOLPY_FLASHSIZE_8MB</code></td>
+<td><code>y</code></td>
+<td>8 MB flash for firmware + dictionary</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE</code></td>
+<td><code>y</code></td>
+<td>Auto-update flash size in binary header</td>
 </tr>
 <tr class="even">
 <td><code>CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT</code></td>
 <td><code>y</code></td>
 <td>Print backtrace and halt on panic</td>
 </tr>
+<tr class="odd">
+<td><code>CONFIG_FREERTOS_USE_TRACE_FACILITY</code></td>
+<td><code>y</code></td>
+<td>Enable FreeRTOS task trace (for diagnostics)</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_HEAP_ABORT_WHEN_ALLOCATION_FAILS</code></td>
+<td><code>y</code></td>
+<td>Hard-fail on OOM for easier debugging</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_HEAP_POISONING_COMPREHENSIVE</code></td>
+<td><code>y</code></td>
+<td>Full heap poisoning for corruption detection</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_SPIRAM</code></td>
+<td><code>y</code></td>
+<td>Enable PSRAM</td>
+</tr>
+<tr class="odd">
+<td><code>CONFIG_SPIRAM_MODE_OCT</code></td>
+<td><code>y</code></td>
+<td>Octal SPI PSRAM</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_SPIRAM_SPEED_80M</code></td>
+<td><code>y</code></td>
+<td>80 MHz PSRAM clock</td>
+</tr>
 </tbody>
 </table>
+<h3 id="7-combining-sdkconfig-files">7. Combining sdkconfig Files</h3>
+<p>ESP-IDF can merge multiple defaults files at configuration time using the <code>-D SDKCONFIG_DEFAULTS</code> CMake variable. This is useful for layering the development overrides on top of the base defaults:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create (or recreate) sdkconfig with both base and devel settings:</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-D</span> SDKCONFIG_DEFAULTS=<span class="st">&quot;sdkconfig.defaults;sdkconfig.devel&quot;</span> build</span></code></pre></div>
+<p>Settings in later files override earlier ones, so <code>sdkconfig.devel</code> values take precedence over <code>sdkconfig.defaults</code>.</p>
+<blockquote>
+<p><strong>When do you need to do this?</strong> Only when the <code>sdkconfig</code> file needs to be created or recreated — for example after <code>idf.py fullclean</code>, <code>idf.py set-target</code>, or when cloning the project for the first time. Once <code>sdkconfig</code> exists, subsequent <code>idf.py build</code> commands reuse it and you do not need to pass <code>-D SDKCONFIG_DEFAULTS</code> again. You can also make further changes interactively with <code>idf.py menuconfig</code> at any time.</p>
+</blockquote>
 <hr />
 <h2 id="firmware-architecture">Firmware Architecture</h2>
 <h3 id="thread-model">Thread Model</h3>
@@ -605,38 +656,41 @@
 <p>If no new characters arrive for <code>CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS</code> (default 200 ms), any buffered text is automatically flushed to the speech queue. This handles the case where the host sends text without a trailing CR.</p>
 <hr />
 <h2 id="build-commands-reference">Build Commands Reference</h2>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Full clean build</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> fullclean <span class="kw">&amp;&amp;</span> <span class="ex">idf.py</span> build</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Build only</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash (replace /dev/ttyUSB0 with your UART port)</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash dictionary partition separately (when using partition mode)</span></span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 udict-flash</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Monitor console output (UART0)</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Open menuconfig</span></span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Set target (only needed once, or after fullclean)</span></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32s3</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Full clean build</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> fullclean <span class="kw">&amp;&amp;</span> <span class="ex">idf.py</span> build</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Full clean build with development overrides</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> fullclean <span class="kw">&amp;&amp;</span> <span class="ex">idf.py</span> <span class="at">-D</span> SDKCONFIG_DEFAULTS=<span class="st">&quot;sdkconfig.defaults;sdkconfig.devel&quot;</span> build</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Build only</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash (replace /dev/ttyUSB0 with your UART port)</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Flash dictionary partition separately (when using partition mode)</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 udict-flash</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Monitor console output (UART0)</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Open menuconfig</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Set target (only needed once, or after fullclean)</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32s3</span></code></pre></div>
 <h3 id="changing-language">Changing Language</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → DECtalk Language</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Select desired language, save, exit</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → DECtalk Language</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Select desired language, save, exit</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span></code></pre></div>
 <p>See the <a href="components/dectalk/README.html">component README</a> for supported languages and compile definitions.</p>
 <h3 id="changing-dictionary-storage-mode">Changing Dictionary Storage Mode</h3>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → Dictionary location</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose: Embedded in firmware / Dedicated partition / File system</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → Dictionary location</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose: Embedded in firmware / Dedicated partition / File system</span></span></code></pre></div>
 <p>See the <a href="components/dectalk/README.html">component README</a> for detailed descriptions of each storage mode and its sub-options.</p>
 <hr />
 <h2 id="porting-notes">Porting Notes</h2>
