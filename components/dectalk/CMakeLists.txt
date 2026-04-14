@@ -268,6 +268,7 @@ set( HLSYN_SRCS
 set( LOCAL_SRCS
     "${CMAKE_CURRENT_LIST_DIR}/src/libc_stubs.c"
     "${CMAKE_CURRENT_LIST_DIR}/src/loaddict_wrappers.c"
+    "${CMAKE_CURRENT_LIST_DIR}/src/thread_wrappers.c"
 )
 
 set( INCLUDE_DIRS
@@ -467,6 +468,7 @@ target_link_libraries(
     INTERFACE
         "-Wl,--wrap=load_dictionary"
         "-Wl,--wrap=unload_dictionary"
+        "-Wl,--wrap=OP_CreateThread"
 )
 
 #
