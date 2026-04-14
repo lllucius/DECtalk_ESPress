@@ -21,6 +21,8 @@
 
 #include <stdlib.h>
 
+#include "sdkconfig.h"
+
 #include "esp_log.h"
 #include "esp_pthread.h"
 
@@ -44,13 +46,14 @@ extern void *cmd_main(void *);
 //
 // Complete replacement for the upstream OP_CreateThread().  Compares
 // the ThreadRoutine pointer against the known DECtalk thread entry
-// functions to determine the thread name.  When a match is found
-// (or when the routine is the remaining TextToSpeechThreadMain),
-// the name is set via esp_pthread_set_cfg() before creating the
-// thread with pthread_create(), then the configuration is restored.
+// functions to determine the thread name and apply the corresponding
+// Kconfig stack size.  When a match is found (or when the routine is
+// the remaining TextToSpeechThreadMain), the name and stack size are
+// set via esp_pthread_set_cfg() before creating the thread with
+// pthread_create(), then the configuration is restored.
 //
 // Arguments:
-//   StackSize      Thread stack size (0 = default)
+//   StackSize      Thread stack size (ignored; Kconfig values are used)
 //   ThreadRoutine  Thread entry function pointer
 //   pThreadData    Opaque data passed to the thread (typically phTTS)
 //
@@ -67,25 +70,27 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
     if (ThreadRoutine == (THREAD_PROCEDURE_T)sync_main)
     {
         name = "dt_sync";
+        StackSize = CONFIG_DECTALK_SYNC_STACK_SIZE;
     }
     else if (ThreadRoutine == (THREAD_PROCEDURE_T)vtm_main)
     {
         name = "dt_vtm";
+        StackSize = CONFIG_DECTALK_VTM_STACK_SIZE;
     }
     else if (ThreadRoutine == (THREAD_PROCEDURE_T)ph_main)
     {
         name = "dt_ph";
+        StackSize = CONFIG_DECTALK_PH_STACK_SIZE;
     }
     else if (ThreadRoutine == (THREAD_PROCEDURE_T)lts_main)
     {
         name = "dt_lts";
+        StackSize = CONFIG_DECTALK_LTS_STACK_SIZE;
     }
     else if (ThreadRoutine == (THREAD_PROCEDURE_T)cmd_main)
     {
         name = "dt_cmd";
-
-        // The "cmd" thread requires a larger stack when the language is German.
-        StackSize = 65536; 
+        StackSize = CONFIG_DECTALK_CMD_STACK_SIZE;
     }
     else
     {
@@ -93,6 +98,7 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
         // StartDecTalkSystemThread() with the static
         // TextToSpeechThreadMain, so this must be the TXT thread.
         name = "dt_txt";
+        StackSize = CONFIG_DECTALK_TXT_STACK_SIZE;
     }
 
     ESP_LOGI(TAG, "Creating DECtalk thread: %s", name);
@@ -109,7 +115,7 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
         new_cfg = old_cfg;
     }
     new_cfg.thread_name = name;
-    new_cfg.stack_size = StackSize ? StackSize : new_cfg.stack_size;
+    new_cfg.stack_size = StackSize;
     esp_pthread_set_cfg(&new_cfg);
 
     // Create the thread using POSIX routines (replaces upstream
