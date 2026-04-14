@@ -31,11 +31,11 @@ static const char *TAG = "DECtalk Thread Wrapper";
 // Forward declarations of DECtalk thread entry functions.
 // Actual signatures use LPTTS_HANDLE_T, but we only need the
 // addresses for comparison with the ThreadRoutine pointer.
-extern void sync_main(void *);
-extern void vtm_main(void *);
-extern void ph_main(void *);
-extern void lts_main(void *);
-extern void cmd_main(void *);
+extern void *sync_main(void *);
+extern void *vtm_main(void *);
+extern void *ph_main(void *);
+extern void *lts_main(void *);
+extern void *cmd_main(void *);
 // TextToSpeechThreadMain is static in ttsapi.c, so it cannot be
 // referenced directly.  It is identified by elimination below.
 
@@ -63,7 +63,6 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
 {
     // Match ThreadRoutine to known DECtalk thread functions
     const char *name = NULL;
-    size_t stack = CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT;
 
     if (ThreadRoutine == (THREAD_PROCEDURE_T)sync_main)
     {
@@ -84,7 +83,9 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
     else if (ThreadRoutine == (THREAD_PROCEDURE_T)cmd_main)
     {
         name = "dt_cmd";
-        stack = 65536;
+
+        // The "cmd" thread requires a larger stack when the language is German.
+        StackSize = 65536; 
     }
     else
     {
@@ -108,7 +109,7 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
         new_cfg = old_cfg;
     }
     new_cfg.thread_name = name;
-    new_cfg.stack_size = stack;
+    new_cfg.stack_size = StackSize;
     esp_pthread_set_cfg(&new_cfg);
 
     // Create the thread using POSIX routines (replaces upstream
@@ -116,24 +117,10 @@ HTHREAD_T OP_CreateThread(THREAD_STACK_SIZE_T StackSize,
     HTHREAD_T pThread = (HTHREAD_T)malloc(sizeof(pthread_t));
     if (pThread != NULL)
     {
-        THREAD_ATTR_T ThreadAttr;
-
-        if (pthread_attr_init(&ThreadAttr) != 0)
+        if (pthread_create(pThread, NULL, ThreadRoutine, pThreadData) != 0)
         {
             free(pThread);
             pThread = NULL;
-        }
-        else
-        {
-            if (pthread_create(pThread, &ThreadAttr,
-                               (THREAD_PROCEDURE_T)ThreadRoutine,
-                               pThreadData) != 0)
-            {
-                free(pThread);
-                pThread = NULL;
-            }
-
-            pthread_attr_destroy(&ThreadAttr);
         }
     }
 
