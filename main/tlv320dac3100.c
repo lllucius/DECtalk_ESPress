@@ -79,7 +79,9 @@ static const reg_val_t page0_init[] =
     {REG_DAC_PRB,      0x01},  // Processing block PRB_P1
     {REG_DAC_DATAPATH, 0xD8},  // L DAC on, R DAC on,
                                // L path = normal (left data),
-                               // R path = swapped (left data),
+                               // R path = swapped (left data)
+                               //   → mono: both outputs play the
+                               //     same audio from the L I2S slot;
                                // soft-step = 1 step/sample
     {REG_DAC_VOL_CTRL, 0x00},  // Both channels unmuted
     {REG_DAC_LVOL,     0x00},  // Left digital vol  = 0 dB
