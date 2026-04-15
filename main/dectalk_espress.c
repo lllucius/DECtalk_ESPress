@@ -24,6 +24,10 @@
 #include "dectalk_espress.h"
 #include "diag_mem.h"
 
+#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#include "tlv320dac3100.h"
+#endif
+
 static const char *TAG = "DECtalk ESPress";
 
 static esp_log_level_t dectalk_log_level(void)
@@ -54,6 +58,11 @@ static void configure_logging(void)
 #define I2S_BCK_IO               CONFIG_DECTALK_I2S_BCK_GPIO
 #define I2S_WS_IO                CONFIG_DECTALK_I2S_WS_GPIO
 #define I2S_DO_IO                CONFIG_DECTALK_I2S_DO_GPIO
+#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#define I2S_MCLK_IO              CONFIG_DECTALK_I2S_MCLK_GPIO
+#else
+#define I2S_MCLK_IO              I2S_GPIO_UNUSED
+#endif
 #define I2S_DMA_DESC_NUM         CONFIG_DECTALK_I2S_DMA_DESC_NUM
 #define I2S_DMA_FRAME_NUM        CONFIG_DECTALK_I2S_DMA_FRAME_NUM
 #define ESPRESS_SPEECH_TASK_CORE CONFIG_DECTALK_SPEECH_TASK_CORE
@@ -1066,6 +1075,12 @@ void app_main(void)
     // Initialize the I2S audio output
     ESP_LOGI(TAG, "Initializing I2S audio output...");
 
+#if CONFIG_DECTALK_DAC_TLV320DAC3100
+    // The TLV320DAC3100 must be configured over I2C before the I2S
+    // bus begins clocking, so that the codec is ready to receive data.
+    ESP_ERROR_CHECK(tlv320dac3100_init());
+#endif
+
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     chan_cfg.dma_desc_num = I2S_DMA_DESC_NUM;
     chan_cfg.dma_frame_num = I2S_DMA_FRAME_NUM;
@@ -1079,7 +1094,7 @@ void app_main(void)
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg =
         {
-            .mclk = I2S_GPIO_UNUSED,
+            .mclk = I2S_MCLK_IO,
             .bclk = I2S_BCK_IO,
             .ws = I2S_WS_IO,
             .dout = I2S_DO_IO,

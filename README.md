@@ -70,7 +70,7 @@ advancing DECtalk for everyone.
 | MCU board | ESP32 development board with **two USB data ports**: one UART/serial port for flashing and logs, plus one native USB-OTG/device port for ESPress protocol communication |
 | Flash | 8 MB (configured in `sdkconfig.defaults`) |
 | PSRAM | Optional for embedded/partition dictionary modes; recommended when loading the dictionary from SPIFFS (around 2 MB is a practical minimum) |
-| I2S DAC | PCM5102, MAX98357A, or any I2S-compatible DAC/amplifier |
+| I2S DAC | PCM5102, MAX98357A, Adafruit TLV320DAC3100, or any I2S-compatible DAC/amplifier |
 | USB cables | Two USB data-capable connections are recommended in practice: UART USB for flashing/debugging and native USB for CDC-ACM host communication |
 
 > **Board selection note:** An Espressif **ESP32-S3** dev board is the
@@ -112,6 +112,19 @@ FMT→GND.
 
 **MAX98357A notes** — connect a 4–8 Ω speaker directly to the amplifier
 output terminals.
+
+**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 requires
+two extra connections beyond the basic I2S pins:
+
+| ESP32-S3 GPIO | TLV320DAC3100 Pin | Function |
+|---------------|-------------------|----------|
+| GPIO 9 | MCLK | Master Clock (256 × Fs) |
+| GPIO 1 | SDA | I2C Data |
+| GPIO 2 | SCL | I2C Clock |
+
+All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
+Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
+Audio DAC to expose the MCLK and I2C pin settings.
 
 ## Quick Start
 
@@ -242,7 +255,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | I2S BCK/WS/DO GPIO pins, sample rate (8000–48000 Hz, default 11025) |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), sample rate (8000–48000 Hz, default 11025) |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
