@@ -26,6 +26,7 @@
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
+#include "esp_timer.h"
 #endif
 
 static const char *TAG = "DECtalk ESPress";
@@ -58,11 +59,6 @@ static void configure_logging(void)
 #define I2S_BCK_IO               CONFIG_DECTALK_I2S_BCK_GPIO
 #define I2S_WS_IO                CONFIG_DECTALK_I2S_WS_GPIO
 #define I2S_DO_IO                CONFIG_DECTALK_I2S_DO_GPIO
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
-#define I2S_MCLK_IO              CONFIG_DECTALK_I2S_MCLK_GPIO
-#else
-#define I2S_MCLK_IO              I2S_GPIO_UNUSED
-#endif
 #define I2S_DMA_DESC_NUM         CONFIG_DECTALK_I2S_DMA_DESC_NUM
 #define I2S_DMA_FRAME_NUM        CONFIG_DECTALK_I2S_DMA_FRAME_NUM
 #define ESPRESS_SPEECH_TASK_CORE CONFIG_DECTALK_SPEECH_TASK_CORE
@@ -201,7 +197,7 @@ static void log_rx_dle_command(uint16_t word)
         ESP_LOGI(TAG, "RX DLE cmd: NULL (post status) [0x%04X]", word);
         break;
     case CMD_control:
-        switch (cmd_sub)
+        switch (cmd_sub & 0x0F00)
         {
         case CTRL_vol_up:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_UP [0x%04X]", word);
@@ -210,7 +206,8 @@ static void log_rx_dle_command(uint16_t word)
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_DOWN [0x%04X]", word);
             break;
         case CTRL_vol_set:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_SET [0x%04X]", word);
+            ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_SET level=%u [0x%04X]",
+                     cmd_sub & 0xFF, word);
             break;
         case CTRL_pause:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL PAUSE [0x%04X]", word);
@@ -453,7 +450,7 @@ static void espress_process_dle(void)
 
         if (cmd_class == CMD_control)
         {
-            switch (cmd_sub)
+            switch (cmd_sub & 0x0F00)
             {
             case CTRL_pause:
                 estate.paused = 1;
@@ -479,13 +476,31 @@ static void espress_process_dle(void)
                 espress_send_byte(SOH);
                 break;
 
+#if CONFIG_DECTALK_DAC_TLV320DAC3100
+            case CTRL_vol_up:
+            {
+                uint8_t vol = tlv320dac3100_get_volume();
+                if (vol < 9)
+                    tlv320dac3100_set_volume(vol + 1);
+                break;
+            }
+            case CTRL_vol_down:
+            {
+                uint8_t vol = tlv320dac3100_get_volume();
+                if (vol > 0)
+                    tlv320dac3100_set_volume(vol - 1);
+                break;
+            }
+            case CTRL_vol_set:
+                tlv320dac3100_set_volume(cmd_sub & 0xFF);
+                break;
+#else
             case CTRL_vol_up:
             case CTRL_vol_down:
             case CTRL_vol_set:
-                // Volume control: not directly supported by the ESP32 TTS
-                // engine. The host can use [:volume ...] inline commands
-                // instead. Acknowledge silently.
+                // Volume control not available for generic DACs.
                 break;
+#endif
 
             default:
                 break;
@@ -1094,7 +1109,7 @@ void app_main(void)
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
         .gpio_cfg =
         {
-            .mclk = I2S_MCLK_IO,
+            .mclk = I2S_GPIO_UNUSED,
             .bclk = I2S_BCK_IO,
             .ws = I2S_WS_IO,
             .dout = I2S_DO_IO,
@@ -1112,6 +1127,20 @@ void app_main(void)
     i2s_channel_enable(audio_handle);
 
     ESP_LOGI(TAG, "I2S initialized at %d Hz", SAMPLE_RATE);
+
+#if CONFIG_DECTALK_DAC_TLV320DAC3100
+    // Start a periodic timer to poll the TLV320DAC3100 headset
+    // detection status and switch between speaker / headphone output.
+    {
+        const esp_timer_create_args_t hp_timer_args = {
+            .callback = (esp_timer_cb_t)tlv320dac3100_poll_headset,
+            .name = "hp_poll",
+        };
+        esp_timer_handle_t hp_timer;
+        ESP_ERROR_CHECK(esp_timer_create(&hp_timer_args, &hp_timer));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(hp_timer, 500000));  // 500 ms
+    }
+#endif
 
     // Retrieve the default pthread configuration
     esp_pthread_cfg_t default_cfg = esp_pthread_get_default_config();
