@@ -265,7 +265,7 @@
 </tr>
 <tr class="even">
 <td>I2S DAC</td>
-<td>PCM5102, MAX98357A, or any I2S-compatible DAC/amplifier</td>
+<td>PCM5102, MAX98357A, Adafruit TLV320DAC3100, or any I2S-compatible DAC/amplifier</td>
 </tr>
 <tr class="odd">
 <td>USB cables</td>
@@ -318,6 +318,34 @@
 </table>
 <p><strong>PCM5102 notes</strong> — short SCK→GND (internal PLL), FLT→GND, DEMP→GND, FMT→GND.</p>
 <p><strong>MAX98357A notes</strong> — connect a 4–8 Ω speaker directly to the amplifier output terminals.</p>
+<p><strong>TLV320DAC3100 (Adafruit breakout) notes</strong> — the TLV320DAC3100 requires two extra connections beyond the basic I2S pins:</p>
+<table>
+<thead>
+<tr class="header">
+<th>ESP32-S3 GPIO</th>
+<th>TLV320DAC3100 Pin</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GPIO 9</td>
+<td>MCLK</td>
+<td>Master Clock (256 × Fs)</td>
+</tr>
+<tr class="even">
+<td>GPIO 1</td>
+<td>SDA</td>
+<td>I2C Data</td>
+</tr>
+<tr class="odd">
+<td>GPIO 2</td>
+<td>SCL</td>
+<td>I2C Clock</td>
+</tr>
+</tbody>
+</table>
+<p>All GPIOs above are configurable via <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>. Select <strong>Adafruit TLV320DAC3100 breakout</strong> as the Audio DAC to expose the MCLK and I2C pin settings.</p>
 <h2 id="quick-start">Quick Start</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Source the ESP-IDF environment</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span>
@@ -474,7 +502,7 @@
 <tbody>
 <tr class="odd">
 <td><em>Audio output</em></td>
-<td>I2S BCK/WS/DO GPIO pins, sample rate (8000–48000 Hz, default 11025)</td>
+<td>Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), sample rate (8000–48000 Hz, default 11025)</td>
 </tr>
 <tr class="even">
 <td><em>Audio output → Advanced audio tuning</em></td>
