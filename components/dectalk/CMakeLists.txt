@@ -409,12 +409,17 @@ target_compile_options(
         -Wno-comment
         -Wno-cpp
         -Wno-deprecated-declarations
+        -Wno-discarded-qualifiers
+        -Wno-cast-function-type
         -Wno-empty-body
+        -Wno-error
         -Wno-error=address
         -Wno-error=bool-compare
+        -Wno-error=cast-function-type
         -Wno-error=char-subscripts
         -Wno-error=comment
         -Wno-error=dangling-else
+        -Wno-error=discarded-qualifiers
         -Wno-error=format
         -Wno-error=implicit-function-declaration
         -Wno-error=logical-not-parentheses
@@ -429,6 +434,7 @@ target_compile_options(
         -Wno-error=uninitialized
         -Wno-error=unused-but-set-parameter
         -Wno-error=unused-label
+        -Wno-error=use-after-free
         -Wno-format
         -Wno-implicit-fallthrough
         -Wno-incompatible-pointer-types
@@ -446,7 +452,9 @@ target_compile_options(
         -Wno-unused-but-set-parameter
         -Wno-unused-but-set-variable
         -Wno-unused-function
+        -Wno-unused-label
         -Wno-unused-variable
+        -Wno-use-after-free
         -fgnu89-inline
 )
 
