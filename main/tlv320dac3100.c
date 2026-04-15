@@ -61,7 +61,7 @@ static const char *TAG = "TLV320DAC3100";
 
 // ---- Default volume level ----------------------------------------
 #define DEFAULT_VOLUME      5
-#define MAX_VOLUME          9
+#define MAX_VOLUME          TLV320DAC3100_MAX_VOLUME
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:

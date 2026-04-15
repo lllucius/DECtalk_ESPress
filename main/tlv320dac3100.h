@@ -38,9 +38,15 @@ esp_err_t tlv320dac3100_init(void);
 void tlv320dac3100_poll_headset(void);
 
 /**
+ * @brief Maximum volume level.
+ */
+#define TLV320DAC3100_MAX_VOLUME 9
+
+/**
  * @brief Set the DAC digital volume.
  *
- * @param level  Volume level 0–9 (0 = near-mute, 9 = 0 dB).
+ * @param level  Volume level 0–TLV320DAC3100_MAX_VOLUME
+ *               (0 = near-mute, TLV320DAC3100_MAX_VOLUME = 0 dB).
  */
 void tlv320dac3100_set_volume(uint8_t level);
 

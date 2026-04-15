@@ -89,6 +89,10 @@ static i2s_chan_handle_t audio_handle;
 // Text flush timeout: if no new chars arrive for this many ms, flush
 #define TEXT_IDLE_TIMEOUT_MS CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS
 
+// Mask to extract the control sub-command class from cmd_sub,
+// ignoring any data payload in the lower bits (e.g. volume level).
+#define CTRL_CMD_MASK        0x0F00
+
 // -- ESPress Protocol State ------------------------------------------
 
 typedef struct
@@ -197,7 +201,7 @@ static void log_rx_dle_command(uint16_t word)
         ESP_LOGI(TAG, "RX DLE cmd: NULL (post status) [0x%04X]", word);
         break;
     case CMD_control:
-        switch (cmd_sub & 0x0F00)
+        switch (cmd_sub & CTRL_CMD_MASK)
         {
         case CTRL_vol_up:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_UP [0x%04X]", word);
@@ -450,7 +454,7 @@ static void espress_process_dle(void)
 
         if (cmd_class == CMD_control)
         {
-            switch (cmd_sub & 0x0F00)
+            switch (cmd_sub & CTRL_CMD_MASK)
             {
             case CTRL_pause:
                 estate.paused = 1;
@@ -480,7 +484,7 @@ static void espress_process_dle(void)
             case CTRL_vol_up:
             {
                 uint8_t vol = tlv320dac3100_get_volume();
-                if (vol < 9)
+                if (vol < TLV320DAC3100_MAX_VOLUME)
                     tlv320dac3100_set_volume(vol + 1);
                 break;
             }
