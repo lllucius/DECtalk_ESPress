@@ -4,6 +4,30 @@
 menu "DECtalk ESPress Firmware"
 
     menu "Audio output"
+        choice DECTALK_DAC_TYPE
+            prompt "Audio DAC"
+            default DECTALK_DAC_GENERIC
+            help
+                Select the audio DAC or amplifier board connected to the
+                I2S output.
+
+            config DECTALK_DAC_GENERIC
+                bool "Generic I2S DAC (MAX98357A, PCM5102, etc.)"
+                help
+                    Simple I2S DAC or amplifier that requires no I2C
+                    configuration.  Suitable for MAX98357A, PCM5102,
+                    and similar boards that derive their clocks from
+                    BCLK and WS alone.
+
+            config DECTALK_DAC_TLV320DAC3100
+                bool "Adafruit TLV320DAC3100 breakout"
+                help
+                    TI TLV320DAC3100 stereo DAC with headphone amplifier
+                    and class-D speaker output (Adafruit breakout board).
+                    Requires I2C for register configuration and an MCLK
+                    connection from the ESP32.
+        endchoice
+
         config DECTALK_I2S_SAMPLE_RATE
             int "I2S sample rate (Hz)"
             default 11025
@@ -31,6 +55,39 @@ menu "DECtalk ESPress Firmware"
             range 0 48
             help
                 GPIO used for the I2S serial data output.
+
+        config DECTALK_I2S_MCLK_GPIO
+            int "I2S MCLK GPIO"
+            default 9
+            range 0 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                GPIO used for the I2S master clock output (MCLK).
+                The TLV320DAC3100 requires MCLK at 256 × Fs.
+
+        config DECTALK_I2C_SDA_GPIO
+            int "I2C SDA GPIO"
+            default 1
+            range 0 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                GPIO used for the I2C data line to the TLV320DAC3100.
+
+        config DECTALK_I2C_SCL_GPIO
+            int "I2C SCL GPIO"
+            default 2
+            range 0 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                GPIO used for the I2C clock line to the TLV320DAC3100.
+
+        config DECTALK_TLV320_I2C_ADDR
+            hex "TLV320DAC3100 I2C address"
+            default 0x18
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                7-bit I2C address of the TLV320DAC3100.  The Adafruit
+                breakout board defaults to 0x18.
 
         menu "Advanced audio tuning"
             config DECTALK_I2S_DMA_DESC_NUM
