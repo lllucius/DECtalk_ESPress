@@ -24,8 +24,8 @@ menu "DECtalk ESPress Firmware"
                 help
                     TI TLV320DAC3100 stereo DAC with headphone amplifier
                     and class-D speaker output (Adafruit breakout board).
-                    Requires I2C for register configuration and an MCLK
-                    connection from the ESP32.
+                    Requires I2C for register configuration.  MCLK is not
+                    needed; the codec derives its clock from BCLK.
         endchoice
 
         config DECTALK_I2S_SAMPLE_RATE
@@ -55,15 +55,6 @@ menu "DECtalk ESPress Firmware"
             range 0 48
             help
                 GPIO used for the I2S serial data output.
-
-        config DECTALK_I2S_MCLK_GPIO
-            int "I2S MCLK GPIO"
-            default 9
-            range 0 48
-            depends on DECTALK_DAC_TLV320DAC3100
-            help
-                GPIO used for the I2S master clock output (MCLK).
-                The TLV320DAC3100 requires MCLK at 256 × Fs.
 
         config DECTALK_I2C_SDA_GPIO
             int "I2C SDA GPIO"

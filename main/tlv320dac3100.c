@@ -4,9 +4,10 @@
 // TLV320DAC3100 I2C initialisation for the Adafruit breakout board
 //
 // Configures the TI TLV320DAC3100 stereo DAC as an I2S slave with
-// CODEC_CLKIN = MCLK (256 × Fs, supplied by the ESP32 I2S
-// peripheral).  No PLL is used.  Both headphone outputs and the
-// class-D speaker amplifier are enabled at 0 dB gain.
+// CODEC_CLKIN = BCLK.  No PLL or MCLK is used.  The class-D
+// speaker amplifier is enabled by default; headphones are disabled.
+// Headset detection is enabled so that periodic polling can switch
+// between speaker and headphone outputs automatically.
 //
 // Register addresses and bit layouts are taken from the
 // TLV320DAC3100 datasheet (SLAS833) and cross-referenced against
@@ -40,6 +41,7 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_DAC_VOL_CTRL   0x40  // DAC volume / mute control
 #define REG_DAC_LVOL       0x41  // Left DAC digital volume
 #define REG_DAC_RVOL       0x42  // Right DAC digital volume
+#define REG_HEADSET_DETECT 0x43  // Headset detection configuration
 
 // ---- Page 1 registers -------------------------------------------
 #define REG_HP_DRIVERS     0x1F  // Headphone driver control
@@ -52,24 +54,51 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_HPR_DRIVER     0x29  // HPR driver gain / mute
 #define REG_SPK_DRIVER     0x2A  // SPK driver gain / mute
 
+// ---- Headset detection status (bits 6:5 of REG_HEADSET_DETECT) ---
+#define HEADSET_NONE        0x00  // No headset detected
+#define HEADSET_WITHOUT_MIC 0x01  // Headphone (no microphone)
+#define HEADSET_WITH_MIC    0x03  // Headset with microphone
+
+// ---- Default volume level ----------------------------------------
+#define DEFAULT_VOLUME      5
+#define MAX_VOLUME          TLV320DAC3100_MAX_VOLUME
+
+// Volume table: maps level 0–9 to DAC digital volume register values.
+// The register uses two's complement in 0.5 dB steps:
+//   0x00 = 0 dB, 0xFE = -1 dB, 0xC0 = -32 dB, 0x81 = -63.5 dB
+static const uint8_t vol_table[MAX_VOLUME + 1] =
+{
+    0x81,  // 0: -63.5 dB (near mute)
+    0xC0,  // 1: -32 dB
+    0xC8,  // 2: -28 dB
+    0xD0,  // 3: -24 dB
+    0xD8,  // 4: -20 dB
+    0xE0,  // 5: -16 dB
+    0xE8,  // 6: -12 dB
+    0xF0,  // 7: -8 dB
+    0xF8,  // 8: -4 dB
+    0x00,  // 9:  0 dB
+};
+
 // ---- Register write pair -----------------------------------------
 typedef struct { uint8_t reg; uint8_t val; } reg_val_t;
 
 // Page 0: reset, clocking, audio interface, DAC data path.
 //
-// Clocking: CODEC_CLKIN = MCLK (256 × Fs from the ESP32).
-//   NDAC = 1, MDAC = 1, DOSR = 256
-//   → DAC_FS = MCLK / (NDAC × MDAC × DOSR) = Fs
+// Clocking: CODEC_CLKIN = BCLK (no PLL, no MCLK).
+//   BCLK = Fs × 32 (16-bit I2S standard, 2 slots)
+//   NDAC = 1, MDAC = 1, DOSR = 32
+//   → DAC_FS = BCLK / (NDAC × MDAC × DOSR) = Fs
 static const reg_val_t page0_init[] =
 {
     {REG_PAGE_SELECT,  0x00},  // Select Page 0
 
-    // -- Clocking (no PLL) ----------------------------------------
-    {REG_CLOCK_MUX,    0x00},  // CODEC_CLKIN = MCLK
+    // -- Clocking (BCLK, no PLL) ----------------------------------
+    {REG_CLOCK_MUX,    0x01},  // CODEC_CLKIN = BCLK
     {REG_NDAC,         0x81},  // NDAC = 1, powered up
     {REG_MDAC,         0x81},  // MDAC = 1, powered up
-    {REG_DOSR_MSB,     0x01},  // DOSR = 256 (0x0100)
-    {REG_DOSR_LSB,     0x00},
+    {REG_DOSR_MSB,     0x00},  // DOSR = 32 (0x0020)
+    {REG_DOSR_LSB,     0x20},
 
     // -- Audio interface ------------------------------------------
     {REG_CODEC_IF,     0x00},  // I2S, 16-bit, BCLK+WCLK inputs
@@ -84,19 +113,25 @@ static const reg_val_t page0_init[] =
                                //     same audio from the L I2S slot;
                                // soft-step = 1 step/sample
     {REG_DAC_VOL_CTRL, 0x00},  // Both channels unmuted
-    {REG_DAC_LVOL,     0x00},  // Left digital vol  = 0 dB
-    {REG_DAC_RVOL,     0x00},  // Right digital vol = 0 dB
+    {REG_DAC_LVOL,     0xE0},  // Left digital vol  = -16 dB (level 5)
+    {REG_DAC_RVOL,     0xE0},  // Right digital vol = -16 dB (level 5)
+
+    // -- Headset detection ----------------------------------------
+    // D7 = 1: enable, D4:D2 = 010: 64 ms debounce
+    {REG_HEADSET_DETECT, 0x88},
 };
 
 // Page 1: headphone drivers, class-D speaker, output routing.
+// Start with speaker ON and headphones OFF.  The headset detection
+// polling will switch outputs when a headphone is inserted.
 static const reg_val_t page1_init[] =
 {
     {REG_PAGE_SELECT,  0x01},  // Select Page 1
 
     // -- Output drivers -------------------------------------------
-    {REG_HP_DRIVERS,   0xC4},  // HPL + HPR powered up,
+    {REG_HP_DRIVERS,   0x04},  // HPL + HPR powered DOWN,
                                // common-mode = 1.35 V, de-pop on
-    {REG_SPK_AMP,      0x80},  // Class-D speaker amp enabled
+    {REG_SPK_AMP,      0x86},  // Class-D speaker amp enabled
 
     // -- Mixer routing: DAC → mixer amp for both channels ---------
     {REG_OUT_ROUTING,  0x44},  // L DAC → mixer, R DAC → mixer
@@ -107,10 +142,15 @@ static const reg_val_t page1_init[] =
     {REG_SPK_VOL,      0x80},  // SPK routed, analog gain = 0 dB
 
     // -- Driver gain and unmute -----------------------------------
-    {REG_HPL_DRIVER,   0x04},  // HPL: 0 dB PGA gain, unmuted
-    {REG_HPR_DRIVER,   0x04},  // HPR: 0 dB PGA gain, unmuted
+    {REG_HPL_DRIVER,   0x00},  // HPL: muted (headphones off)
+    {REG_HPR_DRIVER,   0x00},  // HPR: muted (headphones off)
     {REG_SPK_DRIVER,   0x04},  // SPK: 6 dB class-D gain, unmuted
 };
+
+// ---- Module state ------------------------------------------------
+static i2c_master_dev_handle_t s_dev;
+static bool s_hp_active;    // true when headphone output is active
+static uint8_t s_volume = DEFAULT_VOLUME;
 
 
 static esp_err_t write_reg(i2c_master_dev_handle_t dev,
@@ -118,6 +158,15 @@ static esp_err_t write_reg(i2c_master_dev_handle_t dev,
 {
     uint8_t buf[2] = {reg, val};
     return i2c_master_transmit(dev, buf, sizeof(buf), -1);
+}
+
+static esp_err_t read_reg(i2c_master_dev_handle_t dev,
+                          uint8_t reg, uint8_t *val)
+{
+    esp_err_t err = i2c_master_transmit(dev, &reg, 1, -1);
+    if (err != ESP_OK)
+        return err;
+    return i2c_master_receive(dev, val, 1, -1);
 }
 
 static esp_err_t write_regs(i2c_master_dev_handle_t dev,
@@ -134,6 +183,44 @@ static esp_err_t write_regs(i2c_master_dev_handle_t dev,
         }
     }
     return ESP_OK;
+}
+
+// Switch to speaker output (headphones off).
+static void enable_speaker(void)
+{
+    // Page 1
+    write_reg(s_dev, REG_PAGE_SELECT, 0x01);
+
+    // Mute and power down headphones
+    write_reg(s_dev, REG_HPL_DRIVER, 0x00);
+    write_reg(s_dev, REG_HPR_DRIVER, 0x00);
+    write_reg(s_dev, REG_HP_DRIVERS, 0x04);  // HPL+HPR off, de-pop on
+
+    // Enable and unmute speaker
+    write_reg(s_dev, REG_SPK_AMP, 0x86);
+    write_reg(s_dev, REG_SPK_DRIVER, 0x04);  // 6 dB gain, unmuted
+
+    // Return to page 0
+    write_reg(s_dev, REG_PAGE_SELECT, 0x00);
+}
+
+// Switch to headphone output (speaker off).
+static void enable_headphone(void)
+{
+    // Page 1
+    write_reg(s_dev, REG_PAGE_SELECT, 0x01);
+
+    // Mute and power down speaker
+    write_reg(s_dev, REG_SPK_DRIVER, 0x00);
+    write_reg(s_dev, REG_SPK_AMP, 0x06);     // Speaker amp off
+
+    // Power up and unmute headphones
+    write_reg(s_dev, REG_HP_DRIVERS, 0xC4);  // HPL+HPR on, de-pop on
+    write_reg(s_dev, REG_HPL_DRIVER, 0x04);  // 0 dB gain, unmuted
+    write_reg(s_dev, REG_HPR_DRIVER, 0x04);  // 0 dB gain, unmuted
+
+    // Return to page 0
+    write_reg(s_dev, REG_PAGE_SELECT, 0x00);
 }
 
 
@@ -169,8 +256,7 @@ esp_err_t tlv320dac3100_init(void)
         .scl_speed_hz = 100000,
     };
 
-    i2c_master_dev_handle_t dev;
-    err = i2c_master_bus_add_device(bus, &dev_cfg, &dev);
+    err = i2c_master_bus_add_device(bus, &dev_cfg, &s_dev);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to add I2C device: %s", esp_err_to_name(err));
@@ -178,9 +264,9 @@ esp_err_t tlv320dac3100_init(void)
     }
 
     // ---- Software reset -----------------------------------------
-    err = write_reg(dev, REG_PAGE_SELECT, 0x00);
+    err = write_reg(s_dev, REG_PAGE_SELECT, 0x00);
     if (err == ESP_OK)
-        err = write_reg(dev, REG_RESET, 0x01);
+        err = write_reg(s_dev, REG_RESET, 0x01);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Software reset failed: %s", esp_err_to_name(err));
@@ -189,22 +275,78 @@ esp_err_t tlv320dac3100_init(void)
     vTaskDelay(pdMS_TO_TICKS(10));
 
     // ---- Page 0 registers ---------------------------------------
-    err = write_regs(dev, page0_init,
+    err = write_regs(s_dev, page0_init,
                      sizeof(page0_init) / sizeof(page0_init[0]));
     if (err != ESP_OK)
         return err;
 
     // ---- Page 1 registers ---------------------------------------
-    err = write_regs(dev, page1_init,
+    err = write_regs(s_dev, page1_init,
                      sizeof(page1_init) / sizeof(page1_init[0]));
     if (err != ESP_OK)
         return err;
 
     // Return to Page 0 for normal operation
-    err = write_reg(dev, REG_PAGE_SELECT, 0x00);
+    err = write_reg(s_dev, REG_PAGE_SELECT, 0x00);
     if (err != ESP_OK)
         return err;
 
+    s_hp_active = false;
+    s_volume = DEFAULT_VOLUME;
+
+    // Perform an initial headset check so we start in the correct mode
+    tlv320dac3100_poll_headset();
+
     ESP_LOGI(TAG, "TLV320DAC3100 initialized successfully");
     return ESP_OK;
+}
+
+
+void tlv320dac3100_poll_headset(void)
+{
+    // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
+    // (Page 0).
+    uint8_t reg_val = 0;
+    esp_err_t err = read_reg(s_dev, REG_HEADSET_DETECT, &reg_val);
+    if (err != ESP_OK)
+        return;
+
+    uint8_t status = (reg_val >> 5) & 0x03;
+    bool hp_detected = (status == HEADSET_WITHOUT_MIC ||
+                        status == HEADSET_WITH_MIC);
+
+    if (hp_detected && !s_hp_active)
+    {
+        ESP_LOGI(TAG, "Headphone inserted – switching to headphone output");
+        enable_headphone();
+        s_hp_active = true;
+    }
+    else if (!hp_detected && s_hp_active)
+    {
+        ESP_LOGI(TAG, "Headphone removed – switching to speaker output");
+        enable_speaker();
+        s_hp_active = false;
+    }
+}
+
+
+void tlv320dac3100_set_volume(uint8_t level)
+{
+    if (level > MAX_VOLUME)
+        level = MAX_VOLUME;
+
+    s_volume = level;
+    uint8_t reg_val = vol_table[level];
+
+    // Both channels get the same digital volume (page 0)
+    write_reg(s_dev, REG_DAC_LVOL, reg_val);
+    write_reg(s_dev, REG_DAC_RVOL, reg_val);
+
+    ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, reg_val);
+}
+
+
+uint8_t tlv320dac3100_get_volume(void)
+{
+    return s_volume;
 }
