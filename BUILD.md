@@ -28,7 +28,7 @@ cross-compilation, porting notes), see the
   - [Thread Model](#thread-model)
   - [Data Flow](#data-flow)
   - [TTS In-Memory Mode](#tts-in-memory-mode)
-  - [USB CDC Transport](#usb-cdc-transport)
+  - [Host Serial Transport](#host-serial-transport)
   - [Dictionary Loading](#dictionary-loading)
   - [Flow Control](#flow-control)
   - [Idle Flush](#idle-flush)
@@ -65,8 +65,8 @@ git clone --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf
 git checkout v6.0   # or latest stable release
 
-# Install toolchains (ESP32-S3 target)
-./install.sh esp32s3
+# Install toolchains (ESP32-S3 + ESP32-C6 targets)
+./install.sh esp32s3 esp32c6
 
 # Activate the environment (run in every new shell, or add to .bashrc)
 . ~/esp/esp-idf/export.sh
@@ -101,6 +101,7 @@ git submodule update --init --recursive
 DECtalk_ESPress/
 ├── CMakeLists.txt                  # Top-level ESP-IDF project file
 ├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
+├── sdkconfig.defaults.esp32c6      # Target-specific overrides for ESP32-C6
 ├── sdkconfig.devel                 # Optional development overrides (diagnostics, PSRAM, debugging)
 ├── partitions.csv                  # Custom partition table
 ├── BUILD.md                        # ← this file (firmware build & architecture)
@@ -125,12 +126,14 @@ DECtalk_ESPress/
 │
 ├── main/                           # Main application component
 │   ├── CMakeLists.txt              # Registers main sources; depends on dectalk, driver, pthread…
-│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC, diagnostics (ESPress menu)
+│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC/JTAG transport, diagnostics
 │   ├── idf_component.yml           # IDF component manager dep: espressif/esp_tinyusb ≥ 2.0.0
 │   ├── dectalk_espress.c           # Entry point (app_main), I2S init, threads, ESPress protocol
 │   ├── dectalk_espress.h           # Protocol constants, DLE encode/decode, public API
-│   ├── usb_cdc_transport.c         # USB CDC-ACM transport layer (TinyUSB wrapper)
-│   ├── usb_cdc_transport.h         # Transport API: init, read, write, connected, reconnect
+│   ├── usb_cdc_transport.c         # ESP32-S3 USB CDC-ACM transport layer (TinyUSB wrapper)
+│   ├── usb_cdc_transport.h         # ESP32-S3 transport API
+│   ├── jtag_serial_transport.c     # ESP32-C6 USB Serial/JTAG transport layer
+│   ├── jtag_serial_transport.h     # ESP32-C6 transport API
 │   ├── diag_mem.c                  # Optional heap/stack diagnostics task
 │   └── diag_mem.h                  # Diagnostics API
 │
@@ -171,7 +174,8 @@ The `main/` component contains the application logic:
 | File | Role |
 |------|------|
 | `dectalk_espress.c` | Entry point (`app_main`), I2S initialisation, thread creation, ESPress protocol loop, speech task, TTS callback |
-| `usb_cdc_transport.c` | TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection |
+| `usb_cdc_transport.c` | ESP32-S3 TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection |
+| `jtag_serial_transport.c` | ESP32-C6 USB Serial/JTAG driver: buffered RX/TX, reconnect detection, RTS-reset suppression |
 | `diag_mem.c` | Optional diagnostic task enabled from `idf.py menuconfig` that logs stack HWM and heap stats every 10 s |
 
 Dependencies declared in `CMakeLists.txt`:
@@ -182,7 +186,8 @@ Dependencies declared in `CMakeLists.txt`:
 - `esp_timer` — High-resolution timer
 
 External dependency via `idf_component.yml`:
-- `espressif/esp_tinyusb ≥ 2.0.0` — TinyUSB CDC-ACM for native USB
+- `espressif/esp_tinyusb ≥ 2.0.0` — TinyUSB CDC-ACM for native USB on
+  **ESP32-S3** only
 
 ### 4. Partition Table
 
@@ -214,10 +219,18 @@ them automatically whenever the `sdkconfig` file is created or recreated
 |---------|-------|-----------|
 | `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240` | `y` | Maximum CPU clock for synthesis performance |
 | `CONFIG_ESP_TASK_WDT_EN` | `n` | Task watchdog disabled (speech synthesis is CPU-intensive) |
-| `CONFIG_IDF_TARGET` | `esp32s3` | Target SoC |
+| `CONFIG_IDF_TARGET` | `esp32s3` | Default target SoC |
 | `CONFIG_PARTITION_TABLE_CUSTOM` | `y` | Use the project's `partitions.csv` |
 | `CONFIG_PTHREAD_TASK_STACK_SIZE_DEFAULT` | `8192` | Default pthread stack (8 KB) |
-| `CONFIG_TINYUSB_CDC_ENABLED` | `y` | Enable TinyUSB CDC-ACM for host protocol |
+| `CONFIG_TINYUSB_CDC_ENABLED` | `y` | Enable TinyUSB CDC-ACM for the ESP32-S3 host protocol |
+
+When building for **ESP32-C6**, ESP-IDF also loads `sdkconfig.defaults.esp32c6`
+after `idf.py set-target esp32c6`.  That file currently overrides:
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160` | `y` | ESP32-C6 default maximum CPU clock |
+| `CONFIG_TINYUSB_CDC_ENABLED` | `n` | ESP32-C6 host communications use USB Serial/JTAG instead of TinyUSB CDC |
 
 ### 6. `sdkconfig.devel` (Development Overrides)
 
@@ -273,7 +286,7 @@ FreeRTOS task):
 | Thread | Core | Stack | Role |
 |--------|------|-------|------|
 | `speech_thread` | CPU 1 (configurable) | default (8 KB) | Dequeues text from `speech_queue`, calls `TextToSpeechSpeak()` + `Sync()` |
-| `main_thread` | any | 12 KB (configurable) | Runs the ESPress protocol loop: USB CDC reads, DLE state machine, flow control |
+| `main_thread` | any | 12 KB (configurable) | Runs the ESPress protocol loop: host-transport reads, DLE state machine, flow control |
 
 CPU pinning is important: the speech synthesis in `TextToSpeechSpeak()` is
 compute-intensive and does not yield to the scheduler.  Pinning it to CPU 1
@@ -283,9 +296,9 @@ though the watchdog is disabled in the defaults, this is defensive).
 ### Data Flow
 
 ```
-  Host (PC)                         ESP32-S3
-  ─────────                         ────────
-  Serial terminal / GUI             USB CDC-ACM
+  Host (PC)                         ESP32-S3 / ESP32-C6
+  ─────────                         ───────────────────
+  Serial terminal / GUI             USB CDC-ACM / USB Serial/JTAG
        │                                │
        │  ASCII text, control chars     │
        │  DLE command sequences         │
@@ -334,7 +347,16 @@ carries up to 8 index-mark slots.  When a buffer is filled, the
 3. If speech is paused (SO received), samples are zeroed before writing.
 4. The buffer is reset and re-queued with `TextToSpeechAddBuffer()`.
 
-### USB CDC Transport
+### Host Serial Transport
+
+The `main/` component selects the host transport at build time based on
+`IDF_TARGET`:
+
+- **ESP32-S3** → `usb_cdc_transport.c` using TinyUSB CDC-ACM
+- **ESP32-C6** → `jtag_serial_transport.c` using the built-in
+  `usb_serial_jtag` driver
+
+#### ESP32-S3: USB CDC-ACM
 
 > **Why TinyUSB CDC instead of the built-in USB Serial/JTAG?**  The
 > ESP32-S3's onboard USB Serial/JTAG peripheral automatically reboots the
@@ -360,6 +382,22 @@ carries up to 8 index-mark slots.  When a buffer is filled, the
   each iteration and resets all protocol state on reconnection.
 - **Initial boot:** `cdc_had_disconnect` starts as `true` so the first host
   connection after power-on is treated as a reconnection, triggering XON.
+
+#### ESP32-C6: USB Serial/JTAG
+
+`jtag_serial_transport.c` uses ESP-IDF's `usb_serial_jtag` driver:
+
+- **RTS reset suppression:** During initialisation the firmware sets
+  `USB_SERIAL_JTAG.chip_rst.usb_uart_chip_rst_dis = 1`, disabling the
+  host-RTS-triggered chip reset so opening the port does not reboot the
+  device.
+- **RX/TX buffering:** ESP-IDF installs application-managed ring buffers
+  sized by `CONFIG_DECTALK_JTAG_RX_BUF_SIZE` and
+  `CONFIG_DECTALK_JTAG_TX_BUF_SIZE`.
+- **Connection tracking:** The protocol layer polls
+  `usb_serial_jtag_is_connected()` and treats a disconnect→connect transition
+  as a host reconnection, resetting protocol state and sending the initial
+  XON just as the CDC transport does.
 
 ### Dictionary Loading
 
@@ -414,6 +452,10 @@ idf.py menuconfig
 
 # Set target (only needed once, or after fullclean)
 idf.py set-target esp32s3
+
+# Build for ESP32-C6 instead
+idf.py set-target esp32c6
+idf.py build
 ```
 
 ### Changing Language
