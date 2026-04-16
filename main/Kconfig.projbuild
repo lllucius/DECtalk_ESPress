@@ -197,7 +197,7 @@ menu "DECtalk ESPress Firmware"
             default DECTALK_LOG_LEVEL_ERROR
             help
                 Select the runtime log level used by the DECtalk ESPress
-                application, USB CDC transport, and optional diagnostics task.
+                application, serial transport, and optional diagnostics task.
 
                 Higher log levels provide more detail for debugging, while
                 lower levels reduce console output on UART0.
