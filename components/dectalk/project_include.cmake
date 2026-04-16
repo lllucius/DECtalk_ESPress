@@ -16,4 +16,5 @@ set( extra_parts "${build_dir}/extra_parts.csv" )
 file( COPY_FILE "${PARTITION_CSV_PATH}" "${extra_parts}" )
 
 set( PARTITION_CSV_PATH "${extra_parts}" CACHE INTERNAL "extra partitions" FORCE )
+set( PARTITION_CSV_PATH "${extra_parts}" )
 
