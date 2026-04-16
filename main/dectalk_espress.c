@@ -379,10 +379,7 @@ static void espress_flush_text_to_queue(void)
     ESP_LOGI(TAG, "RX text queued (%d bytes): %s",
              estate.text_pos,
              estate.text_buf);
-
-//    ESP_LOGI(TAG, "RX text queued (%d bytes): %.60s%s",
-//             estate.text_pos, estate.text_buf,
-//             estate.text_pos > 60 ? "..." : "");
+    ESP_LOG_BUFFER_HEXDUMP(TAG, estate.text_buf, estate.text_pos, ESP_LOG_INFO);
     char *text = strdup(estate.text_buf);
     if (text)
     {
@@ -1074,11 +1071,28 @@ static void *espress_task(void *arg)
         else
         {
             // No data available - check for idle text flush
-            if (estate.text_pos > 0)
+            if (estate.text_pos > 0 || pending_bracket_etx > 0)
             {
                 TickType_t elapsed = xTaskGetTickCount() - last_char_time;
                 if (elapsed >= pdMS_TO_TICKS(TEXT_IDLE_TIMEOUT_MS))
                 {
+                    // Release any held ']' from the flush-sequence
+                    // detector before flushing.  Without this, a DECtalk
+                    // command like [:version speak] would be split into
+                    // "[:version speak" (without the closing bracket),
+                    // and the TTS_FORCE character appended by
+                    // TextToSpeechSpeak() would corrupt the string
+                    // parameter, causing "command error in string value".
+                    if (pending_bracket_etx > 0)
+                    {
+                        espress_add_char(']');
+                        if (pending_bracket_etx == 2)
+                        {
+                            espress_process_byte(ETX);
+                        }
+                        pending_bracket_etx = 0;
+                    }
+
                     ESP_LOGI(TAG, "Idle timeout: flushing %d buffered text bytes to queue",
                              estate.text_pos);
                     espress_flush_text_to_queue();
