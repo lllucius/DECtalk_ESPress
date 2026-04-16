@@ -306,27 +306,15 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile)
     const float default_db = (profile == TLV320_PROFILE_HEADPHONE) ?
         TLV320_HEADPHONE_DB : TLV320_SPEAKER_DB;
 
-    static const reg_val_t speaker_gain_cfg[] =
+    static const reg_val_t analog_gain_cfg[] =
     {
         {REG_HPL_VOL, 0x80},
         {REG_HPR_VOL, 0x80},
         {REG_SPK_VOL, 0x80},
     };
 
-    static const reg_val_t headphone_gain_cfg[] =
-    {
-        {REG_HPL_VOL, 0x80},
-        {REG_HPR_VOL, 0x80},
-        {REG_SPK_VOL, 0x80},
-    };
-
-    const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE) ?
-        headphone_gain_cfg : speaker_gain_cfg;
-    size_t count = (profile == TLV320_PROFILE_HEADPHONE) ?
-        sizeof(headphone_gain_cfg) / sizeof(headphone_gain_cfg[0]) :
-        sizeof(speaker_gain_cfg) / sizeof(speaker_gain_cfg[0]);
-
-    esp_err_t err = write_regs(0x01, cfg, count);
+    esp_err_t err = write_regs(0x01, analog_gain_cfg,
+                               sizeof(analog_gain_cfg) / sizeof(analog_gain_cfg[0]));
     if (err != ESP_OK)
         return err;
 
@@ -335,30 +323,19 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile)
 
 static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
 {
-    static const reg_val_t speaker_eq_placeholder[] =
+    static const reg_val_t eq_placeholder[] =
     {
         {REG_DAC_PRB,      0x01},
         {REG_DAC_DATAPATH, 0xD8},
     };
-
-    static const reg_val_t headphone_eq_placeholder[] =
-    {
-        {REG_DAC_PRB,      0x01},
-        {REG_DAC_DATAPATH, 0xD8},
-    };
-
-    const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE) ?
-        headphone_eq_placeholder : speaker_eq_placeholder;
-    size_t count = (profile == TLV320_PROFILE_HEADPHONE) ?
-        sizeof(headphone_eq_placeholder) / sizeof(headphone_eq_placeholder[0]) :
-        sizeof(speaker_eq_placeholder) / sizeof(speaker_eq_placeholder[0]);
 
     // Speaker intent: high-pass around 120-180 Hz, presence boost around
     // 2-3 kHz, optional HF rolloff for small enclosures.
     // Headphone intent: gentler high-pass around 60-80 Hz and lighter
     // presence shaping.
     // TODO: Insert biquad coefficients here.
-    return write_regs(0x00, cfg, count);
+    return write_regs(0x00, eq_placeholder,
+                      sizeof(eq_placeholder) / sizeof(eq_placeholder[0]));
 }
 
 
@@ -501,12 +478,12 @@ void tlv320dac3100_poll_headset(void)
 
     if (hp_detected && !s_hp_active)
     {
-        ESP_LOGI(TAG, "Headphone inserted – switching to headphone profile");
+        ESP_LOGI(TAG, "Headphone inserted - switching to headphone profile");
         tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
     }
     else if (!hp_detected && s_hp_active)
     {
-        ESP_LOGI(TAG, "Headphone removed – switching to speaker profile");
+        ESP_LOGI(TAG, "Headphone removed - switching to speaker profile");
         tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
     }
 }
