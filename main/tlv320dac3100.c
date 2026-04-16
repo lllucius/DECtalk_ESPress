@@ -295,6 +295,8 @@ static tlv320_biquad_t tlv320_make_identity_biquad(void)
 
 static tlv320_biquad_t tlv320_make_highpass_biquad(float cutoff_hz)
 {
+    // First-order high-pass: H(z) = g * (1 - z^-1) / (1 - p z^-1),
+    // with p derived from the requested cutoff and g chosen for unity HF gain.
     float pole = expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) /
                       TLV320_SAMPLE_RATE_HZ);
     float gain = (1.0f + pole) * 0.5f;
@@ -310,6 +312,8 @@ static tlv320_biquad_t tlv320_make_highpass_biquad(float cutoff_hz)
 
 static tlv320_biquad_t tlv320_make_lowpass_biquad(float cutoff_hz)
 {
+    // First-order low-pass: H(z) = (1 - p) / (1 - p z^-1), where the pole
+    // position sets the cutoff and keeps the section stable for all profiles.
     float pole = expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) /
                       TLV320_SAMPLE_RATE_HZ);
     float feedforward = 1.0f - pole;
@@ -420,6 +424,7 @@ static esp_err_t write_biquad_bank(uint8_t page,
         for (size_t j = 0; j < 5; j++)
         {
             size_t offset = (i * TLV320_EQ_BYTES_PER_BIQUAD) + (j * 2);
+            // The codec expects each Q15 coefficient MSB first on I2C.
             bank_bytes[offset] = (uint8_t)(((uint16_t)coeffs[j]) >> 8);
             bank_bytes[offset + 1] = (uint8_t)((uint16_t)coeffs[j] & 0xFF);
         }
