@@ -19,6 +19,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <math.h>
 #include "tlv320dac3100.h"
 
 static const char *TAG = "TLV320DAC3100";
@@ -67,6 +68,16 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_SPEAKER_DB      (-10.0f)
 #define TLV320_HEADPHONE_DB    (-6.0f)
 #define TLV320_MUTED_REG_VALUE 0x81
+#define TLV320_INVALID_PAGE    0xFF
+#define TLV320_EQ_BIQUAD_COUNT 6
+#define TLV320_EQ_BYTES_PER_BIQUAD 10
+#define TLV320_EQ_PAGE_SPEAKER 0x08
+#define TLV320_EQ_PAGE_HEADPHONE 0x0C
+#define TLV320_EQ_START_REG    0x02
+#define TLV320_Q15_POSITIVE_SCALE 32767.0f
+#define TLV320_Q15_NEGATIVE_SCALE 32768.0f
+#define TLV320_PI              3.14159265358979323846f
+#define TLV320_SAMPLE_RATE_HZ  ((float)CONFIG_DECTALK_I2S_SAMPLE_RATE)
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -101,6 +112,7 @@ static const float vol_db_table[MAX_VOLUME + 1] =
 
 // ---- Register write pair -----------------------------------------
 typedef struct { uint8_t reg; uint8_t val; } reg_val_t;
+typedef struct { int16_t b0, b1, b2, a1, a2; } tlv320_biquad_t;
 
 // Page 0 phase: configure clocking from BCLK without PLL or MCLK.
 static const reg_val_t clocking_init[] =
@@ -160,7 +172,7 @@ static const reg_val_t analog_driver_init[] =
 
 // ---- Module state ------------------------------------------------
 static i2c_master_dev_handle_t s_dev;
-static uint8_t s_current_page = 0xFF;
+static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active;    // true when headphone output is active
 static uint8_t s_volume = DEFAULT_VOLUME;
 static float s_volume_db = TLV320_SPEAKER_DB;
@@ -241,6 +253,88 @@ static float clamp_volume_db(float db)
     return db;
 }
 
+static float clamp_cutoff_hz(float cutoff_hz)
+{
+    float nyquist_margin_hz = TLV320_SAMPLE_RATE_HZ * 0.45f;
+
+    if (cutoff_hz < 20.0f)
+        return 20.0f;
+    if (cutoff_hz > nyquist_margin_hz)
+        return nyquist_margin_hz;
+    return cutoff_hz;
+}
+
+static int16_t float_to_q15(float value)
+{
+    if (value >= 1.0f)
+        return INT16_MAX;
+    if (value <= -1.0f)
+        return INT16_MIN;
+
+    float scaled = (value >= 0.0f) ?
+        (value * TLV320_Q15_POSITIVE_SCALE) + 0.5f :
+        (value * TLV320_Q15_NEGATIVE_SCALE) - 0.5f;
+
+    return (int16_t)scaled;
+}
+
+static tlv320_biquad_t tlv320_make_identity_biquad(void)
+{
+    return (tlv320_biquad_t) {
+        .b0 = float_to_q15(1.0f),
+        .b1 = 0,
+        .b2 = 0,
+        .a1 = 0,
+        .a2 = 0,
+    };
+}
+
+static tlv320_biquad_t tlv320_make_highpass_biquad(float cutoff_hz)
+{
+    float pole = expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) /
+                      TLV320_SAMPLE_RATE_HZ);
+    float gain = (1.0f + pole) * 0.5f;
+
+    return (tlv320_biquad_t) {
+        .b0 = float_to_q15(gain),
+        .b1 = float_to_q15(-gain),
+        .b2 = 0,
+        .a1 = float_to_q15(-pole),
+        .a2 = 0,
+    };
+}
+
+static tlv320_biquad_t tlv320_make_lowpass_biquad(float cutoff_hz)
+{
+    float pole = expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) /
+                      TLV320_SAMPLE_RATE_HZ);
+    float feedforward = 1.0f - pole;
+
+    return (tlv320_biquad_t) {
+        .b0 = float_to_q15(feedforward),
+        .b1 = 0,
+        .b2 = 0,
+        .a1 = float_to_q15(-pole),
+        .a2 = 0,
+    };
+}
+
+static tlv320_biquad_t tlv320_make_preemphasis_biquad(float alpha)
+{
+    if (alpha < 0.0f)
+        alpha = 0.0f;
+    else if (alpha > 0.95f)
+        alpha = 0.95f;
+
+    return (tlv320_biquad_t) {
+        .b0 = float_to_q15(1.0f),
+        .b1 = float_to_q15(-alpha),
+        .b2 = 0,
+        .a1 = 0,
+        .a2 = 0,
+    };
+}
+
 static uint8_t db_to_reg(float db)
 {
     // The codec stores digital gain as a signed 8-bit two's complement
@@ -277,6 +371,58 @@ static esp_err_t write_digital_volume(uint8_t reg_val)
     if (err != ESP_OK)
         return err;
     return write_reg(0x00, REG_DAC_RVOL, reg_val);
+}
+
+static esp_err_t write_sequential_bytes(uint8_t page, uint8_t start_reg,
+                                        const uint8_t *data, size_t count)
+{
+    esp_err_t err = select_page(page);
+    if (err != ESP_OK)
+        return err;
+
+    for (size_t i = 0; i < count; i++)
+    {
+        err = write_reg_raw(s_dev, (uint8_t)(start_reg + i), data[i]);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "I2C write failed: page 0x%02X reg 0x%02X val 0x%02X (%s)",
+                     page, (uint8_t)(start_reg + i), data[i], esp_err_to_name(err));
+            return err;
+        }
+    }
+
+    return ESP_OK;
+}
+
+static esp_err_t write_biquad_bank(uint8_t page,
+                                   const tlv320_biquad_t *biquads,
+                                   size_t biquad_count)
+{
+    uint8_t bank_bytes[TLV320_EQ_BIQUAD_COUNT * TLV320_EQ_BYTES_PER_BIQUAD] = {0};
+
+    if (biquad_count > TLV320_EQ_BIQUAD_COUNT)
+        biquad_count = TLV320_EQ_BIQUAD_COUNT;
+
+    for (size_t i = 0; i < biquad_count; i++)
+    {
+        const int16_t coeffs[5] = {
+            biquads[i].b0,
+            biquads[i].b1,
+            biquads[i].b2,
+            biquads[i].a1,
+            biquads[i].a2,
+        };
+
+        for (size_t j = 0; j < 5; j++)
+        {
+            size_t offset = (i * TLV320_EQ_BYTES_PER_BIQUAD) + (j * 2);
+            bank_bytes[offset] = (uint8_t)(((uint16_t)coeffs[j]) >> 8);
+            bank_bytes[offset + 1] = (uint8_t)((uint16_t)coeffs[j] & 0xFF);
+        }
+    }
+
+    return write_sequential_bytes(page, TLV320_EQ_START_REG,
+                                  bank_bytes, sizeof(bank_bytes));
 }
 
 static uint8_t get_effective_volume_reg(void)
@@ -335,19 +481,31 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile)
 
 static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
 {
-    static const reg_val_t eq_placeholder[] =
-    {
-        {REG_DAC_PRB,      0x01},
-        {REG_DAC_DATAPATH, 0xD8},
-    };
+    tlv320_biquad_t biquads[TLV320_EQ_BIQUAD_COUNT];
+    uint8_t eq_page = (profile == TLV320_PROFILE_HEADPHONE) ?
+        TLV320_EQ_PAGE_HEADPHONE : TLV320_EQ_PAGE_SPEAKER;
 
-    // Speaker intent: high-pass around 120-180 Hz, presence boost around
-    // 2-3 kHz, optional HF rolloff for small enclosures.
-    // Headphone intent: gentler high-pass around 60-80 Hz and lighter
-    // presence shaping.
-    // TODO: Insert biquad coefficients here.
-    return write_regs(0x00, eq_placeholder,
-                      sizeof(eq_placeholder) / sizeof(eq_placeholder[0]));
+    for (size_t i = 0; i < TLV320_EQ_BIQUAD_COUNT; i++)
+        biquads[i] = tlv320_make_identity_biquad();
+
+    if (profile == TLV320_PROFILE_HEADPHONE)
+    {
+        // Headphones stay closer to flat: a gentle low-cut for rumble plus
+        // light pre-emphasis to keep consonants forward without sounding sharp.
+        biquads[0] = tlv320_make_highpass_biquad(70.0f);
+        biquads[1] = tlv320_make_preemphasis_biquad(0.18f);
+    }
+    else
+    {
+        // Speakers get stronger speech shaping for a small enclosure:
+        // low-cut to reduce boom, pre-emphasis for presence, then a mild
+        // treble rolloff to avoid harshness at the top of the band.
+        biquads[0] = tlv320_make_highpass_biquad(150.0f);
+        biquads[1] = tlv320_make_preemphasis_biquad(0.32f);
+        biquads[2] = tlv320_make_lowpass_biquad(3600.0f);
+    }
+
+    return write_biquad_bank(eq_page, biquads, TLV320_EQ_BIQUAD_COUNT);
 }
 
 
@@ -390,7 +548,7 @@ esp_err_t tlv320dac3100_init(void)
         return err;
     }
 
-    s_current_page = 0xFF;
+    s_current_page = TLV320_INVALID_PAGE;
     s_profile = TLV320_PROFILE_SPEAKER;
     s_hp_active = false;
     s_muted = true;
@@ -409,7 +567,7 @@ esp_err_t tlv320dac3100_init(void)
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    s_current_page = 0xFF;
+    s_current_page = TLV320_INVALID_PAGE;
 
     // ---- Phase 2: configure clocks / PLL path -------------------
     err = write_regs(0x00, clocking_init,
