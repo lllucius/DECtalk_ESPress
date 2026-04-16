@@ -78,6 +78,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_Q15_NEGATIVE_SCALE 32768.0f
 #define TLV320_PI              3.14159265358979323846f
 #define TLV320_SAMPLE_RATE_HZ  ((float)CONFIG_DECTALK_I2S_SAMPLE_RATE)
+#define TLV320_VOLUME_STEPS_PER_DB 2.0f
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -112,6 +113,8 @@ static const float vol_db_table[MAX_VOLUME + 1] =
 
 // ---- Register write pair -----------------------------------------
 typedef struct { uint8_t reg; uint8_t val; } reg_val_t;
+// miniDSP biquad coefficients stored in signed Q15 format:
+// b0-b2 are feedforward taps, a1-a2 are feedback taps.
 typedef struct { int16_t b0, b1, b2, a1, a2; } tlv320_biquad_t;
 
 // Page 0 phase: configure clocking from BCLK without PLL or MCLK.
@@ -271,6 +274,7 @@ static int16_t float_to_q15(float value)
     if (value <= -1.0f)
         return INT16_MIN;
 
+    // Use symmetrical round-to-nearest conversion for signed Q15 output.
     float scaled = (value >= 0.0f) ?
         (value * TLV320_Q15_POSITIVE_SCALE) + 0.5f :
         (value * TLV320_Q15_NEGATIVE_SCALE) - 0.5f;
@@ -340,7 +344,7 @@ static uint8_t db_to_reg(float db)
     // The codec stores digital gain as a signed 8-bit two's complement
     // attenuation value in 0.5 dB steps, so -10.0 dB becomes -20 steps.
     float attenuation_db = -clamp_volume_db(db);
-    int steps = (int)((attenuation_db * 2.0f) + 0.5f);
+    int steps = (int)((attenuation_db * TLV320_VOLUME_STEPS_PER_DB) + 0.5f);
     return (uint8_t)((int8_t)(-steps));
 }
 
@@ -567,6 +571,8 @@ esp_err_t tlv320dac3100_init(void)
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 
+    // The software reset restores the codec's page-select state, so clear
+    // the cached page before continuing with normal register programming.
     s_current_page = TLV320_INVALID_PAGE;
 
     // ---- Phase 2: configure clocks / PLL path -------------------
@@ -593,8 +599,8 @@ esp_err_t tlv320dac3100_init(void)
         return err;
 
     // ---- Phase 5: route DAC to the analog output paths ----------
-    // Reapply the fixed DAC->mixer routing first so profile switches always
-    // start from a known path before enabling or disabling output drivers.
+    // Reapply the fixed DAC->mixer routing so each profile transition starts
+    // from the same known analog signal path before output drivers change.
     err = write_regs(0x01, output_routing_init,
                      sizeof(output_routing_init) / sizeof(output_routing_init[0]));
     if (err != ESP_OK)
@@ -612,8 +618,7 @@ esp_err_t tlv320dac3100_init(void)
     if (err != ESP_OK)
         return err;
 
-    // ---- Phase 7: set initial conservative gains via the profile -
-    // ---- Phase 8: apply the default speaker profile and EQ ------
+    // ---- Phases 7-8: apply the default speaker profile, gains, and EQ --
     err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
     if (err != ESP_OK)
         return err;
@@ -702,7 +707,6 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
         return ESP_ERR_INVALID_ARG;
 
     bool was_muted = s_muted;
-    bool profile_changed = (profile != s_profile);
     esp_err_t err = tlv320dac3100_mute(true);
     if (err != ESP_OK)
         return err;
@@ -724,12 +728,12 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     if (err != ESP_OK)
         return err;
 
+    ESP_LOGI(TAG, "%s %s profile",
+             (profile != s_profile) ? "Switched to" : "Reapplied",
+             (profile == TLV320_PROFILE_HEADPHONE) ? "headphone" : "speaker");
+
     s_profile = profile;
     s_hp_active = (profile == TLV320_PROFILE_HEADPHONE);
-
-    ESP_LOGI(TAG, "%s %s profile",
-             profile_changed ? "Switched to" : "Reapplied",
-             (profile == TLV320_PROFILE_HEADPHONE) ? "headphone" : "speaker");
 
     if (!was_muted)
         return tlv320dac3100_mute(false);
