@@ -52,30 +52,30 @@
 //   0x70 ('p'): DMA sync
 //   0x71 ('q'): Flush-and-speak-character
 // ----------------------------------------------------------------
-#define DLE_PREFIX_CMD_LO   0x20 // Command class range start
-#define DLE_PREFIX_CMD_HI   0x2F // Command class range end
-#define DLE_PREFIX_DATA_LO  0x30 // Data range start
-#define DLE_PREFIX_DATA_HI  0x3F // Data range end
-#define DLE_PREFIX_STATUS   0x40 // Status update (device -> host)
-#define DLE_PREFIX_INDEX    0x50 // Index marker (device -> host)
-#define DLE_PREFIX_SYNC     0x70 // 'p' - DMA sync
-#define DLE_PREFIX_FLUSHCH  0x71 // 'q' - flush + speak character
+#define DLE_PREFIX_CMD_LO   0x20    // Command class range start
+#define DLE_PREFIX_CMD_HI   0x2F    // Command class range end
+#define DLE_PREFIX_DATA_LO  0x30    // Data range start
+#define DLE_PREFIX_DATA_HI  0x3F    // Data range end
+#define DLE_PREFIX_STATUS   0x40    // Status update (device -> host)
+#define DLE_PREFIX_INDEX    0x50    // Index marker (device -> host)
+#define DLE_PREFIX_SYNC     0x70    // 'p' - DMA sync
+#define DLE_PREFIX_FLUSHCH  0x71    // 'q' - flush + speak character
 
 // -- Device Status Bits (from pcport.h) ------------------------------
 //
 // The authoritative status bit definitions live in pcport.h (included
 // above).  The ESPress protocol uses:
 //
-//   STAT_int          (0x0001)  Running in interrupt mode
-//   STAT_tr_char      (0x0002)  Has data to transmit
-//   STAT_rr_char      (0x0004)  Ready to receive characters
-//   STAT_cmd_ready    (0x0008)  Ready for commands
-//   STAT_dma_ready    (0x0010)  DMA ready
-//   STAT_digitized    (0x0020)  In digitized audio mode
-//   STAT_new_index    (0x0040)  New index marker available
-//   STAT_new_status   (0x0080)  New status posted
-//   STAT_index_valid  (0x0200)  Index value is valid
-//   STAT_flushing     (0x0400)  Flush operation in progress
+//   STAT_int           (0x0001)    Running in interrupt mode
+//   STAT_tr_char       (0x0002)    Has data to transmit
+//   STAT_rr_char       (0x0004)    Ready to receive characters
+//   STAT_cmd_ready     (0x0008)    Ready for commands
+//   STAT_dma_ready     (0x0010)    DMA ready
+//   STAT_digitized     (0x0020)    In digitized audio mode
+//   STAT_new_index     (0x0040)    New index marker available
+//   STAT_new_status    (0x0080)    New status posted
+//   STAT_index_valid   (0x0200)    Index value is valid
+//   STAT_flushing      (0x0400)    Flush operation in progress
 // ----------------------------------------------------------------
 
 // -- SPC Command Classes (from pcport.h) -----------------------------
@@ -83,20 +83,20 @@
 // The authoritative command class definitions live in pcport.h (included
 // above).  The ESPress protocol uses:
 //
-//   CMD_null       (0x0000)  Post current status
-//   CMD_control    (0x1000)  Hardware control operation
-//   CMD_test       (0x2000)  Self-test
-//   CMD_id         (0x3000)  Return software identification
+//   CMD_null           (0x0000)    Post current status
+//   CMD_control        (0x1000)    Hardware control operation
+//   CMD_test           (0x2000)    Self-test
+//   CMD_id             (0x3000)    Return software identification
 // ----------------------------------------------------------------
 
 // -- Control Sub-Commands (from pcport.h, OR'd with CMD_control) -----
 //
-//   CTRL_vol_up    (0x0100)  Increase volume
-//   CTRL_vol_down  (0x0200)  Decrease volume
-//   CTRL_vol_set   (0x0300)  Set specific volume level
-//   CTRL_pause     (0x0400)  Pause speech output
-//   CTRL_resume    (0x0500)  Resume speech output
-//   CTRL_flush     (0x0600)  Flush all pending text
+//   CTRL_vol_up        (0x0100)    Increase volume
+//   CTRL_vol_down      (0x0200)    Decrease volume
+//   CTRL_vol_set       (0x0300)    Set specific volume level
+//   CTRL_pause         (0x0400)    Pause speech output
+//   CTRL_resume        (0x0500)    Resume speech output
+//   CTRL_flush         (0x0600)    Flush all pending text
 // ----------------------------------------------------------------
 
 // -- DLE Encoding/Decoding Helpers -----------------------------------
@@ -106,7 +106,9 @@
 static inline uint8_t dle_encode_byte(uint8_t val6)
 {
     val6 &= 0x3F;
-    return (val6 < 0x20) ? (val6 + 0x40) : val6;
+    return (val6 < 0x20)
+        ? (val6 + 0x40)
+        : val6;
 }
 
 // Decode a DLE-encoded byte back to its 6-bit value.

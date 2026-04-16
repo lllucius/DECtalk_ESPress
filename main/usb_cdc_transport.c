@@ -94,8 +94,10 @@ static void cdc_line_coding_callback(int itf, cdcacm_event_t *event)
         event->line_coding_changed_data.p_line_coding;
     ESP_LOGI(TAG, "Host set line coding: baud=%lu, data_bits=%u, "
              "parity=%u, stop_bits=%u",
-             (unsigned long)lc->bit_rate, lc->data_bits,
-             lc->parity, lc->stop_bits);
+             (unsigned long)lc->bit_rate,
+             lc->data_bits,
+             lc->parity,
+             lc->stop_bits);
 }
 
 // ----------------------------------------------------------------
@@ -201,7 +203,8 @@ void usb_cdc_transport_write(const uint8_t *data, size_t len)
     if (queued < len)
     {
         ESP_LOGD(TAG, "CDC TX: only %u of %u bytes queued",
-                 (unsigned)queued, (unsigned)len);
+                 (unsigned)queued,
+                 (unsigned)len);
     }
 
     // Use a short flush timeout.  If the host just disconnected between
@@ -209,7 +212,7 @@ void usb_cdc_transport_write(const uint8_t *data, size_t len)
     // than blocking for a long time.  ESP_ERR_TIMEOUT during disconnect
     // is expected and logged at debug level only.
     esp_err_t err = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0,
-                                                pdMS_TO_TICKS(50));
+                                               pdMS_TO_TICKS(50));
     if (err != ESP_OK && err != ESP_ERR_NOT_FINISHED)
     {
         if (cdc_connected)
@@ -240,5 +243,6 @@ bool usb_cdc_transport_check_reconnected(void)
         last_seen_seq = current;
         return true;
     }
+
     return false;
 }

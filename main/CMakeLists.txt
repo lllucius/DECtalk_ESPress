@@ -11,8 +11,9 @@ set(REQUIRES
     dectalk
     driver
     pthread
-    esp_timer
+    esp_driver_i2c
     esp_driver_i2s
+    esp_timer
 )
 
 if(CONFIG_DECTALK_DAC_TLV320DAC3100)

@@ -111,12 +111,14 @@ int __wrap_load_dictionary(void **dict_index,
     if (!esp_spiffs_mounted("dictionary"))
     {
         ESP_LOGI(TAG, "Mounting SPIFFS dictionary partition...");
-        esp_vfs_spiffs_conf_t spiffs_conf = {
+        esp_vfs_spiffs_conf_t spiffs_conf =
+        {
             .base_path = CONFIG_DECTALK_DICT_ROOT,
             .partition_label = "dictionary",
             .max_files = 5,
             .format_if_mount_failed = false,
         };
+
         esp_err_t spiffs_ret = esp_vfs_spiffs_register(&spiffs_conf);
         if (spiffs_ret != ESP_OK)
         {
@@ -124,21 +126,29 @@ int __wrap_load_dictionary(void **dict_index,
                      esp_err_to_name(spiffs_ret));
             return MMSYSERR_ERROR;
         }
-        size_t total = 0, used = 0;
+
+        size_t total = 0;
+        size_t used = 0;
         esp_spiffs_info(spiffs_conf.partition_label, &total, &used);
         ESP_LOGI(TAG, "SPIFFS mounted at %s (total: %zu, used: %zu)",
-                 CONFIG_DECTALK_DICT_ROOT, total, used);
+                 CONFIG_DECTALK_DICT_ROOT,
+                 total,
+                 used);
     }
 
     // Build the full path from CONFIG_DECTALK_DICT_ROOT and the bare
     // dictionary file name supplied by the caller.
     char dict_path[256];
-    int path_len = snprintf(dict_path, sizeof(dict_path), "%s/%s",
-                            CONFIG_DECTALK_DICT_ROOT, dict_nam);
+    int path_len = snprintf(dict_path,
+                            sizeof(dict_path),
+                            "%s/%s",
+                            CONFIG_DECTALK_DICT_ROOT,
+                            dict_nam);
     if (path_len < 0 || (size_t)path_len >= sizeof(dict_path))
     {
         ESP_LOGE(TAG, "Dictionary path too long: %s/%s",
-                 CONFIG_DECTALK_DICT_ROOT, dict_nam);
+                 CONFIG_DECTALK_DICT_ROOT,
+                 dict_nam);
         return MMSYSERR_INVALPARAM;
     }
 

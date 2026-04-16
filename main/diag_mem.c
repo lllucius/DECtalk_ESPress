@@ -74,10 +74,12 @@ void diag_mem_print_heap(void)
 
     ESP_LOGI(TAG, "---- Heap Stats ----");
     ESP_LOGI(TAG, "Heap current/min: %u / %u bytes",
-             (unsigned)free_heap, (unsigned)min_heap);
+             (unsigned)free_heap,
+             (unsigned)min_heap);
 
     ESP_LOGI(TAG, "DRAM current/min: %u / %u bytes",
-             (unsigned)free_8bit, (unsigned)min_8bit);
+             (unsigned)free_8bit,
+             (unsigned)min_8bit);
 
     ESP_LOGI(TAG, "Largest free block: %u bytes", (unsigned)largest);
 

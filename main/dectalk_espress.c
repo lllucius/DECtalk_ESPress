@@ -69,40 +69,40 @@ static i2s_chan_handle_t audio_handle;
 
 // -- Configuration ---------------------------------------------------
 
-#define ESPRESS_TEXT_BUFSIZE  CONFIG_DECTALK_TEXT_BUFFER_SIZE // Text accumulation buffer size
-#define ESPRESS_QUEUE_SIZE   CONFIG_DECTALK_SPEECH_QUEUE_SIZE // Speech queue depth
-#define ESPRESS_FLUSH_MARKER ((char *)1) // Sentinel for flush signal
-#define ESPRESS_RX_TIMEOUT_MS CONFIG_DECTALK_RX_TIMEOUT_MS // CDC read timeout in ms
+#define ESPRESS_TEXT_BUFSIZE  CONFIG_DECTALK_TEXT_BUFFER_SIZE   // Text accumulation buffer size
+#define ESPRESS_QUEUE_SIZE    CONFIG_DECTALK_SPEECH_QUEUE_SIZE  // Speech queue depth
+#define ESPRESS_FLUSH_MARKER  ((char *)1)                       // Sentinel for flush signal
+#define ESPRESS_RX_TIMEOUT_MS CONFIG_DECTALK_RX_TIMEOUT_MS      // CDC read timeout in ms
 
 // Flow control thresholds (fraction of text buffer size)
-#define HIWATER_NUM          2 // Send XOFF at 2/3 full
-#define HIWATER_DEN          3
-#define LOWATER_NUM          1 // Send XON at 1/3 full
-#define LOWATER_DEN          3
+#define HIWATER_NUM 2   // Send XOFF at 2/3 full
+#define HIWATER_DEN 3
+#define LOWATER_NUM 1   // Send XON at 1/3 full
+#define LOWATER_DEN 3
 
 // Queue-level flow control thresholds (fraction of queue depth)
-#define QUEUE_HIWATER_NUM    3 // Send XOFF at 3/4 full queue
-#define QUEUE_HIWATER_DEN    4
-#define QUEUE_LOWATER_NUM    1 // Send XON at 1/4 full queue
-#define QUEUE_LOWATER_DEN    4
+#define QUEUE_HIWATER_NUM   3   // Send XOFF at 3/4 full queue
+#define QUEUE_HIWATER_DEN   4
+#define QUEUE_LOWATER_NUM   1   // Send XON at 1/4 full queue
+#define QUEUE_LOWATER_DEN   4
 
 // Text flush timeout: if no new chars arrive for this many ms, flush
 #define TEXT_IDLE_TIMEOUT_MS CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS
 
 // Mask to extract the control sub-command class from cmd_sub,
 // ignoring any data payload in the lower bits (e.g. volume level).
-#define CTRL_CMD_MASK        0x0F00
+#define CTRL_CMD_MASK       0x0F00
 
 // -- ESPress Protocol State ------------------------------------------
 
 typedef struct
 {
     // DLE state machine
-    int dle_state; // 0=normal, 1-3=collecting DLE bytes
+    int dle_state;      // 0=normal, 1-3=collecting DLE bytes
     uint8_t dle_buf[4]; // DLE sequence accumulator
 
     // Device status
-    uint16_t status; // Current device status bits
+    uint16_t status;     // Current device status bits
     uint16_t last_index; // Last index marker value
 
     // Flow control
@@ -114,7 +114,7 @@ typedef struct
     int text_pos;
 
     // Speech state
-    volatile int paused; // Speech output is paused (SO/SI)
+    volatile int paused;   // Speech output is paused (SO/SI)
     volatile int speaking; // Synthesis task is active
     volatile int flushing; // Flush in progress
 } espress_state_t;
@@ -126,13 +126,13 @@ static QueueHandle_t speech_queue;
 static LPTTS_HANDLE_T espress_tts_handle;
 
 // In-memory buffer management
-#define ESPRESS_TTS_NUM_BUFFERS  3
-#define ESPRESS_TTS_BUFFER_SIZE  16384 // bytes (8192 16-bit samples)
-#define ESPRESS_TTS_MAX_INDEXES 8 // max index marks per buffer
+#define ESPRESS_TTS_NUM_BUFFERS 3
+#define ESPRESS_TTS_BUFFER_SIZE 16384 // bytes (8192 16-bit samples)
+#define ESPRESS_TTS_MAX_INDEXES 8     // max index marks per buffer
 
-static TTS_BUFFER_T  espress_tts_bufs[ESPRESS_TTS_NUM_BUFFERS] = {};
-static char          espress_tts_audio[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_BUFFER_SIZE];
-static TTS_INDEX_T   espress_tts_indexes[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_MAX_INDEXES];
+static TTS_BUFFER_T espress_tts_bufs[ESPRESS_TTS_NUM_BUFFERS] = {};
+static char         espress_tts_audio[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_BUFFER_SIZE];
+static TTS_INDEX_T  espress_tts_indexes[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_MAX_INDEXES];
 
 // -- Protocol Decode Logging -----------------------------------------
 
@@ -142,7 +142,12 @@ static TTS_INDEX_T   espress_tts_indexes[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_MA
 // ----------------------------------------------------------------
 static int status_bits_to_str(uint16_t status, char *buf, int bufsize)
 {
-    static const struct { uint16_t bit; const char *name; } flags[] =
+    static const struct
+    {
+        uint16_t bit;
+        const char *name;
+    }
+    flags[] =
     {
         { STAT_int,         "INT"         },
         { STAT_tr_char,     "TR_CHAR"     },
@@ -165,6 +170,7 @@ static int status_bits_to_str(uint16_t status, char *buf, int bufsize)
             {
                 buf[pos++] = '|';
             }
+
             int n = snprintf(buf + pos, bufsize - pos, "%s", flags[i].name);
             if (n > 0)
             {
@@ -172,6 +178,7 @@ static int status_bits_to_str(uint16_t status, char *buf, int bufsize)
             }
         }
     }
+
     if (pos == 0 && bufsize > 1)
     {
         buf[0] = '0';
@@ -186,6 +193,7 @@ static int status_bits_to_str(uint16_t status, char *buf, int bufsize)
     {
         buf[bufsize - 1] = '\0';
     }
+
     return pos;
 }
 
@@ -211,7 +219,8 @@ static void log_rx_dle_command(uint16_t word)
             break;
         case CTRL_vol_set:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_SET level=%u [0x%04X]",
-                     cmd_sub & 0xFF, word);
+                     cmd_sub & 0xFF,
+                     word);
             break;
         case CTRL_pause:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL PAUSE [0x%04X]", word);
@@ -224,7 +233,8 @@ static void log_rx_dle_command(uint16_t word)
             break;
         default:
             ESP_LOGI(TAG, "RX DLE cmd: CONTROL sub=0x%03X [0x%04X]",
-                     cmd_sub, word);
+                     cmd_sub,
+                     word);
             break;
         }
         break;
@@ -237,7 +247,9 @@ static void log_rx_dle_command(uint16_t word)
         break;
     default:
         ESP_LOGI(TAG, "RX DLE cmd: class=0x%X sub=0x%03X [0x%04X]",
-                 cmd_class >> 12, cmd_sub, word);
+                 cmd_class >> 12,
+                 cmd_sub,
+                 word);
         break;
     }
 }
@@ -267,8 +279,10 @@ static void espress_send_status(void)
 {
     uint8_t buf[4];
     char flags[128];
+
     dle_encode_word(DLE_PREFIX_STATUS, estate.status, buf);
     status_bits_to_str(estate.status, flags, sizeof(flags));
+
     ESP_LOGI(TAG, "TX DLE STATUS 0x%04X [%s]", estate.status, flags);
     espress_send(buf, 4);
 }
@@ -281,12 +295,18 @@ static void espress_send_index(uint16_t index_value)
 {
     uint8_t buf[8];
     char flags[128];
+
     dle_encode_word(DLE_PREFIX_INDEX, index_value, buf);
     estate.status |= STAT_new_index | STAT_index_valid;
+
     dle_encode_word(DLE_PREFIX_STATUS, estate.status, buf + 4);
     status_bits_to_str(estate.status, flags, sizeof(flags));
+
     ESP_LOGI(TAG, "TX DLE INDEX %u + STATUS 0x%04X [%s]",
-             index_value, estate.status, flags);
+             index_value,
+             estate.status,
+             flags);
+
     espress_send(buf, 8);
     estate.last_index = index_value;
 }
@@ -316,16 +336,20 @@ static void espress_check_flow_control(void)
     if (!estate.xoff_sent && need_xoff)
     {
         ESP_LOGI(TAG, "TX XOFF (pause host, buffer %d/%d, queue %d/%d)",
-                 estate.text_pos, ESPRESS_TEXT_BUFSIZE,
-                 q_used, ESPRESS_QUEUE_SIZE);
+                 estate.text_pos,
+                 ESPRESS_TEXT_BUFSIZE,
+                 q_used,
+                 ESPRESS_QUEUE_SIZE);
         espress_send_byte(XOFF);
         estate.xoff_sent = 1;
     }
     else if (estate.xoff_sent && need_xon)
     {
         ESP_LOGI(TAG, "TX XON (resume host, buffer %d/%d, queue %d/%d)",
-                 estate.text_pos, ESPRESS_TEXT_BUFSIZE,
-                 q_used, ESPRESS_QUEUE_SIZE);
+                 estate.text_pos,
+                 ESPRESS_TEXT_BUFSIZE,
+                 q_used,
+                 ESPRESS_QUEUE_SIZE);
         espress_send_byte(XON);
         estate.xoff_sent = 0;
     }
@@ -352,16 +376,21 @@ static void espress_flush_text_to_queue(void)
     }
 
     estate.text_buf[estate.text_pos] = '\0';
-    ESP_LOGI(TAG, "RX text queued (%d bytes): %.60s%s",
-             estate.text_pos, estate.text_buf,
-             estate.text_pos > 60 ? "..." : "");
+    ESP_LOGI(TAG, "RX text queued (%d bytes): %s",
+             estate.text_pos,
+             estate.text_buf);
+
+//    ESP_LOGI(TAG, "RX text queued (%d bytes): %.60s%s",
+//             estate.text_pos, estate.text_buf,
+//             estate.text_pos > 60 ? "..." : "");
     char *text = strdup(estate.text_buf);
     if (text)
     {
         if (xQueueSend(speech_queue, &text, pdMS_TO_TICKS(500)) != pdTRUE)
         {
             ESP_LOGW(TAG, "Speech queue full, dropped: %.30s%s",
-                     text, strlen(text) > 30 ? "..." : "");
+                     text,
+                     strlen(text) > 30 ? "..." : "");
             free(text);
         }
     }
@@ -426,7 +455,8 @@ static void espress_process_dle(void)
         uint8_t ch = ((estate.dle_buf[2] & 0x0F) << 4) |
                       (estate.dle_buf[3] & 0x0F);
         ESP_LOGI(TAG, "RX DLE FLUSHCH char=0x%02X '%c'",
-                 ch, (ch >= 0x20 && ch < 0x7F) ? (char)ch : '.');
+                 ch,
+                 (ch >= 0x20 && ch < 0x7F) ? (char)ch : '.');
         // Flush current speech
         espress_send_flush();
         estate.text_pos = 0;
@@ -485,14 +515,18 @@ static void espress_process_dle(void)
             {
                 uint8_t vol = tlv320dac3100_get_volume();
                 if (vol < TLV320DAC3100_MAX_VOLUME)
+                {
                     tlv320dac3100_set_volume(vol + 1);
+                }
                 break;
             }
             case CTRL_vol_down:
             {
                 uint8_t vol = tlv320dac3100_get_volume();
                 if (vol > 0)
+                {
                     tlv320dac3100_set_volume(vol - 1);
+                }
                 break;
             }
             case CTRL_vol_set:
@@ -521,7 +555,8 @@ static void espress_process_dle(void)
         // 0x30-0x3F: Data sequence from host (e.g., volume level)
         word = dle_decode_word(estate.dle_buf);
         ESP_LOGI(TAG, "RX DLE DATA prefix=0x%02X value=0x%04X",
-                 type_byte, word);
+                 type_byte,
+                 word);
         // Store for use by subsequent command. Currently not used.
     }
     else
@@ -656,8 +691,13 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
                     short s2 = (num_samples > 2) ? samples[2] : 0;
                     ESP_LOGI(TAG, "audio_cb #%d: %ld samples, paused=%d, "
                              "first3=[%d,%d,%d], total_samples=%d",
-                             audio_cb_call_count, num_samples, estate.paused,
-                             s0, s1, s2, audio_cb_total_samples);
+                             audio_cb_call_count,
+                             num_samples,
+                             estate.paused,
+                             s0,
+                             s1,
+                             s2,
+                             audio_cb_total_samples);
                 }
 
                 if (estate.paused)
@@ -669,9 +709,11 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
                 if (audio_handle)
                 {
                     size_t bytes_written;
-                    i2s_channel_write(audio_handle, samples,
+                    i2s_channel_write(audio_handle,
+                                      samples,
                                       pBuf->dwBufferLength,
-                                      &bytes_written, portMAX_DELAY);
+                                      &bytes_written,
+                                      portMAX_DELAY);
                 }
             }
 
@@ -759,7 +801,8 @@ static void *speech_task(void *arg)
 
             ESP_LOGI(TAG, "Speech task: === CHUNK #%d START ===", chunk_count);
             ESP_LOGI(TAG, "Speech task: text (%d bytes): \"%.60s%s\"",
-                     (int)strlen(text), text,
+                     (int)strlen(text),
+                     text,
                      strlen(text) > 60 ? "..." : "");
             ESP_LOGI(TAG, "Speech task: queue depth before speak: %d/%d",
                      (int)uxQueueMessagesWaiting(speech_queue),
@@ -777,7 +820,9 @@ static void *speech_task(void *arg)
                 while (text[rd])
                 {
                     if ((unsigned char)text[rd] <= 0x7F)
+                    {
                         text[wr++] = text[rd];
+                    }
                     rd++;
                 }
                 text[wr] = '\0';
@@ -811,7 +856,8 @@ static void *speech_task(void *arg)
             TextToSpeechSync(espress_tts_handle);
             ESP_LOGI(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned, "
                      "audio_callbacks=%d, total_samples=%d",
-                     audio_cb_call_count, audio_cb_total_samples);
+                     audio_cb_call_count,
+                     audio_cb_total_samples);
             free(text);
 
             estate.speaking = 0;
@@ -923,9 +969,11 @@ static void *espress_task(void *arg)
 
     // Initialize DECtalk engine with the ttsapi interface
     ESP_LOGI(TAG, "Initializing DECtalk TTS engine (ttsapi)...");
-    MMRESULT tts_status = TextToSpeechStartup(&espress_tts_handle, WAVE_MAPPER,
-                                               DO_NOT_USE_AUDIO_DEVICE,
-                                               espress_tts_callback, 0);
+    MMRESULT tts_status = TextToSpeechStartup(&espress_tts_handle,
+                                              WAVE_MAPPER,
+                                              DO_NOT_USE_AUDIO_DEVICE,
+                                              espress_tts_callback,
+                                              0);
     if (tts_status != MMSYSERR_NOERROR)
     {
         ESP_LOGE(TAG, "TextToSpeechStartup failed with code %d", (int)tts_status);
@@ -1136,7 +1184,8 @@ void app_main(void)
     // Start a periodic timer to poll the TLV320DAC3100 headset
     // detection status and switch between speaker / headphone output.
     {
-        const esp_timer_create_args_t hp_timer_args = {
+        const esp_timer_create_args_t hp_timer_args =
+        {
             .callback = (esp_timer_cb_t)tlv320dac3100_poll_headset,
             .name = "hp_poll",
         };
