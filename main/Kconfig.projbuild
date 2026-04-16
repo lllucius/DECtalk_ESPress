@@ -115,11 +115,11 @@ menu "DECtalk ESPress Firmware"
                 starts throttling input.
 
         config DECTALK_RX_TIMEOUT_MS
-            int "USB CDC RX timeout (ms)"
+            int "Serial RX timeout (ms)"
             default 10
             range 1 1000
             help
-                Timeout used when polling the USB CDC receive buffer.
+                Timeout used when polling the serial receive buffer.
 
         config DECTALK_TEXT_IDLE_TIMEOUT_MS
             int "Buffered text idle flush timeout (ms)"
@@ -132,10 +132,13 @@ menu "DECtalk ESPress Firmware"
         menu "Advanced task tuning"
             config DECTALK_SPEECH_TASK_CORE
                 int "Speech task core"
-                default 1
-                range 0 1
+                default 1 if SOC_CPU_CORES_NUM > 1
+                default 0
+                range 0 1 if SOC_CPU_CORES_NUM > 1
+                range 0 0
                 help
                     CPU core used for the speech synthesis thread.
+                    On single-core chips this is fixed to core 0.
 
             config DECTALK_MAIN_TASK_STACK_SIZE
                 int "Main ESPress pthread stack size"
@@ -148,6 +151,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "USB CDC transport"
+        visible if IDF_TARGET_ESP32S3
         config DECTALK_CDC_RX_STREAM_SIZE
             int "CDC RX stream buffer size"
             default 4096
@@ -155,6 +159,23 @@ menu "DECtalk ESPress Firmware"
             help
                 Size of the FreeRTOS stream buffer that bridges TinyUSB RX to
                 the ESPress protocol task.
+    endmenu
+
+    menu "JTAG serial transport"
+        visible if !IDF_TARGET_ESP32S3
+        config DECTALK_JTAG_RX_BUF_SIZE
+            int "JTAG serial RX buffer size"
+            default 4096
+            range 256 16384
+            help
+                Size of the ring buffer for USB Serial/JTAG receive data.
+
+        config DECTALK_JTAG_TX_BUF_SIZE
+            int "JTAG serial TX buffer size"
+            default 4096
+            range 256 16384
+            help
+                Size of the ring buffer for USB Serial/JTAG transmit data.
     endmenu
 
     menu "Diagnostics and logging"

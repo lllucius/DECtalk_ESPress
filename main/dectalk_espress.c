@@ -17,12 +17,28 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/i2s_std.h"
-#include "usb_cdc_transport.h"
 #include "esp_log.h"
 #include "esp_pthread.h"
 #include "ttsapi.h"
 #include "dectalk_espress.h"
 #include "diag_mem.h"
+
+// Select the serial transport layer based on the target chip.
+#if CONFIG_IDF_TARGET_ESP32S3
+#include "usb_cdc_transport.h"
+#define transport_init              usb_cdc_transport_init
+#define transport_read              usb_cdc_transport_read
+#define transport_write             usb_cdc_transport_write
+#define transport_connected         usb_cdc_transport_connected
+#define transport_check_reconnected usb_cdc_transport_check_reconnected
+#else
+#include "jtag_serial_transport.h"
+#define transport_init              jtag_serial_transport_init
+#define transport_read              jtag_serial_transport_read
+#define transport_write             jtag_serial_transport_write
+#define transport_connected         jtag_serial_transport_connected
+#define transport_check_reconnected jtag_serial_transport_check_reconnected
+#endif
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
@@ -51,7 +67,11 @@ static void configure_logging(void)
     esp_log_level_t log_level = dectalk_log_level();
 
     esp_log_level_set(TAG, log_level);
+#if CONFIG_IDF_TARGET_ESP32S3
     esp_log_level_set("USB-CDC", log_level);
+#else
+    esp_log_level_set("JTAG-Serial", log_level);
+#endif
     esp_log_level_set("DIAG", log_level);
 }
 
@@ -260,7 +280,7 @@ static void log_rx_dle_command(uint16_t word)
 // Send raw bytes to the host over the USB CDC interface.
 static void espress_send(const uint8_t *data, int len)
 {
-    usb_cdc_transport_write(data, len);
+    transport_write(data, len);
 }
 
 // Send a single byte to the host.
@@ -995,14 +1015,14 @@ static void *espress_task(void *arg)
     }
     ESP_LOGI(TAG, "DECtalk TTS engine initialized (handle=%p)", (void *)espress_tts_handle);
 
-    // Install USB CDC-ACM transport for ESPress protocol communication.
-    // The host sees the ESP32-S3 as a USB serial (CDC-ACM) COM port.
+    // Install the serial transport for ESPress protocol communication.
+    // The host sees the device as a USB serial port.
     // Console / ESP_LOG output remains on UART0.
-    ESP_LOGI(TAG, "Initializing USB CDC-ACM transport...");
-    ESP_ERROR_CHECK(usb_cdc_transport_init());
+    ESP_LOGI(TAG, "Initializing serial transport...");
+    ESP_ERROR_CHECK(transport_init());
 
     ESP_LOGI(TAG, "ESPress protocol ready. Waiting for host communication "
-             "on USB CDC.");
+             "on USB serial.");
 
     // Send initial XON to indicate device is ready.
     // The real DECtalk ESPress hardware (serial_task in serial.c) sends
@@ -1031,7 +1051,7 @@ static void *espress_task(void *arg)
         // (e.g. mid-DLE-sequence, XOFF sent, flushing flag set).
         // Reset everything so the new session starts cleanly, and
         // send XON so the host knows the device is ready.
-        if (usb_cdc_transport_check_reconnected())
+        if (transport_check_reconnected())
         {
             ESP_LOGI(TAG, "Host reconnected -- resetting protocol state");
 
@@ -1062,7 +1082,7 @@ static void *espress_task(void *arg)
         }
 
         // Read one byte with timeout -- yields to scheduler, preventing WDT
-        cnt = usb_cdc_transport_read(&rx_byte, 1, pdMS_TO_TICKS(ESPRESS_RX_TIMEOUT_MS));
+        cnt = transport_read(&rx_byte, 1, pdMS_TO_TICKS(ESPRESS_RX_TIMEOUT_MS));
         if (cnt > 0)
         {
             c = (int)rx_byte;
@@ -1217,14 +1237,11 @@ void app_main(void)
     // Define the speech thread attributes
     //
     // TextToSpeechSpeak()+Sync() is CPU-intensive and does not yield to
-    // the FreeRTOS scheduler while processing text.  If the speech task
-    // runs on CPU 0 it starves the IDLE0 task, which is responsible
-    // for resetting the Task Watchdog Timer, causing a WDT timeout.
-    //
-    // Pinning the speech task to CPU 1 keeps CPU 0 free so IDLE0
-    // can always run and service the watchdog.  The IDLE1 watchdog
-    // check is disabled in sdkconfig.defaults to accommodate the
-    // long-running synthesis on CPU 1.
+    // the FreeRTOS scheduler while processing text.  On dual-core chips
+    // (e.g. ESP32-S3) the speech task is pinned to CPU 1 so IDLE0 can
+    // always service the Task Watchdog Timer.  On single-core chips
+    // (e.g. ESP32-C6) the watchdog is disabled instead (see
+    // sdkconfig.defaults).
     thread_cfg = default_cfg;
     thread_cfg.pin_to_core = ESPRESS_SPEECH_TASK_CORE;
     thread_cfg.thread_name = "speech_thread";
