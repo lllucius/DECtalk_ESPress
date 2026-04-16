@@ -70,12 +70,15 @@ esp_err_t tlv320dac3100_mute(bool enable);
  * Reads the TLV320DAC3100 headset detection status register.
  * When a headphone is detected the speaker is muted and headphone
  * drivers are enabled.  When removed, the headphones are disabled
- * and the speaker is re-enabled.
+ * and the speaker is re-enabled. This may attempt profile switching
+ * internally.
  *
  * Call this function periodically (e.g. every 500 ms) from a timer
  * or background task.
+ *
+ * @return ESP_OK on success, or an error code on failure.
  */
-void tlv320dac3100_poll_headset(void);
+esp_err_t tlv320dac3100_poll_headset(void);
 
 /**
  * @brief Maximum volume level.
