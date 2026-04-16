@@ -20,6 +20,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <math.h>
+#include <stdint.h>
 #include "tlv320dac3100.h"
 
 static const char *TAG = "TLV320DAC3100";
@@ -74,6 +75,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_EQ_PAGE_SPEAKER 0x08
 #define TLV320_EQ_PAGE_HEADPHONE 0x0C
 #define TLV320_EQ_START_REG    0x02
+#define TLV320_EQ_COEFFICIENT_WRITES_VERIFIED 0
 #define TLV320_Q15_POSITIVE_SCALE 32767.0f
 #define TLV320_Q15_NEGATIVE_SCALE 32768.0f
 #define TLV320_PI              3.14159265358979323846f
@@ -174,6 +176,7 @@ static const reg_val_t analog_driver_init[] =
 };
 
 // ---- Module state ------------------------------------------------
+static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active;    // true when headphone output is active
@@ -182,6 +185,7 @@ static float s_volume_db = TLV320_SPEAKER_DB;
 static uint8_t s_digital_volume_reg = 0xEC;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
+static bool s_apply_profile_volume_default;
 
 
 static esp_err_t write_reg_raw(i2c_master_dev_handle_t dev,
@@ -373,6 +377,35 @@ static uint8_t db_to_level(float db)
     return best_level;
 }
 
+static void tlv320_reset_state(void)
+{
+    s_current_page = TLV320_INVALID_PAGE;
+    s_hp_active = false;
+    s_volume = DEFAULT_VOLUME;
+    s_volume_db = TLV320_SPEAKER_DB;
+    s_digital_volume_reg = db_to_reg(s_volume_db);
+    s_muted = true;
+    s_profile = TLV320_PROFILE_SPEAKER;
+    s_apply_profile_volume_default = false;
+}
+
+static void tlv320_release_i2c_resources(void)
+{
+    if (s_dev != NULL)
+    {
+        i2c_master_bus_rm_device(s_dev);
+        s_dev = NULL;
+    }
+
+    if (s_bus != NULL)
+    {
+        i2c_del_master_bus(s_bus);
+        s_bus = NULL;
+    }
+
+    s_current_page = TLV320_INVALID_PAGE;
+}
+
 static esp_err_t write_digital_volume(uint8_t reg_val)
 {
     esp_err_t err = write_reg(0x00, REG_DAC_LVOL, reg_val);
@@ -468,7 +501,8 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
-static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile)
+static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
+                                            bool apply_digital_volume_default)
 {
     const float default_db = (profile == TLV320_PROFILE_HEADPHONE) ?
         TLV320_HEADPHONE_DB : TLV320_SPEAKER_DB;
@@ -484,6 +518,9 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile)
                                sizeof(analog_gain_cfg) / sizeof(analog_gain_cfg[0]));
     if (err != ESP_OK)
         return err;
+
+    if (!apply_digital_volume_default)
+        return ESP_OK;
 
     return tlv320dac3100_set_volume_db(default_db);
 }
@@ -514,7 +551,14 @@ static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
         biquads[2] = tlv320_make_lowpass_biquad(3600.0f);
     }
 
-    return write_biquad_bank(eq_page, biquads, TLV320_EQ_BIQUAD_COUNT);
+    // Keep the EQ scaffold in place, but defer coefficient-bank programming
+    // until the selected DAC processing block and coefficient-page mapping are
+    // verified against the TLV320DAC3100 datasheet for this driver setup.
+    if (TLV320_EQ_COEFFICIENT_WRITES_VERIFIED)
+        return write_biquad_bank(eq_page, biquads, TLV320_EQ_BIQUAD_COUNT);
+
+    ESP_LOGD(TAG, "Speech EQ coefficient writes deferred pending verified TLV320DAC3100 processing-block mapping");
+    return ESP_OK;
 }
 
 
@@ -535,8 +579,10 @@ esp_err_t tlv320dac3100_init(void)
         .flags.enable_internal_pullup = true,
     };
 
-    i2c_master_bus_handle_t bus;
-    err = i2c_new_master_bus(&bus_cfg, &bus);
+    tlv320_release_i2c_resources();
+    tlv320_reset_state();
+
+    err = i2c_new_master_bus(&bus_cfg, &s_bus);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to create I2C bus: %s", esp_err_to_name(err));
@@ -550,20 +596,13 @@ esp_err_t tlv320dac3100_init(void)
         .scl_speed_hz = 100000,
     };
 
-    err = i2c_master_bus_add_device(bus, &dev_cfg, &s_dev);
+    err = i2c_master_bus_add_device(s_bus, &dev_cfg, &s_dev);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to add I2C device: %s", esp_err_to_name(err));
+        tlv320_release_i2c_resources();
         return err;
     }
-
-    s_current_page = TLV320_INVALID_PAGE;
-    s_profile = TLV320_PROFILE_SPEAKER;
-    s_hp_active = false;
-    s_muted = true;
-    s_volume = DEFAULT_VOLUME;
-    s_volume_db = TLV320_SPEAKER_DB;
-    s_digital_volume_reg = db_to_reg(s_volume_db);
 
     // ---- Phase 1: reset device ----------------------------------
     err = select_page(0x00);
@@ -572,7 +611,7 @@ esp_err_t tlv320dac3100_init(void)
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Software reset failed: %s", esp_err_to_name(err));
-        return err;
+        goto init_fail;
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 
@@ -584,24 +623,24 @@ esp_err_t tlv320dac3100_init(void)
     err = write_regs(0x00, clocking_init,
                      sizeof(clocking_init) / sizeof(clocking_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Phase 3: configure the audio interface -----------------
     err = write_regs(0x00, audio_interface_init,
                      sizeof(audio_interface_init) / sizeof(audio_interface_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Phase 4: configure DAC processing block ----------------
     err = write_regs(0x00, dac_processing_init,
                      sizeof(dac_processing_init) / sizeof(dac_processing_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Keep DAC muted until the final step --------------------
     err = write_digital_volume(TLV320_MUTED_REG_VALUE);
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Phase 5: route DAC to the analog output paths ----------
     // Reapply the fixed DAC->mixer routing so each profile transition starts
@@ -609,24 +648,26 @@ esp_err_t tlv320dac3100_init(void)
     err = write_regs(0x01, output_routing_init,
                      sizeof(output_routing_init) / sizeof(output_routing_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Phase 6: configure analog output drivers ---------------
     err = write_regs(0x01, analog_driver_init,
                      sizeof(analog_driver_init) / sizeof(analog_driver_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Enable headset detection before profile selection ------
     err = write_regs(0x00, headset_detect_init,
                      sizeof(headset_detect_init) / sizeof(headset_detect_init[0]));
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     // ---- Phases 7-8: apply the default speaker profile, gains, and EQ --
+    s_apply_profile_volume_default = true;
     err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
+    s_apply_profile_volume_default = false;
 
     // Perform an initial headset check so we start in the correct mode
     tlv320dac3100_poll_headset();
@@ -634,14 +675,20 @@ esp_err_t tlv320dac3100_init(void)
     // ---- Phase 9: unmute at end ---------------------------------
     err = tlv320dac3100_mute(false);
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     err = select_page(0x00);
     if (err != ESP_OK)
-        return err;
+        goto init_fail;
 
     ESP_LOGI(TAG, "TLV320DAC3100 initialized successfully");
     return ESP_OK;
+
+init_fail:
+    s_apply_profile_volume_default = false;
+    tlv320_release_i2c_resources();
+    tlv320_reset_state();
+    return err;
 }
 
 
@@ -725,7 +772,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     if (err != ESP_OK)
         return err;
 
-    err = tlv320_apply_gain_defaults(profile);
+    err = tlv320_apply_gain_defaults(profile, s_apply_profile_volume_default);
     if (err != ESP_OK)
         return err;
 
@@ -771,6 +818,8 @@ esp_err_t tlv320dac3100_mute(bool enable)
     if (s_dev == NULL)
         return ESP_ERR_INVALID_STATE;
 
+    // Lightweight soft mute: force the DAC digital volume to a very low level
+    // instead of toggling a dedicated codec hardware mute bit.
     s_muted = enable;
     return write_digital_volume(get_effective_volume_reg());
 }
