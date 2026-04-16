@@ -190,6 +190,12 @@ The firmware uses **two** serial paths simultaneously:
 This separation means log output never corrupts the ESPress byte stream and
 protocol debugging is straightforward.
 
+> **Why TinyUSB CDC instead of the built-in USB Serial/JTAG?**  The
+> ESP32-S3's onboard USB Serial/JTAG peripheral reboots the chip when the
+> host toggles DTR.  Since the ESPress protocol uses DTR to detect host
+> connections, TinyUSB CDC-ACM is used instead to handle DTR line-state
+> changes in firmware without triggering a reboot.
+
 ## ESPress Protocol Summary
 
 The firmware boots directly into ESPress protocol mode — no handshake or

@@ -336,6 +336,15 @@ carries up to 8 index-mark slots.  When a buffer is filled, the
 
 ### USB CDC Transport
 
+> **Why TinyUSB CDC instead of the built-in USB Serial/JTAG?**  The
+> ESP32-S3's onboard USB Serial/JTAG peripheral automatically reboots the
+> chip whenever the host toggles DTR.  Because the ESPress protocol relies
+> on DTR transitions to detect host connect/disconnect events, using the
+> built-in Serial/JTAG would cause the device to reboot every time a host
+> application opens the port.  TinyUSB's CDC-ACM device avoids this by
+> giving the firmware full control over how DTR line-state changes are
+> handled — no reboot, just a protocol-state reset.
+
 `usb_cdc_transport.c` wraps the `espressif/esp_tinyusb` CDC-ACM interface:
 
 - **RX path:** A TinyUSB callback drains 64-byte USB bulk packets into a
