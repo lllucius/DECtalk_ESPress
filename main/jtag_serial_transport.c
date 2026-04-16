@@ -34,6 +34,11 @@ static const char *TAG = "JTAG-Serial";
 // connect transitions.  Initialized to true so that the very first
 // host connection after boot is treated as a reconnection event,
 // causing the protocol layer to send the initial XON.
+//
+// All state here is accessed only from the single ESPress protocol
+// task (via jtag_serial_transport_check_reconnected()), so no
+// locking is needed.  The volatile qualifier prevents the compiler
+// from caching the value across calls.
 // ----------------------------------------------------------------
 static volatile uint32_t jtag_reconnect_seq = 0;
 static bool jtag_was_connected = false;
