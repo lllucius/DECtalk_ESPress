@@ -670,7 +670,12 @@ esp_err_t tlv320dac3100_init(void)
     s_apply_profile_volume_default = false;
 
     // Perform an initial headset check so we start in the correct mode
-    tlv320dac3100_poll_headset();
+    err = tlv320dac3100_poll_headset();
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Initial headset detection failed: %s",
+                 esp_err_to_name(err));
+    }
 
     // ---- Phase 9: unmute at end ---------------------------------
     err = tlv320dac3100_mute(false);
@@ -692,14 +697,14 @@ init_fail:
 }
 
 
-void tlv320dac3100_poll_headset(void)
+esp_err_t tlv320dac3100_poll_headset(void)
 {
     // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
     // (Page 0).
     uint8_t reg_val = 0;
     esp_err_t err = read_reg(0x00, REG_HEADSET_DETECT, &reg_val);
     if (err != ESP_OK)
-        return;
+        return err;
 
     uint8_t status = (reg_val >> 5) & 0x03;
     bool hp_detected = (status == HEADSET_WITHOUT_MIC ||
@@ -710,17 +715,25 @@ void tlv320dac3100_poll_headset(void)
         ESP_LOGI(TAG, "Headphone inserted - switching to headphone profile");
         err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
         if (err != ESP_OK)
+        {
             ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
                      esp_err_to_name(err));
+            return err;
+        }
     }
     else if (!hp_detected && s_hp_active)
     {
         ESP_LOGI(TAG, "Headphone removed - switching to speaker profile");
         err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
         if (err != ESP_OK)
+        {
             ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
                      esp_err_to_name(err));
+            return err;
+        }
     }
+
+    return ESP_OK;
 }
 
 
