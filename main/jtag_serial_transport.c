@@ -56,6 +56,9 @@ esp_err_t jtag_serial_transport_init(void)
     // serial terminal does not reboot the device.
     USB_SERIAL_JTAG.chip_rst.usb_uart_chip_rst_dis = 1;
 
+    // Update the configuration
+    USB_SERIAL_JTAG.config_update.config_update = 1;
+
     // Install the USB Serial/JTAG driver with application-level
     // RX and TX ring buffers.
     usb_serial_jtag_driver_config_t cfg = {

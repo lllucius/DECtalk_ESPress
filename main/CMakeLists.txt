@@ -20,11 +20,11 @@ set(REQUIRES
 # Chips with a built-in USB Serial/JTAG controller (e.g. ESP32-C6)
 # use the lighter-weight usb_serial_jtag driver instead.
 idf_build_get_property(__target IDF_TARGET)
-if(__target STREQUAL "esp32s3")
-    list(APPEND SRCS "usb_cdc_transport.c")
-else()
+if(__target STREQUAL "esp32c6")
     list(APPEND SRCS "jtag_serial_transport.c")
     list(APPEND REQUIRES esp_driver_usb_serial_jtag)
+else()
+    list(APPEND SRCS "usb_cdc_transport.c")
 endif()
 
 if(CONFIG_DECTALK_DAC_TLV320DAC3100)

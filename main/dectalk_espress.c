@@ -24,20 +24,20 @@
 #include "diag_mem.h"
 
 // Select the serial transport layer based on the target chip.
-#if CONFIG_IDF_TARGET_ESP32S3
-#include "usb_cdc_transport.h"
-#define transport_init              usb_cdc_transport_init
-#define transport_read              usb_cdc_transport_read
-#define transport_write             usb_cdc_transport_write
-#define transport_connected         usb_cdc_transport_connected
-#define transport_check_reconnected usb_cdc_transport_check_reconnected
-#else
+#if CONFIG_IDF_TARGET_ESP32C6
 #include "jtag_serial_transport.h"
 #define transport_init              jtag_serial_transport_init
 #define transport_read              jtag_serial_transport_read
 #define transport_write             jtag_serial_transport_write
 #define transport_connected         jtag_serial_transport_connected
 #define transport_check_reconnected jtag_serial_transport_check_reconnected
+#else
+#include "usb_cdc_transport.h"
+#define transport_init              usb_cdc_transport_init
+#define transport_read              usb_cdc_transport_read
+#define transport_write             usb_cdc_transport_write
+#define transport_connected         usb_cdc_transport_connected
+#define transport_check_reconnected usb_cdc_transport_check_reconnected
 #endif
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
@@ -67,10 +67,10 @@ static void configure_logging(void)
     esp_log_level_t log_level = dectalk_log_level();
 
     esp_log_level_set(TAG, log_level);
-#if CONFIG_IDF_TARGET_ESP32S3
-    esp_log_level_set("USB-CDC", log_level);
-#else
+#if CONFIG_IDF_TARGET_ESP32C6
     esp_log_level_set("JTAG-Serial", log_level);
+#else
+    esp_log_level_set("USB-CDC", log_level);
 #endif
     esp_log_level_set("DIAG", log_level);
 }

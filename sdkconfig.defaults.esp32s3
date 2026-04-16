@@ -1,7 +1,0 @@
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2025 Leland Lucius
-
-# ESP32-S3-specific defaults.  Applied automatically by ESP-IDF when
-# the build target is esp32s3.
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
-CONFIG_TINYUSB_CDC_ENABLED=y
