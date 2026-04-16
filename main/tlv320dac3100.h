@@ -65,7 +65,7 @@ esp_err_t tlv320dac3100_set_volume_db(float db);
 esp_err_t tlv320dac3100_mute(bool enable);
 
 /**
- * @brief Poll headset detection and switch audio outputs.
+ * @brief Check headset detection and switch audio outputs.
  *
  * Reads the TLV320DAC3100 headset detection status register.
  * When a headphone is detected the speaker is muted and headphone
@@ -78,7 +78,13 @@ esp_err_t tlv320dac3100_mute(bool enable);
  *
  * @return ESP_OK on success, or an error code on failure.
  */
-esp_err_t tlv320dac3100_poll_headset(void);
+esp_err_t tlv320dac3100_check_headset(void);
+
+/**
+ * @brief Timer callback for polling headset detection.
+ */
+void tlv320dac3100_poll_headset(void);
+
 
 /**
  * @brief Maximum volume level.

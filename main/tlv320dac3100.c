@@ -787,7 +787,7 @@ esp_err_t tlv320dac3100_init(void)
     s_apply_profile_volume_default = false;
 
     // Perform an initial headset check so we start in the correct mode
-    err = tlv320dac3100_poll_headset();
+    err = tlv320dac3100_check_headset();
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "Initial headset detection failed: %s",
@@ -818,7 +818,7 @@ init_fail:
 }
 
 
-esp_err_t tlv320dac3100_poll_headset(void)
+esp_err_t tlv320dac3100_check_headset(void)
 {
     // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
     // (Page 0).
@@ -857,6 +857,13 @@ esp_err_t tlv320dac3100_poll_headset(void)
     }
 
     return ESP_OK;
+}
+
+
+void tlv320dac3100_poll_headset(void)
+{
+    // Ignores return value since this is called from a timer callback
+    tlv320dac3100_check_headset();
 }
 
 
