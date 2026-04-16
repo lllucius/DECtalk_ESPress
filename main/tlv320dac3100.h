@@ -8,6 +8,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef enum
+{
+    TLV320_PROFILE_SPEAKER = 0,
+    TLV320_PROFILE_HEADPHONE
+} tlv320_profile_t;
+
 /**
  * @brief Initialize the TLV320DAC3100 DAC over I2C.
  *
@@ -23,6 +29,36 @@
  * @return ESP_OK on success, or an error code on failure.
  */
 esp_err_t tlv320dac3100_init(void);
+
+/**
+ * @brief Switch between the speaker and headphone output profiles.
+ *
+ * Reconfigures routing, applies conservative gain defaults, and updates
+ * the speech EQ scaffold for the selected output path.
+ *
+ * @param profile  Output profile to apply.
+ *
+ * @return ESP_OK on success, or an error code on failure.
+ */
+esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile);
+
+/**
+ * @brief Set the DAC digital volume in dB.
+ *
+ * @param db  Desired digital gain in dB, clamped to a safe range.
+ *
+ * @return ESP_OK on success, or an error code on failure.
+ */
+esp_err_t tlv320dac3100_set_volume_db(float db);
+
+/**
+ * @brief Mute or unmute the codec output.
+ *
+ * @param enable  True to mute, false to restore the current target volume.
+ *
+ * @return ESP_OK on success, or an error code on failure.
+ */
+esp_err_t tlv320dac3100_mute(bool enable);
 
 /**
  * @brief Poll headset detection and switch audio outputs.
