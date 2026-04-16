@@ -232,14 +232,18 @@ static esp_err_t write_regs(uint8_t page, const reg_val_t *pairs, size_t count)
     return ESP_OK;
 }
 
-static uint8_t db_to_reg(float db)
+static float clamp_volume_db(float db)
 {
     if (db < TLV320_MIN_VOLUME_DB)
-        db = TLV320_MIN_VOLUME_DB;
-    else if (db > TLV320_MAX_VOLUME_DB)
-        db = TLV320_MAX_VOLUME_DB;
+        return TLV320_MIN_VOLUME_DB;
+    if (db > TLV320_MAX_VOLUME_DB)
+        return TLV320_MAX_VOLUME_DB;
+    return db;
+}
 
-    float attenuation_db = -db;
+static uint8_t db_to_reg(float db)
+{
+    float attenuation_db = -clamp_volume_db(db);
     int steps = (int)((attenuation_db * 2.0f) + 0.5f);
     return (uint8_t)((int8_t)(-steps));
 }
@@ -429,6 +433,8 @@ esp_err_t tlv320dac3100_init(void)
         return err;
 
     // ---- Phase 5: route DAC to the analog output paths ----------
+    // Reapply the fixed DAC->mixer routing first so profile switches always
+    // start from a known path before enabling or disabling output drivers.
     err = write_regs(0x01, output_routing_init,
                      sizeof(output_routing_init) / sizeof(output_routing_init[0]));
     if (err != ESP_OK)
@@ -576,10 +582,7 @@ esp_err_t tlv320dac3100_set_volume_db(float db)
     if (s_dev == NULL)
         return ESP_ERR_INVALID_STATE;
 
-    if (db < TLV320_MIN_VOLUME_DB)
-        db = TLV320_MIN_VOLUME_DB;
-    else if (db > TLV320_MAX_VOLUME_DB)
-        db = TLV320_MAX_VOLUME_DB;
+    db = clamp_volume_db(db);
 
     s_volume_db = db;
     s_volume_reg = db_to_reg(db);
