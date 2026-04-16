@@ -164,7 +164,7 @@ static uint8_t s_current_page = 0xFF;
 static bool s_hp_active;    // true when headphone output is active
 static uint8_t s_volume = DEFAULT_VOLUME;
 static float s_volume_db = TLV320_SPEAKER_DB;
-static uint8_t s_volume_reg = 0xEC;
+static uint8_t s_digital_volume_reg = 0xEC;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 
@@ -243,6 +243,8 @@ static float clamp_volume_db(float db)
 
 static uint8_t db_to_reg(float db)
 {
+    // The codec stores digital gain as a signed 8-bit two's complement
+    // attenuation value in 0.5 dB steps, so -10.0 dB becomes -20 steps.
     float attenuation_db = -clamp_volume_db(db);
     int steps = (int)((attenuation_db * 2.0f) + 0.5f);
     return (uint8_t)((int8_t)(-steps));
@@ -279,7 +281,7 @@ static esp_err_t write_digital_volume(uint8_t reg_val)
 
 static uint8_t get_effective_volume_reg(void)
 {
-    return s_muted ? TLV320_MUTED_REG_VALUE : s_volume_reg;
+    return s_muted ? TLV320_MUTED_REG_VALUE : s_digital_volume_reg;
 }
 
 static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
@@ -394,7 +396,7 @@ esp_err_t tlv320dac3100_init(void)
     s_muted = true;
     s_volume = DEFAULT_VOLUME;
     s_volume_db = TLV320_SPEAKER_DB;
-    s_volume_reg = db_to_reg(s_volume_db);
+    s_digital_volume_reg = db_to_reg(s_volume_db);
 
     // ---- Phase 1: reset device ----------------------------------
     err = select_page(0x00);
@@ -452,7 +454,7 @@ esp_err_t tlv320dac3100_init(void)
     if (err != ESP_OK)
         return err;
 
-    // ---- Phase 7: set initial conservative gains ----------------
+    // ---- Phase 7: set initial conservative gains via the profile -
     // ---- Phase 8: apply the default speaker profile and EQ ------
     err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
     if (err != ESP_OK)
@@ -514,11 +516,11 @@ void tlv320dac3100_set_volume(uint8_t level)
 
     s_volume = level;
     s_volume_db = vol_db_table[level];
-    s_volume_reg = vol_table[level];
+    s_digital_volume_reg = vol_table[level];
     esp_err_t err = write_digital_volume(get_effective_volume_reg());
     if (err == ESP_OK)
     {
-        ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, s_volume_reg);
+        ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, s_digital_volume_reg);
     }
     else
     {
@@ -585,7 +587,7 @@ esp_err_t tlv320dac3100_set_volume_db(float db)
     db = clamp_volume_db(db);
 
     s_volume_db = db;
-    s_volume_reg = db_to_reg(db);
+    s_digital_volume_reg = db_to_reg(db);
     s_volume = db_to_level(db);
 
     esp_err_t err = write_digital_volume(get_effective_volume_reg());
