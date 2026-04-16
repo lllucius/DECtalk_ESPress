@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2025 Leland Lucius
+
+# ESP32-C6-specific defaults.  Applied automatically by ESP-IDF when
+# the build target is esp32c6.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+CONFIG_TINYUSB_CDC_ENABLED=n
