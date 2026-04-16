@@ -239,7 +239,8 @@ static uint8_t db_to_reg(float db)
     else if (db > TLV320_MAX_VOLUME_DB)
         db = TLV320_MAX_VOLUME_DB;
 
-    int steps = (int)((-db * 2.0f) + 0.5f);
+    float attenuation_db = -db;
+    int steps = (int)((attenuation_db * 2.0f) + 0.5f);
     return (uint8_t)((int8_t)(-steps));
 }
 
@@ -270,6 +271,11 @@ static esp_err_t write_digital_volume(uint8_t reg_val)
     if (err != ESP_OK)
         return err;
     return write_reg(0x00, REG_DAC_RVOL, reg_val);
+}
+
+static uint8_t get_effective_volume_reg(void)
+{
+    return s_muted ? TLV320_MUTED_REG_VALUE : s_volume_reg;
 }
 
 static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
@@ -479,12 +485,18 @@ void tlv320dac3100_poll_headset(void)
     if (hp_detected && !s_hp_active)
     {
         ESP_LOGI(TAG, "Headphone inserted - switching to headphone profile");
-        tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
+        err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
+        if (err != ESP_OK)
+            ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
+                     esp_err_to_name(err));
     }
     else if (!hp_detected && s_hp_active)
     {
         ESP_LOGI(TAG, "Headphone removed - switching to speaker profile");
-        tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+        err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+        if (err != ESP_OK)
+            ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
+                     esp_err_to_name(err));
     }
 }
 
@@ -497,8 +509,16 @@ void tlv320dac3100_set_volume(uint8_t level)
     s_volume = level;
     s_volume_db = vol_db_table[level];
     s_volume_reg = vol_table[level];
-    (void)write_digital_volume(s_muted ? TLV320_MUTED_REG_VALUE : s_volume_reg);
-    ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, s_volume_reg);
+    esp_err_t err = write_digital_volume(get_effective_volume_reg());
+    if (err == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, s_volume_reg);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to set volume level %u: %s",
+                 level, esp_err_to_name(err));
+    }
 }
 
 
@@ -565,8 +585,7 @@ esp_err_t tlv320dac3100_set_volume_db(float db)
     s_volume_reg = db_to_reg(db);
     s_volume = db_to_level(db);
 
-    uint8_t reg_val = s_muted ? TLV320_MUTED_REG_VALUE : s_volume_reg;
-    esp_err_t err = write_digital_volume(reg_val);
+    esp_err_t err = write_digital_volume(get_effective_volume_reg());
     if (err == ESP_OK)
     {
         ESP_LOGI(TAG, "Volume set to %.1f dB", db);
@@ -581,5 +600,5 @@ esp_err_t tlv320dac3100_mute(bool enable)
         return ESP_ERR_INVALID_STATE;
 
     s_muted = enable;
-    return write_digital_volume(enable ? TLV320_MUTED_REG_VALUE : s_volume_reg);
+    return write_digital_volume(get_effective_volume_reg());
 }
