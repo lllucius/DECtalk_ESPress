@@ -237,7 +237,7 @@
 <li><strong>ESPress serial protocol</strong> — drop-in replacement for a real DECtalk Express: plain-ASCII text input, ETX flush, ENQ status query, SO/SI pause/resume, DLE command sequences, XON/XOFF flow control</li>
 <li><strong>Native USB host transport</strong> — ESP32-S3 uses TinyUSB CDC-ACM and ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial (COM / ttyACM) ports to the host; no external UART adapter needed</li>
 <li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
-<li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, sample rate, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
+<li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
 <li><strong>Python host tools</strong> — a serial API module (<code>dectalk_serial.py</code>) and GUI applications for controlling the device from a PC</li>
 <li><strong>Memory diagnostics</strong> — optional runtime task that logs per-task stack high-water marks and heap fragmentation statistics</li>
 <li><strong>Full DECtalk speech synthesis</strong> — provided by the <a href="components/dectalk/README.html">DECtalk component</a>, supporting six languages and three dictionary storage modes</li>
@@ -513,7 +513,7 @@
 <tbody>
 <tr class="odd">
 <td><em>Audio output</em></td>
-<td>Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), sample rate (8000–48000 Hz, default 11025)</td>
+<td>Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100); sample rate is hardcoded at 11.025 kHz</td>
 </tr>
 <tr class="even">
 <td><em>Audio output → Advanced audio tuning</em></td>
@@ -552,7 +552,7 @@
 </tr>
 <tr class="even">
 <td><strong>Garbled audio</strong></td>
-<td>I2S pin config matches wiring; sample rate appropriate for DAC</td>
+<td>I2S pin config matches wiring; attached DAC supports 11.025 kHz I2S audio</td>
 </tr>
 <tr class="odd">
 <td><strong>Build fails</strong></td>
