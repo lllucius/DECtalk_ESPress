@@ -122,6 +122,27 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_HEADSET_POLL_US      500000ULL
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
+#define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
+#define TLV320_STARTUP_VOLUME_DB    \
+    ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 1) ? -32.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 2) ? -28.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 3) ? -24.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 4) ? -20.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 5) ? -16.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 6) ? -12.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 7) ? -8.0f : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 8) ? -4.0f : 0.0f)
+#define TLV320_STARTUP_VOLUME_REG   \
+    ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? 0x81 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 1) ? 0xC0 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 2) ? 0xC8 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 3) ? 0xD0 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 4) ? 0xD8 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 5) ? 0xE0 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 6) ? 0xE8 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 7) ? 0xF0 : \
+    (TLV320_STARTUP_VOLUME_LEVEL == 8) ? 0xF8 : 0x00)
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -240,9 +261,9 @@ static i2c_master_dev_handle_t s_dev;
 static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active; // true when headphone output is active
 static bool s_headset_present;
-static uint8_t s_volume = 0;
-static float s_volume_db = 0.0f;
-static uint8_t s_digital_volume_reg = TLV320_MUTED_REG_VALUE;
+static uint8_t s_volume = TLV320_STARTUP_VOLUME_LEVEL;
+static float s_volume_db = TLV320_STARTUP_VOLUME_DB;
+static uint8_t s_digital_volume_reg = TLV320_STARTUP_VOLUME_REG;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
@@ -717,7 +738,10 @@ static esp_err_t tlv320_service_interrupts(void)
         ESP_LOGE(TAG, "DAC overflow detected (flags=0x%02X)", overflow_flags);
     }
 
-    if ((interrupt_flags & TLV320_IRQ_HEADSET) != 0 || tlv320_headset_present_from_reg(headset_reg) != s_headset_present)
+    bool headset_status_changed =
+        tlv320_headset_present_from_reg(headset_reg) != s_headset_present;
+
+    if ((interrupt_flags & TLV320_IRQ_HEADSET) != 0 || headset_status_changed)
     {
         err = tlv320_handle_headset_status(headset_reg,
                                            (interrupt_flags & TLV320_IRQ_HEADSET) != 0);
@@ -804,18 +828,18 @@ static esp_err_t tlv320_start_event_handling(void)
         if (!s_gpio_isr_service_installed)
         {
             err = gpio_install_isr_service(0);
+            // ESP_ERR_INVALID_STATE is acceptable here because the shared GPIO
+            // ISR service may already be installed by another component.
             if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
             {
                 return err;
             }
-
-            // Another component may have installed the shared GPIO ISR service
-            // already; that is still a usable state for adding our handler.
             s_gpio_isr_service_installed = true;
         }
 
-        // First-time init may not have an existing handler to remove yet.
         err = gpio_isr_handler_remove(irq_gpio);
+        // ESP_ERR_NOT_FOUND is acceptable on first init before our handler
+        // has been registered on this GPIO.
         if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
         {
             return err;
