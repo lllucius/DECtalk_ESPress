@@ -587,7 +587,7 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
-static esp_err_t tlv320_apply_gain_defaults(bool apply_digital_volume_default)
+static esp_err_t tlv320_apply_gain_defaults(bool apply_startup_volume)
 {
     static const reg_val_t analog_gain_cfg[] =
     {
@@ -604,7 +604,7 @@ static esp_err_t tlv320_apply_gain_defaults(bool apply_digital_volume_default)
         return err;
     }
 
-    if (!apply_digital_volume_default)
+    if (!apply_startup_volume)
     {
         return ESP_OK;
     }

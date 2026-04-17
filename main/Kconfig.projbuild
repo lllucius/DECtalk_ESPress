@@ -116,17 +116,14 @@ menu "DECtalk ESPress Firmware"
             config DECTALK_TLV320_STARTUP_VOLUME
                 int "Startup digital volume"
                 range 0 9
-                default 6
+                default 5
                 help
                     Startup digital volume level applied once during codec
                     initialization (0 = near mute, 9 = 0 dB).
 
-                    The default is a conservative startup level and is set to 6
-                    because it more closely matches the driver's previous
-                    startup gain (about -10 dB).
-
-                    Fine-grained dB, analog gain, EQ, DSP, and register-level
-                    tuning are intentionally not exposed yet.
+                    The default is a conservative startup level.  Fine-grained
+                    dB, analog gain, EQ, DSP, and register-level tuning are
+                    intentionally not exposed yet.
         endmenu
 
         menu "Advanced audio tuning"
