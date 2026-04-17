@@ -240,16 +240,16 @@ static i2c_master_dev_handle_t s_dev;
 static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active; // true when headphone output is active
 static bool s_headset_present;
-static uint8_t s_volume;
-static float s_volume_db;
-static uint8_t s_digital_volume_reg;
+static uint8_t s_volume = 0;
+static float s_volume_db = 0.0f;
+static uint8_t s_digital_volume_reg = TLV320_MUTED_REG_VALUE;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
-static QueueHandle_t s_event_queue;
-static TaskHandle_t s_event_task;
-static esp_timer_handle_t s_poll_timer;
-static bool s_gpio_isr_service_installed;
+static QueueHandle_t s_event_queue = NULL;
+static TaskHandle_t s_event_task = NULL;
+static esp_timer_handle_t s_poll_timer = NULL;
+static bool s_gpio_isr_service_installed = false;
 
 
 static tlv320_profile_t tlv320_get_default_profile(void)
@@ -667,8 +667,6 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
                      esp_err_to_name(err));
         }
     }
-#else
-    (void)headset_present;
 #endif
 
     return err;
@@ -743,7 +741,11 @@ static void tlv320_codec_event_task(void *arg)
 
     while (xQueueReceive(s_event_queue, &event, portMAX_DELAY) == pdTRUE)
     {
-        (void)event;
+        if ((event & (TLV320_EVENT_IRQ | TLV320_EVENT_POLL)) == 0)
+        {
+            continue;
+        }
+
         if (s_dev == NULL)
         {
             continue;
@@ -784,8 +786,9 @@ static esp_err_t tlv320_start_event_handling(void)
 
     if (CODEC_INT_GPIO >= 0)
     {
+        int irq_gpio = CODEC_INT_GPIO;
         gpio_config_t irq_cfg = {
-            .pin_bit_mask = 1ULL << CODEC_INT_GPIO,
+            .pin_bit_mask = 1ULL << irq_gpio,
             .mode = GPIO_MODE_INPUT,
             .pull_up_en = GPIO_PULLUP_ENABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -805,15 +808,19 @@ static esp_err_t tlv320_start_event_handling(void)
             {
                 return err;
             }
+
+            // Another component may have installed the shared GPIO ISR service
+            // already; that is still a usable state for adding our handler.
             s_gpio_isr_service_installed = true;
         }
 
-        err = gpio_isr_handler_remove(CODEC_INT_GPIO);
+        // First-time init may not have an existing handler to remove yet.
+        err = gpio_isr_handler_remove(irq_gpio);
         if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
         {
             return err;
         }
-        err = gpio_isr_handler_add(CODEC_INT_GPIO, tlv320_codec_gpio_isr, NULL);
+        err = gpio_isr_handler_add(irq_gpio, tlv320_codec_gpio_isr, NULL);
         if (err != ESP_OK)
         {
             return err;
@@ -835,7 +842,11 @@ static esp_err_t tlv320_start_event_handling(void)
 
     if (s_poll_timer != NULL && !esp_timer_is_active(s_poll_timer))
     {
-        return esp_timer_start_periodic(s_poll_timer, TLV320_HEADSET_POLL_US);
+        esp_err_t err = esp_timer_start_periodic(s_poll_timer, TLV320_HEADSET_POLL_US);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
     }
 
     return ESP_OK;
