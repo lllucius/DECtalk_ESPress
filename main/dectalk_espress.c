@@ -1185,8 +1185,8 @@ void app_main(void)
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
-    gpio_config(&led_cfg);
-    gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0);
+    ESP_ERROR_CHECK(gpio_config(&led_cfg));
+    ESP_ERROR_CHECK(gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0));
 #endif
 
     // Initialize the I2S audio output
