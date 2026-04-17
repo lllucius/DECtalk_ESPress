@@ -704,6 +704,9 @@ static esp_err_t tlv320_service_interrupts(void)
         return err;
     }
 
+    // Read the current interrupt-status mirror after the sticky flags so the
+    // deferred handler follows the codec's read-to-observe register flow even
+    // when only the sticky flags drive the software decisions today.
     (void)interrupt_status;
 
     if ((interrupt_flags & (TLV320_IRQ_SHORT_HPL | TLV320_IRQ_SHORT_HPR)) != 0)
@@ -802,10 +805,7 @@ static esp_err_t tlv320_start_event_handling(void)
             {
                 return err;
             }
-            if (err == ESP_OK || err == ESP_ERR_INVALID_STATE)
-            {
-                s_gpio_isr_service_installed = true;
-            }
+            s_gpio_isr_service_installed = true;
         }
 
         err = gpio_isr_handler_remove(CODEC_INT_GPIO);
