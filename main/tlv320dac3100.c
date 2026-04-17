@@ -420,6 +420,8 @@ static esp_err_t tlv320_codec_hardware_reset(void)
         return err;
     }
 
+    // /RESET is active low: hold the line inactive-high, pulse it low,
+    // then return it high before I2C traffic begins.
     err = gpio_set_level(CODEC_RESET_GPIO, 1);
     if (err != ESP_OK)
     {
@@ -800,10 +802,17 @@ static esp_err_t tlv320_start_event_handling(void)
             {
                 return err;
             }
-            s_gpio_isr_service_installed = true;
+            if (err == ESP_OK || err == ESP_ERR_INVALID_STATE)
+            {
+                s_gpio_isr_service_installed = true;
+            }
         }
 
-        gpio_isr_handler_remove(CODEC_INT_GPIO);
+        err = gpio_isr_handler_remove(CODEC_INT_GPIO);
+        if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
+        {
+            return err;
+        }
         err = gpio_isr_handler_add(CODEC_INT_GPIO, tlv320_codec_gpio_isr, NULL);
         if (err != ESP_OK)
         {
@@ -1189,7 +1198,7 @@ esp_err_t tlv320dac3100_init(void)
         }
     }
 
-    if (CODEC_INT_GPIO >= 0 || tlv320_headset_events_enabled())
+    if (tlv320_headset_events_enabled())
     {
         err = tlv320_start_event_handling();
         if (err != ESP_OK)
