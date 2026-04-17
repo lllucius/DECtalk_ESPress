@@ -208,7 +208,7 @@ static tlv320_profile_t tlv320_get_default_profile(void)
 
 static esp_err_t write_reg_raw(i2c_master_dev_handle_t dev,
                                uint8_t reg,
-                               uint8_t val)
+                                uint8_t val)
 {
     uint8_t buf[2] = {reg, val};
     return i2c_master_transmit(dev, buf, sizeof(buf), -1);
