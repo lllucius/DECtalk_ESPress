@@ -4,6 +4,8 @@
 set(SRCS
     "dectalk_espress.c"
     "diag_mem.c"
+    "custom_commands.c"
+    "custom_actions.c"
 )
 
 set(REQUIRES
@@ -12,6 +14,7 @@ set(REQUIRES
     pthread
     esp_driver_i2c
     esp_driver_i2s
+    esp_driver_gpio
     esp_timer
 )
 

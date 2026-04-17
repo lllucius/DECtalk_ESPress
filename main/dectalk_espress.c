@@ -25,6 +25,9 @@
 #include "ttsapi.h"
 #include "dectalk_espress.h"
 #include "diag_mem.h"
+#include "espress_jobs.h"
+#include "custom_commands.h"
+#include "custom_actions.h"
 
 // Select the serial transport layer based on the target chip.
 #if CONFIG_IDF_TARGET_ESP32C6
@@ -94,7 +97,6 @@ static i2s_chan_handle_t audio_handle;
 
 #define ESPRESS_TEXT_BUFSIZE  CONFIG_DECTALK_TEXT_BUFFER_SIZE   // Text accumulation buffer size
 #define ESPRESS_QUEUE_SIZE    CONFIG_DECTALK_SPEECH_QUEUE_SIZE  // Speech queue depth
-#define ESPRESS_FLUSH_MARKER  ((char *)1)                       // Sentinel for flush signal
 #define ESPRESS_RX_TIMEOUT_MS CONFIG_DECTALK_RX_TIMEOUT_MS      // CDC read timeout in ms
 
 // Flow control thresholds (fraction of text buffer size)
@@ -135,6 +137,12 @@ typedef struct
     // Text accumulation
     char text_buf[ESPRESS_TEXT_BUFSIZE];
     int text_pos;
+
+    // Bracket-colon state: tracks whether the text buffer currently
+    // contains an unclosed [: sequence.  While in_bracket_cmd is set,
+    // the idle flush timer is suppressed so that a custom or native
+    // DECtalk command is not split across separate queue entries.
+    int in_bracket_cmd; // 1 if we have seen [: without a closing ]
 
     // Speech state
     volatile int paused;   // Speech output is paused (SO/SI)
@@ -383,13 +391,23 @@ static void espress_check_flow_control(void)
 // Send a flush signal to the speech task.
 static void espress_send_flush(void)
 {
-    char *flush_marker = ESPRESS_FLUSH_MARKER;
-    xQueueSend(speech_queue, &flush_marker, pdMS_TO_TICKS(50));
+    espress_job_t *job = espress_job_alloc_flush();
+    if (job)
+    {
+        xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50));
+    }
 }
 
 // ----------------------------------------------------------------
 // Flush the text buffer to the speech queue.
-// Allocates a copy of the buffered text and queues it for synthesis.
+//
+// Scans the buffered text for [:fw ...] custom command tokens and
+// splits it into an ordered sequence of SPEAK_TEXT and ACTION jobs.
+// Native DECtalk inline commands ([:nb], [:ra 200], etc.) are left
+// in the text and reach TextToSpeechSpeak() unchanged.
+//
+// If custom commands are disabled at build time, the entire buffer
+// is queued as a single SPEAK_TEXT job (no scanning overhead).
 // ----------------------------------------------------------------
 static void espress_flush_text_to_queue(void)
 {
@@ -403,24 +421,80 @@ static void espress_flush_text_to_queue(void)
              estate.text_pos,
              estate.text_buf);
     ESP_LOG_BUFFER_HEXDUMP(TAG, estate.text_buf, estate.text_pos, ESP_LOG_INFO);
-    char *text = strdup(estate.text_buf);
-    if (text)
+
+    // Tokenise the text into jobs
+    espress_job_list_t jobs;
+    custom_commands_tokenize(estate.text_buf, &jobs);
+
+    // Prepend session voice/rate prefixes to the first SPEAK_TEXT job
+    // that follows (or all of them for simplicity — the prefix is
+    // idempotent because DECtalk applies it immediately).
+    const char *vp = custom_action_get_voice_prefix();
+    const char *rp = custom_action_get_rate_prefix();
+
+    for (int i = 0; i < jobs.count; i++)
     {
-        if (xQueueSend(speech_queue, &text, pdMS_TO_TICKS(500)) != pdTRUE)
+        espress_job_t *job = jobs.jobs[i];
+
+        // Prepend session prefixes to text jobs
+        if (job->type == ESPRESS_JOB_SPEAK_TEXT && (vp || rp))
         {
-            ESP_LOGW(TAG, "Speech queue full, dropped: %.30s%s",
-                     text,
-                     strlen(text) > 30 ? "..." : "");
-            free(text);
+            int vp_len = vp ? (int)strlen(vp) : 0;
+            int rp_len = rp ? (int)strlen(rp) : 0;
+            int txt_len = (int)strlen(job->text);
+            int new_len = vp_len + rp_len + txt_len;
+            char *new_text = malloc((size_t)new_len + 1);
+            if (new_text)
+            {
+                int pos = 0;
+                if (vp)
+                {
+                    memcpy(new_text + pos, vp, (size_t)vp_len);
+                    pos += vp_len;
+                }
+                if (rp)
+                {
+                    memcpy(new_text + pos, rp, (size_t)rp_len);
+                    pos += rp_len;
+                }
+                memcpy(new_text + pos, job->text, (size_t)txt_len + 1);
+                free(job->text);
+                job->text = new_text;
+            }
+        }
+
+        if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(500)) != pdTRUE)
+        {
+            if (job->type == ESPRESS_JOB_SPEAK_TEXT)
+            {
+                ESP_LOGW(TAG, "Speech queue full, dropped: %.30s%s",
+                         job->text,
+                         strlen(job->text) > 30 ? "..." : "");
+            }
+            else
+            {
+                ESP_LOGW(TAG, "Speech queue full, dropped job type %d",
+                         job->type);
+            }
+            espress_job_free(job);
         }
     }
+
+    // Free the list container (jobs were moved to the queue)
+    free(jobs.jobs);
+    jobs.jobs = NULL;
+    jobs.count = 0;
+
     estate.text_pos = 0;
+    estate.in_bracket_cmd = 0;
     espress_check_flow_control();
 }
 
 // ----------------------------------------------------------------
 // Add a text character to the accumulation buffer.
 // Triggers speech on clause boundaries (CR, LF) or when buffer is nearly full.
+// Tracks [: ... ] sequences so the idle flush timer does not split
+// a custom or native DECtalk command across separate queue entries.
 // ----------------------------------------------------------------
 static void espress_add_char(uint8_t c)
 {
@@ -430,10 +504,26 @@ static void espress_add_char(uint8_t c)
     }
 
     estate.text_buf[estate.text_pos++] = (char)c;
+
+    // Track bracket-colon state.  When we see '[' followed by ':'
+    // we set in_bracket_cmd so the idle flush is suppressed.
+    // A closing ']' clears it.
+    if (c == ']')
+    {
+        estate.in_bracket_cmd = 0;
+    }
+    else if (c == ':' && estate.text_pos >= 2 &&
+             estate.text_buf[estate.text_pos - 2] == '[')
+    {
+        estate.in_bracket_cmd = 1;
+    }
+
     espress_check_flow_control();
 
-    // Flush on clause boundaries
-    if (c == '\r' || c == '\n')
+    // Flush on clause boundaries, but not while inside a bracket
+    // command — that would split the command across queue entries
+    // and break parsing.
+    if ((c == '\r' || c == '\n') && !estate.in_bracket_cmd)
     {
         espress_flush_text_to_queue();
     }
@@ -482,10 +572,10 @@ static void espress_process_dle(void)
         estate.text_pos = 0;
         // Queue the single character for speech
         char single[2] = {(char)ch, '\0'};
-        char *text = strdup(single);
-        if (text)
+        espress_job_t *job = espress_job_alloc_text(single, 1);
+        if (job)
         {
-            xQueueSend(speech_queue, &text, pdMS_TO_TICKS(50));
+            xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50));
         }
     }
     else if (type_byte == DLE_PREFIX_SYNC)
@@ -619,8 +709,9 @@ static void espress_dle_byte(uint8_t c)
 // ----------------------------------------------------------------
 static void espress_handle_etx(void)
 {
-    // Discard any buffered text
+    // Discard any buffered text and reset bracket tracking
     estate.text_pos = 0;
+    estate.in_bracket_cmd = 0;
 
     // Immediately interrupt any in-progress synthesis.
     // TextToSpeechReset() halts the speech pipeline, which is safe
@@ -749,29 +840,39 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
 // -- Speech Synthesis Task -------------------------------------------
 
 // ----------------------------------------------------------------
-// Pthread that dequeues text and performs speech synthesis.
-// Runs on a separate thread to keep the protocol handler responsive.
+// Pthread that dequeues jobs and performs speech synthesis or
+// firmware actions.  Runs on a separate thread to keep the
+// protocol handler responsive.
+//
+// Job types:
+//   ESPRESS_JOB_SPEAK_TEXT – pass text to TextToSpeechSpeak()
+//   ESPRESS_JOB_ACTION     – execute firmware action callback
+//   ESPRESS_JOB_FLUSH      – cancel speech, drain queue
 // ----------------------------------------------------------------
 static void *speech_task(void *arg)
 {
     ESP_LOGI(TAG, "Speech task started");
 
-    // Create the speech queue
-    speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(char *));
+    // Create the speech queue (holds espress_job_t pointers)
+    speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(espress_job_t *));
+
+    // Initialise the custom command subsystem
+    custom_commands_init();
 
     while (1)
     {
-        char *text;
+        espress_job_t *job;
 
-        if (xQueueReceive(speech_queue, &text, portMAX_DELAY))
+        if (xQueueReceive(speech_queue, &job, portMAX_DELAY))
         {
             char chunk_count = 0;
 
-            if (text == ESPRESS_FLUSH_MARKER)
+            if (job->type == ESPRESS_JOB_FLUSH)
             {
                 // Flush: cancel any ongoing synthesis
-                ESP_LOGI(TAG, "Speech task: FLUSH marker received, "
+                ESP_LOGI(TAG, "Speech task: FLUSH job received, "
                          "resetting TTS and clearing I2S DMA");
+                espress_job_free(job);
                 TextToSpeechReset(espress_tts_handle, FALSE);
 
                 // Clear the I2S DMA buffer so that any audio already
@@ -781,20 +882,25 @@ static void *speech_task(void *arg)
                 i2s_channel_disable(audio_handle);
                 i2s_channel_enable(audio_handle);
 
-                // Drain any remaining text entries that were queued
-                // before the flush marker.  Without this, stale text
-                // would be spoken after the flush completes.
+                // Drain any remaining jobs that were queued before the
+                // flush.  Without this, stale text or actions would
+                // execute after the flush completes.
                 {
-                    char *stale;
+                    espress_job_t *stale;
                     int drained = 0;
                     while (xQueueReceive(speech_queue, &stale, 0) == pdTRUE)
                     {
-                        if (stale != ESPRESS_FLUSH_MARKER)
+                        if (stale->type == ESPRESS_JOB_SPEAK_TEXT)
                         {
                             ESP_LOGI(TAG, "Speech task: drained stale text: %.30s%s",
-                                     stale, strlen(stale) > 30 ? "..." : "");
-                            free(stale);
+                                     stale->text,
+                                     strlen(stale->text) > 30 ? "..." : "");
                         }
+                        else if (stale->type == ESPRESS_JOB_ACTION)
+                        {
+                            ESP_LOGI(TAG, "Speech task: drained stale action");
+                        }
+                        espress_job_free(stale);
                         drained++;
                     }
                     if (drained > 0)
@@ -811,13 +917,28 @@ static void *speech_task(void *arg)
                 // only sends status in response to ENQ from the host.
                 // XON + SOH were already sent by the ETX handler.
                 espress_check_flow_control();
-                ESP_LOGI(TAG, "Speech task: flush complete, ready for new text");
+                ESP_LOGI(TAG, "Speech task: flush complete, ready for new jobs");
                 continue;
             }
 
+            if (job->type == ESPRESS_JOB_ACTION)
+            {
+                // Execute firmware action in order
+                ESP_LOGI(TAG, "Speech task: executing ACTION job");
+                if (job->action.execute)
+                {
+                    job->action.execute(job->action.ctx);
+                }
+                espress_job_free(job);
+                continue;
+            }
+
+            // ESPRESS_JOB_SPEAK_TEXT: synthesise text
             chunk_count++;
             estate.speaking = 1;
             estate.status |= STAT_tr_char;
+
+            char *text = job->text;
 
             ESP_LOGI(TAG, "Speech task: === CHUNK #%d START ===", chunk_count);
             ESP_LOGI(TAG, "Speech task: text (%d bytes): \"%.60s%s\"",
@@ -852,7 +973,7 @@ static void *speech_task(void *arg)
             {
                 ESP_LOGW(TAG, "Speech task: text empty after sanitisation, "
                          "skipping synthesis");
-                free(text);
+                espress_job_free(job);
                 estate.speaking = 0;
                 estate.status &= ~STAT_tr_char;
                 estate.status |= STAT_rr_char | STAT_cmd_ready;
@@ -878,7 +999,7 @@ static void *speech_task(void *arg)
                      "audio_callbacks=%d, total_samples=%d",
                      audio_cb_call_count,
                      audio_cb_total_samples);
-            free(text);
+            espress_job_free(job);
 
             estate.speaking = 0;
             estate.status &= ~STAT_tr_char;
@@ -1065,8 +1186,9 @@ static void *espress_task(void *arg)
             // Reset DLE state machine
             estate.dle_state = 0;
 
-            // Reset text buffer and flush-sequence tracker
+            // Reset text buffer, flush-sequence tracker, and bracket state
             estate.text_pos = 0;
+            estate.in_bracket_cmd = 0;
             pending_bracket_etx = 0;
 
             // Reset flow control
@@ -1078,6 +1200,11 @@ static void *espress_task(void *arg)
 
             // Restore clean status
             estate.status = STAT_rr_char | STAT_cmd_ready;
+
+            // Reset custom command session state if configured
+#if defined(CONFIG_CUSTOM_CMD_ENABLE) && defined(CONFIG_CUSTOM_CMD_RESET_ON_RECONNECT)
+            custom_commands_reset_session();
+#endif
 
             // Signal readiness to the new host
             ESP_LOGI(TAG, "TX XON (device ready after reconnect)");
@@ -1093,11 +1220,15 @@ static void *espress_task(void *arg)
         }
         else
         {
-            // No data available - check for idle text flush
+            // No data available - check for idle text flush.
+            // Suppress idle flush while inside a [: ... ] sequence so
+            // that custom or native DECtalk commands are not split
+            // across separate queue entries.
             if (estate.text_pos > 0 || pending_bracket_etx > 0)
             {
                 TickType_t elapsed = xTaskGetTickCount() - last_char_time;
-                if (elapsed >= pdMS_TO_TICKS(TEXT_IDLE_TIMEOUT_MS))
+                if (elapsed >= pdMS_TO_TICKS(TEXT_IDLE_TIMEOUT_MS) &&
+                    !estate.in_bracket_cmd)
                 {
                     // Release any held ']' from the flush-sequence
                     // detector before flushing.  Without this, a DECtalk
