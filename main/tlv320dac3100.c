@@ -270,7 +270,8 @@ static bool s_apply_profile_volume_default;
 static QueueHandle_t s_event_queue = NULL;
 static TaskHandle_t s_event_task = NULL;
 static esp_timer_handle_t s_poll_timer = NULL;
-static bool s_gpio_isr_service_installed = false;
+static bool s_irq_handler_registered = false;
+static int s_irq_gpio = -1;
 
 
 static tlv320_profile_t tlv320_get_default_profile(void)
@@ -649,6 +650,7 @@ static void tlv320_release_i2c_resources(void)
     }
 
     s_current_page = TLV320_INVALID_PAGE;
+    s_headset_present = false;
 }
 
 static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_irq_seen)
@@ -808,6 +810,17 @@ static esp_err_t tlv320_start_event_handling(void)
         }
     }
 
+    if (s_irq_handler_registered && (CODEC_INT_GPIO < 0 || s_irq_gpio != CODEC_INT_GPIO) && s_irq_gpio >= 0)
+    {
+        esp_err_t err = gpio_isr_handler_remove(s_irq_gpio);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+        s_irq_handler_registered = false;
+        s_irq_gpio = -1;
+    }
+
     if (CODEC_INT_GPIO >= 0)
     {
         int irq_gpio = CODEC_INT_GPIO;
@@ -825,30 +838,30 @@ static esp_err_t tlv320_start_event_handling(void)
             return err;
         }
 
-        if (!s_gpio_isr_service_installed)
-        {
-            err = gpio_install_isr_service(0);
-            // ESP_ERR_INVALID_STATE is acceptable here because the shared GPIO
-            // ISR service may already be installed by another component.
-            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
-            {
-                return err;
-            }
-            s_gpio_isr_service_installed = true;
-        }
-
-        err = gpio_isr_handler_remove(irq_gpio);
-        // ESP_ERR_NOT_FOUND is acceptable on first init before our handler
-        // has been registered on this GPIO.
-        if (err != ESP_OK && err != ESP_ERR_NOT_FOUND)
+        err = gpio_install_isr_service(0);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
         {
             return err;
         }
+
+        if (s_irq_handler_registered && s_irq_gpio >= 0)
+        {
+            err = gpio_isr_handler_remove(s_irq_gpio);
+            if (err != ESP_OK)
+            {
+                return err;
+            }
+            s_irq_handler_registered = false;
+            s_irq_gpio = -1;
+        }
+
         err = gpio_isr_handler_add(irq_gpio, tlv320_codec_gpio_isr, NULL);
         if (err != ESP_OK)
         {
             return err;
         }
+        s_irq_handler_registered = true;
+        s_irq_gpio = irq_gpio;
     }
 
     if (tlv320_headset_events_enabled() && s_poll_timer == NULL)
