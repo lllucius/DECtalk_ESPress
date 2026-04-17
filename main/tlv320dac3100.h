@@ -19,8 +19,8 @@ typedef enum
  *
  * Performs a software reset and configures the codec for I2S slave
  * operation with CODEC_CLKIN = BCLK (no PLL, no MCLK).  Startup
- * profile, startup volume, and optional headset auto-switching are
- * taken from Kconfig.
+ * profile, startup volume, optional hardware reset, and optional
+ * deferred codec event handling are taken from Kconfig.
  *
  * Must be called before I2S streaming begins so that the codec is
  * ready to accept audio data.
@@ -72,8 +72,8 @@ esp_err_t tlv320dac3100_mute(bool enable);
  * and the speaker is re-enabled. This may attempt profile switching
  * internally.
  *
- * Call this function periodically (e.g. every 500 ms) from a timer
- * or background task.
+ * The driver also uses this internally for its deferred event path
+ * when headset auto-switching or codec IRQ handling is enabled.
  *
  * @return ESP_OK on success, or an error code on failure.
  */

@@ -114,7 +114,7 @@ FMT→GND.
 output terminals.
 
 **TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 requires
-two extra connections beyond the basic I2S pins:
+two extra I2C connections beyond the basic I2S pins:
 
 | ESP32-S3 GPIO | TLV320DAC3100 Pin | Function |
 |---------------|-------------------|----------|
@@ -124,7 +124,7 @@ two extra connections beyond the basic I2S pins:
 
 All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
 Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
-Audio DAC to expose the MCLK and I2C pin settings.
+Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.
 
 ## Quick Start
 
@@ -268,7 +268,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100); sample rate is hardcoded at 11.025 kHz |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |

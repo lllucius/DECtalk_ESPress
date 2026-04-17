@@ -45,7 +45,6 @@
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
-#include "esp_timer.h"
 #endif
 
 static const char *TAG = "DECtalk ESPress";
@@ -1229,21 +1228,6 @@ void app_main(void)
     i2s_channel_enable(audio_handle);
 
     ESP_LOGI(TAG, "I2S initialized at %d Hz", SAMPLE_RATE);
-
-#if CONFIG_DECTALK_DAC_TLV320DAC3100 && CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    // Start a periodic timer to poll the TLV320DAC3100 headset
-    // detection status and switch between speaker / headphone output.
-    {
-        const esp_timer_create_args_t hp_timer_args =
-        {
-            .callback = (esp_timer_cb_t)tlv320dac3100_poll_headset,
-            .name = "hp_poll",
-        };
-        esp_timer_handle_t hp_timer;
-        ESP_ERROR_CHECK(esp_timer_create(&hp_timer_args, &hp_timer));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(hp_timer, 500000));  // 500 ms
-    }
-#endif
 
     // Retrieve the default pthread configuration
     esp_pthread_cfg_t default_cfg = esp_pthread_get_default_config();

@@ -5,7 +5,8 @@
 //
 // Configures the TI TLV320DAC3100 stereo DAC as an I2S slave with
 // CODEC_CLKIN = BCLK.  No PLL or MCLK is used.  Startup profile,
-// startup volume, and headset auto-switching are controlled by Kconfig.
+// startup volume, optional reset GPIO, and deferred codec event handling
+// are controlled by Kconfig.
 //
 // Register addresses and bit layouts are taken from the
 // TLV320DAC3100 datasheet (SLAS833) and cross-referenced against
@@ -13,9 +14,12 @@
 // ----------------------------------------------------------------
 
 #include "sdkconfig.h"
+#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include <math.h>
 #include <stdint.h>
@@ -26,6 +30,8 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_I2C_ADDR     CONFIG_DECTALK_TLV320_I2C_ADDR
 #define I2C_SDA_IO          CONFIG_DECTALK_I2C_SDA_GPIO
 #define I2C_SCL_IO          CONFIG_DECTALK_I2C_SCL_GPIO
+#define CODEC_INT_GPIO      CONFIG_DECTALK_CODEC_INT_GPIO
+#define CODEC_RESET_GPIO    CONFIG_DECTALK_CODEC_RESET_GPIO
 
 // ---- Page 0 registers -------------------------------------------
 #define REG_PAGE_SELECT     0x00
@@ -36,6 +42,12 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_DOSR_MSB        0x0D    // DOSR upper byte
 #define REG_DOSR_LSB        0x0E    // DOSR lower byte
 #define REG_CODEC_IF        0x1B    // Audio interface control
+#define REG_OVERFLOW_FLAGS  0x27    // DAC overflow flags
+#define REG_DAC_INT_FLAGS   0x2C    // Sticky interrupt flags
+#define REG_DAC_INT_STATUS  0x2E    // Current interrupt status
+#define REG_INT1_CTRL       0x30    // INT1 routing / pulse mode
+#define REG_INT2_CTRL       0x31    // INT2 routing / pulse mode
+#define REG_GPIO1_CTRL      0x33    // GPIO1 control / INT1 output mux
 #define REG_DAC_PRB         0x3C    // DAC processing block
 #define REG_DAC_DATAPATH    0x3F    // DAC data-path setup
 #define REG_DAC_VOL_CTRL    0x40    // DAC volume / mute control
@@ -59,6 +71,33 @@ static const char *TAG = "TLV320DAC3100";
 #define HEADSET_WITHOUT_MIC 0x01    // Headphone (no microphone)
 #define HEADSET_WITH_MIC    0x03    // Headset with microphone
 
+#define TLV320_BIT(n)               ((uint8_t)(1U << (n)))
+#define TLV320_INT_HEADSET          TLV320_BIT(7)
+#define TLV320_INT_BUTTON           TLV320_BIT(6)
+#define TLV320_INT_DRC              TLV320_BIT(5)
+#define TLV320_INT_SHORT_CIRCUIT    TLV320_BIT(3)
+#define TLV320_INT_DAC_OVERFLOW     TLV320_BIT(2)
+#define TLV320_INT_REPEAT           TLV320_BIT(0)
+
+#define TLV320_IRQ_SHORT_HPL        TLV320_BIT(7)
+#define TLV320_IRQ_SHORT_HPR        TLV320_BIT(6)
+#define TLV320_IRQ_BUTTON           TLV320_BIT(5)
+#define TLV320_IRQ_HEADSET          TLV320_BIT(4)
+#define TLV320_IRQ_LEFT_DRC         TLV320_BIT(3)
+#define TLV320_IRQ_RIGHT_DRC        TLV320_BIT(2)
+
+#define TLV320_OVERFLOW_LEFT_DAC    TLV320_BIT(1)
+#define TLV320_OVERFLOW_RIGHT_DAC   TLV320_BIT(0)
+
+#define TLV320_HEADSET_ENABLE        TLV320_BIT(7)
+#define TLV320_HEADSET_DEBOUNCE_64MS (2U << 2)
+#define TLV320_HEADSET_STATUS_SHIFT  5
+#define TLV320_HEADSET_STATUS_MASK   0x03
+
+#define TLV320_GPIO1_MODE_SHIFT     2
+#define TLV320_GPIO1_MODE_DISABLED  (0x0U << TLV320_GPIO1_MODE_SHIFT)
+#define TLV320_GPIO1_MODE_INT1      (0x5U << TLV320_GPIO1_MODE_SHIFT)
+
 // ---- Default runtime settings ------------------------------------
 #define MAX_VOLUME                  TLV320DAC3100_MAX_VOLUME
 #define TLV320_MIN_VOLUME_DB        (-60.0f)
@@ -76,6 +115,13 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_PI                   3.14159265358979323846f
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
+#define TLV320_EVENT_QUEUE_LEN      8
+#define TLV320_EVENT_TASK_STACK     3072
+#define TLV320_EVENT_IRQ            TLV320_BIT(0)
+#define TLV320_EVENT_POLL           TLV320_BIT(1)
+#define TLV320_HEADSET_POLL_US      500000ULL
+#define TLV320_RESET_ASSERT_MS      1
+#define TLV320_RESET_RELEASE_MS     10
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -159,7 +205,13 @@ static const reg_val_t dac_processing_init[] =
 // Page 0 phase: enable headset detection for profile auto-switching.
 static const reg_val_t headset_detect_init[] =
 {
-    {REG_HEADSET_DETECT, 0x88},
+    {REG_HEADSET_DETECT, TLV320_HEADSET_ENABLE | TLV320_HEADSET_DEBOUNCE_64MS},
+};
+
+static const reg_val_t interrupt_routing_init[] =
+{
+    {REG_INT1_CTRL, TLV320_INT_SHORT_CIRCUIT | TLV320_INT_DAC_OVERFLOW | TLV320_INT_REPEAT},
+    {REG_INT2_CTRL, TLV320_INT_HEADSET | TLV320_INT_BUTTON},
 };
 
 // Page 1 phase: route DAC outputs to the analog mixer paths.
@@ -187,12 +239,17 @@ static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active; // true when headphone output is active
-static uint8_t s_volume = DEFAULT_VOLUME;
-static float s_volume_db = TLV320_SPEAKER_DB;
-static uint8_t s_digital_volume_reg = 0xEC;
+static bool s_headset_present;
+static uint8_t s_volume;
+static float s_volume_db;
+static uint8_t s_digital_volume_reg;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
+static QueueHandle_t s_event_queue;
+static TaskHandle_t s_event_task;
+static esp_timer_handle_t s_poll_timer;
+static bool s_gpio_isr_service_installed;
 
 
 static tlv320_profile_t tlv320_get_default_profile(void)
@@ -202,6 +259,54 @@ static tlv320_profile_t tlv320_get_default_profile(void)
 #else
     return TLV320_PROFILE_SPEAKER;
 #endif
+}
+
+static bool tlv320_headset_events_enabled(void)
+{
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+    return true;
+#else
+    return CODEC_INT_GPIO >= 0;
+#endif
+}
+
+static uint8_t tlv320_get_headset_status(uint8_t reg_val)
+{
+    return (uint8_t)((reg_val >> TLV320_HEADSET_STATUS_SHIFT) & TLV320_HEADSET_STATUS_MASK);
+}
+
+static bool tlv320_headset_present_from_reg(uint8_t reg_val)
+{
+    uint8_t status = tlv320_get_headset_status(reg_val);
+
+    return status == HEADSET_WITHOUT_MIC || status == HEADSET_WITH_MIC;
+}
+
+static void IRAM_ATTR tlv320_codec_gpio_isr(void *arg)
+{
+    if (s_event_queue == NULL)
+    {
+        return;
+    }
+
+    uint32_t event = TLV320_EVENT_IRQ;
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    xQueueSendFromISR(s_event_queue, &event, &higher_priority_task_woken);
+    if (higher_priority_task_woken == pdTRUE)
+    {
+        portYIELD_FROM_ISR();
+    }
+}
+
+static void tlv320_codec_poll_timer_cb(void *arg)
+{
+    if (s_event_queue == NULL)
+    {
+        return;
+    }
+
+    uint32_t event = TLV320_EVENT_POLL;
+    (void)xQueueSend(s_event_queue, &event, 0);
 }
 
 
@@ -285,6 +390,54 @@ static esp_err_t write_regs(uint8_t page, const reg_val_t *pairs, size_t count)
             return err;
         }
     }
+
+    return ESP_OK;
+}
+
+static esp_err_t tlv320_gpio1_set_mode(uint8_t mode)
+{
+    return write_reg(0x00, REG_GPIO1_CTRL, mode);
+}
+
+static esp_err_t tlv320_codec_hardware_reset(void)
+{
+    if (CODEC_RESET_GPIO < 0)
+    {
+        return ESP_OK;
+    }
+
+    gpio_config_t reset_cfg = {
+        .pin_bit_mask = 1ULL << CODEC_RESET_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+
+    esp_err_t err = gpio_config(&reset_cfg);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    err = gpio_set_level(CODEC_RESET_GPIO, 1);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_ASSERT_MS));
+    err = gpio_set_level(CODEC_RESET_GPIO, 0);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_ASSERT_MS));
+    err = gpio_set_level(CODEC_RESET_GPIO, 1);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_RELEASE_MS));
 
     return ESP_OK;
 }
@@ -449,6 +602,7 @@ static void tlv320_reset_state(void)
 
     s_current_page = TLV320_INVALID_PAGE;
     s_hp_active = (default_profile == TLV320_PROFILE_HEADPHONE);
+    s_headset_present = false;
     s_volume = CONFIG_DECTALK_TLV320_STARTUP_VOLUME;
     s_volume_db = vol_db_table[CONFIG_DECTALK_TLV320_STARTUP_VOLUME];
     s_digital_volume_reg = vol_table[CONFIG_DECTALK_TLV320_STARTUP_VOLUME];
@@ -472,6 +626,210 @@ static void tlv320_release_i2c_resources(void)
     }
 
     s_current_page = TLV320_INVALID_PAGE;
+}
+
+static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_irq_seen)
+{
+    bool headset_present = tlv320_headset_present_from_reg(headset_reg);
+    esp_err_t err = ESP_OK;
+
+    if (headset_present != s_headset_present)
+    {
+        ESP_LOGI(TAG, "%s",
+                 headset_present
+                    ? "Headset inserted"
+                    : "Headset removed");
+        s_headset_present = headset_present;
+    }
+    else if (!headset_irq_seen)
+    {
+        return ESP_OK;
+    }
+
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+    if (headset_present && !s_hp_active)
+    {
+        err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
+                     esp_err_to_name(err));
+        }
+    }
+    else if (!headset_present && s_hp_active)
+    {
+        err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
+                     esp_err_to_name(err));
+        }
+    }
+#else
+    (void)headset_present;
+#endif
+
+    return err;
+}
+
+static esp_err_t tlv320_service_interrupts(void)
+{
+    uint8_t interrupt_flags = 0;
+    uint8_t interrupt_status = 0;
+    uint8_t overflow_flags = 0;
+    uint8_t headset_reg = 0;
+    esp_err_t err = read_reg(0x00, REG_DAC_INT_FLAGS, &interrupt_flags);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    err = read_reg(0x00, REG_DAC_INT_STATUS, &interrupt_status);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    err = read_reg(0x00, REG_OVERFLOW_FLAGS, &overflow_flags);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    err = read_reg(0x00, REG_HEADSET_DETECT, &headset_reg);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    (void)interrupt_status;
+
+    if ((interrupt_flags & (TLV320_IRQ_SHORT_HPL | TLV320_IRQ_SHORT_HPR)) != 0)
+    {
+        ESP_LOGE(TAG, "Output short circuit detected (flags=0x%02X)", interrupt_flags);
+    }
+
+    if ((overflow_flags & (TLV320_OVERFLOW_LEFT_DAC | TLV320_OVERFLOW_RIGHT_DAC)) != 0)
+    {
+        ESP_LOGE(TAG, "DAC overflow detected (flags=0x%02X)", overflow_flags);
+    }
+
+    if ((interrupt_flags & TLV320_IRQ_HEADSET) != 0 || tlv320_headset_present_from_reg(headset_reg) != s_headset_present)
+    {
+        err = tlv320_handle_headset_status(headset_reg,
+                                           (interrupt_flags & TLV320_IRQ_HEADSET) != 0);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+    }
+
+    if ((interrupt_flags & TLV320_IRQ_BUTTON) != 0)
+    {
+        ESP_LOGI(TAG, "Headset button press detected");
+    }
+
+    return ESP_OK;
+}
+
+static void tlv320_codec_event_task(void *arg)
+{
+    uint32_t event = 0;
+
+    while (xQueueReceive(s_event_queue, &event, portMAX_DELAY) == pdTRUE)
+    {
+        (void)event;
+        if (s_dev == NULL)
+        {
+            continue;
+        }
+
+        esp_err_t err = tlv320_service_interrupts();
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "Codec event handling failed: %s", esp_err_to_name(err));
+        }
+    }
+}
+
+static esp_err_t tlv320_start_event_handling(void)
+{
+    if (s_event_queue == NULL)
+    {
+        s_event_queue = xQueueCreate(TLV320_EVENT_QUEUE_LEN, sizeof(uint32_t));
+        if (s_event_queue == NULL)
+        {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (s_event_task == NULL)
+    {
+        BaseType_t task_ok = xTaskCreate(tlv320_codec_event_task,
+                                         "tlv320_evt",
+                                         TLV320_EVENT_TASK_STACK,
+                                         NULL,
+                                         tskIDLE_PRIORITY + 1,
+                                         &s_event_task);
+        if (task_ok != pdPASS)
+        {
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    if (CODEC_INT_GPIO >= 0)
+    {
+        gpio_config_t irq_cfg = {
+            .pin_bit_mask = 1ULL << CODEC_INT_GPIO,
+            .mode = GPIO_MODE_INPUT,
+            .pull_up_en = GPIO_PULLUP_ENABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_NEGEDGE,
+        };
+
+        esp_err_t err = gpio_config(&irq_cfg);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+
+        if (!s_gpio_isr_service_installed)
+        {
+            err = gpio_install_isr_service(0);
+            if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
+            {
+                return err;
+            }
+            s_gpio_isr_service_installed = true;
+        }
+
+        gpio_isr_handler_remove(CODEC_INT_GPIO);
+        err = gpio_isr_handler_add(CODEC_INT_GPIO, tlv320_codec_gpio_isr, NULL);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+    }
+
+    if (tlv320_headset_events_enabled() && s_poll_timer == NULL)
+    {
+        const esp_timer_create_args_t poll_timer_args = {
+            .callback = tlv320_codec_poll_timer_cb,
+            .name = "tlv320_poll",
+        };
+        esp_err_t err = esp_timer_create(&poll_timer_args, &s_poll_timer);
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+    }
+
+    if (s_poll_timer != NULL && !esp_timer_is_active(s_poll_timer))
+    {
+        return esp_timer_start_periodic(s_poll_timer, TLV320_HEADSET_POLL_US);
+    }
+
+    return ESP_OK;
 }
 
 static esp_err_t write_digital_volume(uint8_t reg_val)
@@ -677,6 +1035,13 @@ esp_err_t tlv320dac3100_init(void)
     tlv320_release_i2c_resources();
     tlv320_reset_state();
 
+    err = tlv320_codec_hardware_reset();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Hardware reset failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
     err = i2c_new_master_bus(&bus_cfg, &s_bus);
     if (err != ESP_OK)
     {
@@ -711,7 +1076,7 @@ esp_err_t tlv320dac3100_init(void)
         ESP_LOGE(TAG, "Software reset failed: %s", esp_err_to_name(err));
         goto init_fail;
     }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_RELEASE_MS));
 
     // The software reset restores the codec's page-select state, so clear
     // the cached page before continuing with normal register programming.
@@ -771,18 +1136,40 @@ esp_err_t tlv320dac3100_init(void)
         goto init_fail;
     }
 
-    // ---- Enable headset detection before profile selection ------
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+    // ---- Phase 7: configure interrupt routing -------------------
     err = write_regs(0x00,
-                     headset_detect_init,
-                     sizeof(headset_detect_init) / sizeof(headset_detect_init[0]));
+                     interrupt_routing_init,
+                     sizeof(interrupt_routing_init) / sizeof(interrupt_routing_init[0]));
     if (err != ESP_OK)
     {
         goto init_fail;
     }
-#endif
 
-    // ---- Phases 7-8: apply the configured startup profile, gains, and EQ --
+    err = tlv320_gpio1_set_mode((CODEC_INT_GPIO >= 0)
+        ? TLV320_GPIO1_MODE_INT1
+        : TLV320_GPIO1_MODE_DISABLED);
+    if (err != ESP_OK)
+    {
+        goto init_fail;
+    }
+    if (CODEC_INT_GPIO >= 0)
+    {
+        ESP_LOGI(TAG, "Codec GPIO1 routed as INT1 on GPIO %d", CODEC_INT_GPIO);
+    }
+
+    // ---- Enable headset detection before profile selection ------
+    if (tlv320_headset_events_enabled())
+    {
+        err = write_regs(0x00,
+                         headset_detect_init,
+                         sizeof(headset_detect_init) / sizeof(headset_detect_init[0]));
+        if (err != ESP_OK)
+        {
+            goto init_fail;
+        }
+    }
+
+    // ---- Phases 8-9: apply the configured startup profile, gains, and EQ --
     s_apply_profile_volume_default = true;
     err = tlv320dac3100_set_profile(default_profile);
     if (err != ESP_OK)
@@ -791,17 +1178,28 @@ esp_err_t tlv320dac3100_init(void)
     }
     s_apply_profile_volume_default = false;
 
-    // Perform an initial headset check so we start in the correct mode.
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    err = tlv320dac3100_check_headset();
-    if (err != ESP_OK)
+    if (tlv320_headset_events_enabled())
     {
-        ESP_LOGW(TAG, "Initial headset detection failed: %s",
-                 esp_err_to_name(err));
+        err = tlv320dac3100_check_headset();
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "Initial headset detection failed: %s",
+                     esp_err_to_name(err));
+        }
     }
-#endif
 
-    // ---- Phase 9: unmute at end ---------------------------------
+    if (CODEC_INT_GPIO >= 0 || tlv320_headset_events_enabled())
+    {
+        err = tlv320_start_event_handling();
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to start codec event handling: %s",
+                     esp_err_to_name(err));
+            goto init_fail;
+        }
+    }
+
+    // ---- Phase 10: unmute at end --------------------------------
     err = tlv320dac3100_mute(false);
     if (err != ESP_OK)
     {
@@ -827,9 +1225,6 @@ init_fail:
 
 esp_err_t tlv320dac3100_check_headset(void)
 {
-#if !CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    return ESP_OK;
-#else
     // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
     // (Page 0).
     uint8_t reg_val = 0;
@@ -839,35 +1234,7 @@ esp_err_t tlv320dac3100_check_headset(void)
         return err;
     }
 
-    uint8_t status = (reg_val >> 5) & 0x03;
-    bool hp_detected =
-        (status == HEADSET_WITHOUT_MIC || status == HEADSET_WITH_MIC);
-
-    if (hp_detected && !s_hp_active)
-    {
-        ESP_LOGI(TAG, "Headphone inserted - switching to headphone profile");
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
-                     esp_err_to_name(err));
-            return err;
-        }
-    }
-    else if (!hp_detected && s_hp_active)
-    {
-        ESP_LOGI(TAG, "Headphone removed - switching to speaker profile");
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
-                     esp_err_to_name(err));
-            return err;
-        }
-    }
-
-    return ESP_OK;
-#endif
+    return tlv320_handle_headset_status(reg_val, false);
 }
 
 
