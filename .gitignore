@@ -27,3 +27,6 @@ __pycache__/
 dist/
 *.egg
 
+# Test binaries
+tests/test_custom_commands
+
