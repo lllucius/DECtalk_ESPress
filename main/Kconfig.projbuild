@@ -28,13 +28,6 @@ menu "DECtalk ESPress Firmware"
                     needed; the codec derives its clock from BCLK.
         endchoice
 
-        config DECTALK_I2S_SAMPLE_RATE
-            int "I2S sample rate (Hz)"
-            default 11025
-            range 8000 48000
-            help
-                Audio sample rate used for the I2S output.
-
         config DECTALK_I2S_BCK_GPIO
             int "I2S BCK GPIO"
             default 8
