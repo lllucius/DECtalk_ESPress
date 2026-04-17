@@ -73,6 +73,31 @@ menu "DECtalk ESPress Firmware"
                 7-bit I2C address of the TLV320DAC3100.  The Adafruit
                 breakout board defaults to 0x18.
 
+        config DECTALK_CODEC_INT_GPIO
+            int "TLV320DAC3100 interrupt GPIO"
+            default -1
+            range -1 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                MCU GPIO connected to the TLV320DAC3100 interrupt output.
+
+                Set this to -1 when the codec interrupt pin is not wired.
+                When enabled, the firmware configures the GPIO as an
+                interrupt-capable input and defers codec register reads to a
+                task context.
+
+        config DECTALK_CODEC_RESET_GPIO
+            int "TLV320DAC3100 reset GPIO"
+            default -1
+            range -1 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                MCU GPIO connected to the TLV320DAC3100 active-low reset pin.
+
+                Set this to -1 when the reset pin is tied to the board's power
+                rail or is otherwise unused.  When enabled, the firmware drives
+                a hardware reset pulse before codec register configuration.
+
         menu "TLV320DAC3100 defaults"
             depends on DECTALK_DAC_TLV320DAC3100
 
