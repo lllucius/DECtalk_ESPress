@@ -248,6 +248,10 @@ static const reg_val_t analog_driver_init[] =
 #define CODEC_RESET_GPIO    CONFIG_DECTALK_CODEC_RESET_GPIO
 #define CODEC_INT_GPIO      CONFIG_DECTALK_CODEC_INT_GPIO
 
+// Stack size for the ISR deferred handler task.  Needs room for I2C
+// transactions and ESP_LOG formatting; 3 KiB gives comfortable margin.
+#define TLV320_ISR_TASK_STACK   3072
+
 // ---- Module state ------------------------------------------------
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
@@ -646,9 +650,9 @@ static esp_err_t tlv320_setup_isr(void)
     // notification target is valid when the first edge arrives.
     BaseType_t ok = xTaskCreate(tlv320_isr_task,
                                 "tlv320_isr",
-                                3072,
+                                TLV320_ISR_TASK_STACK,
                                 NULL,
-                                configMAX_PRIORITIES - 2,
+                                tskIDLE_PRIORITY + 3,
                                 &s_isr_task);
     if (ok != pdPASS)
     {
@@ -672,6 +676,7 @@ static esp_err_t tlv320_setup_isr(void)
         return err;
     }
 
+    // Flags argument 0 = default allocation (no special options).
     err = gpio_install_isr_service(0);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
     {
