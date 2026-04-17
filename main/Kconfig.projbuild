@@ -121,9 +121,9 @@ menu "DECtalk ESPress Firmware"
                     Startup digital volume level applied once during codec
                     initialization (0 = near mute, 9 = 0 dB).
 
-                    The default is conservative and stays close to the current
-                    startup behavior.  Fine-grained dB, analog gain, EQ, DSP,
-                    and register-level tuning are intentionally not exposed yet.
+                    The default is a conservative startup level.  Fine-grained
+                    dB, analog gain, EQ, DSP, and register-level tuning are
+                    intentionally not exposed yet.
         endmenu
 
         menu "Advanced audio tuning"
