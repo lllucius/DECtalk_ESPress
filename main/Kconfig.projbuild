@@ -83,7 +83,7 @@ menu "DECtalk ESPress Firmware"
         menu "TLV320DAC3100 defaults"
             depends on DECTALK_DAC_TLV320DAC3100
 
-            comment "More sound-shaping options may be added later after hardware tuning is validated."
+            comment "Additional EQ and gain options may be added later after hardware tuning is validated."
 
             choice DECTALK_TLV320_DEFAULT_PROFILE
                 prompt "Default output profile"

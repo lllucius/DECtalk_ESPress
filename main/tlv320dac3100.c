@@ -60,7 +60,6 @@ static const char *TAG = "TLV320DAC3100";
 #define HEADSET_WITH_MIC    0x03    // Headset with microphone
 
 // ---- Default runtime settings ------------------------------------
-#define DEFAULT_VOLUME              CONFIG_DECTALK_TLV320_STARTUP_VOLUME
 #define MAX_VOLUME                  TLV320DAC3100_MAX_VOLUME
 #define TLV320_MIN_VOLUME_DB        (-60.0f)
 #define TLV320_MAX_VOLUME_DB        (0.0f)
@@ -446,13 +445,15 @@ static uint8_t db_to_level(float db)
 
 static void tlv320_reset_state(void)
 {
+    tlv320_profile_t default_profile = tlv320_get_default_profile();
+
     s_current_page = TLV320_INVALID_PAGE;
-    s_hp_active = (tlv320_get_default_profile() == TLV320_PROFILE_HEADPHONE);
-    s_volume = DEFAULT_VOLUME;
-    s_volume_db = vol_db_table[DEFAULT_VOLUME];
-    s_digital_volume_reg = vol_table[DEFAULT_VOLUME];
+    s_hp_active = (default_profile == TLV320_PROFILE_HEADPHONE);
+    s_volume = CONFIG_DECTALK_TLV320_STARTUP_VOLUME;
+    s_volume_db = vol_db_table[CONFIG_DECTALK_TLV320_STARTUP_VOLUME];
+    s_digital_volume_reg = vol_table[CONFIG_DECTALK_TLV320_STARTUP_VOLUME];
     s_muted = true;
-    s_profile = tlv320_get_default_profile();
+    s_profile = default_profile;
     s_apply_profile_volume_default = false;
 }
 
@@ -657,6 +658,7 @@ static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
 esp_err_t tlv320dac3100_init(void)
 {
     esp_err_t err;
+    tlv320_profile_t default_profile = tlv320_get_default_profile();
 
     ESP_LOGI(TAG, "Initializing TLV320DAC3100 (I2C addr 0x%02X)...",
              TLV320_I2C_ADDR);
@@ -782,7 +784,7 @@ esp_err_t tlv320dac3100_init(void)
 
     // ---- Phases 7-8: apply the configured startup profile, gains, and EQ --
     s_apply_profile_volume_default = true;
-    err = tlv320dac3100_set_profile(tlv320_get_default_profile());
+    err = tlv320dac3100_set_profile(default_profile);
     if (err != ESP_OK)
     {
         goto init_fail;
