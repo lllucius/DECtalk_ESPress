@@ -122,8 +122,8 @@ menu "DECtalk ESPress Firmware"
                     initialization (0 = near mute, 9 = 0 dB).
 
                     The default is a conservative startup level and is set to 6
-                    because that more closely matches the driver's previous
-                    startup gain than the legacy coarse level 5 state.
+                    because it more closely matches the driver's previous
+                    startup gain (about -10 dB).
 
                     Fine-grained dB, analog gain, EQ, DSP, and register-level
                     tuning are intentionally not exposed yet.
