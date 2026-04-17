@@ -73,6 +73,33 @@ menu "DECtalk ESPress Firmware"
                 7-bit I2C address of the TLV320DAC3100.  The Adafruit
                 breakout board defaults to 0x18.
 
+        config DECTALK_CODEC_RESET_GPIO
+            int "Codec reset GPIO"
+            default -1
+            range -1 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                GPIO connected to the TLV320DAC3100 hardware reset pin
+                (active-low).  When set to a valid GPIO (>= 0), the driver
+                performs a hardware reset pulse before register configuration.
+                Set to -1 to skip hardware reset and use software reset only.
+
+        config DECTALK_CODEC_INT_GPIO
+            int "Codec interrupt GPIO"
+            default -1
+            range -1 48
+            depends on DECTALK_DAC_TLV320DAC3100
+            help
+                GPIO connected to the TLV320DAC3100 interrupt output
+                (directly active-low from the open-drain INT pins).  When
+                set to a valid GPIO (>= 0), the driver uses interrupt-driven
+                handling for codec events (headset insertion/removal, button
+                press, short-circuit faults, and DAC overflow) instead of
+                the periodic polling timer.
+
+                Set to -1 to disable interrupt-driven event handling and
+                rely on the headset poll timer instead.
+
         menu "TLV320DAC3100 defaults"
             depends on DECTALK_DAC_TLV320DAC3100
 

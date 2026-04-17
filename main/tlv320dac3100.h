@@ -84,6 +84,14 @@ esp_err_t tlv320dac3100_check_headset(void);
  */
 void tlv320dac3100_poll_headset(void);
 
+/**
+ * @brief Check whether interrupt-driven codec event handling is active.
+ *
+ * @return true if the codec interrupt GPIO is configured (>= 0) and the
+ *         driver was built with interrupt support, false otherwise.
+ */
+bool tlv320dac3100_irq_enabled(void);
+
 
 /**
  * @brief Maximum volume level.

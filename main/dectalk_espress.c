@@ -1233,6 +1233,10 @@ void app_main(void)
 #if CONFIG_DECTALK_DAC_TLV320DAC3100 && CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
     // Start a periodic timer to poll the TLV320DAC3100 headset
     // detection status and switch between speaker / headphone output.
+    // When interrupt-driven event handling is active the poll timer is
+    // unnecessary — the ISR deferred handler already calls
+    // tlv320dac3100_check_headset() on every headset/button interrupt.
+    if (!tlv320dac3100_irq_enabled())
     {
         const esp_timer_create_args_t hp_timer_args =
         {
