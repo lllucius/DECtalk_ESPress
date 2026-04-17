@@ -55,7 +55,7 @@ advancing DECtalk for everyone.
   (COM / ttyACM) ports to the host; no external UART adapter needed
 - **I2S audio output** — 11.025 kHz, 16-bit mono via I2S to an external DAC
   (PCM5102, MAX98357A, etc.)
-- **Configurable via `menuconfig`** — I2S pins, sample rate, DMA tuning,
+- **Configurable via `menuconfig`** — I2S pins, DMA tuning,
   flow-control thresholds, task pinning, and more; no source edits needed
 - **Python host tools** — a serial API module (`dectalk_serial.py`) and
   GUI applications for controlling the device from a PC
@@ -268,7 +268,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), sample rate (8000–48000 Hz, default 11025) |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), fixed 11.025 kHz sample rate |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
@@ -280,7 +280,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 | Symptom | Things to check |
 |---------|-----------------|
 | **No audio** | I2S wiring; DAC power; speaker connections; amplifier gain |
-| **Garbled audio** | I2S pin config matches wiring; sample rate appropriate for DAC |
+| **Garbled audio** | I2S pin config matches wiring; attached DAC supports 11.025 kHz I2S audio |
 | **Build fails** | ESP-IDF environment sourced; host C compiler available for dictionary build; try `idf.py fullclean` |
 | **No host serial port appears** | USB cable is data-capable (not charge-only); board has the expected native USB connector; for ESP32-S3 verify TinyUSB is enabled; for ESP32-C6 verify the board exposes USB Serial/JTAG |
 | **Device not responding** | Check UART0 or the board's console logs for boot/crash output; verify the runtime host port is the correct one for the target; try resetting board |

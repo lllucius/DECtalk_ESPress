@@ -78,7 +78,7 @@ static void configure_logging(void)
     esp_log_level_set("DIAG", log_level);
 }
 
-#define SAMPLE_RATE              CONFIG_DECTALK_I2S_SAMPLE_RATE
+#define SAMPLE_RATE              11025
 #define I2S_BCK_IO               CONFIG_DECTALK_I2S_BCK_GPIO
 #define I2S_WS_IO                CONFIG_DECTALK_I2S_WS_GPIO
 #define I2S_DO_IO                CONFIG_DECTALK_I2S_DO_GPIO

@@ -75,7 +75,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_Q15_NEGATIVE_SCALE   32768.0f
 #define TLV320_PI                   3.14159265358979323846f
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
-#define TLV320_SAMPLE_RATE_HZ  ((float)CONFIG_DECTALK_I2S_SAMPLE_RATE)
+#define TLV320_SAMPLE_RATE_HZ  11025.0f
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
