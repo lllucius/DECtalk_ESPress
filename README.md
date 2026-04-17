@@ -268,7 +268,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100), fixed 11.025 kHz sample rate |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO/MCLK GPIO pins, I2C pins (TLV320DAC3100); sample rate is hardcoded at 11.025 kHz |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
