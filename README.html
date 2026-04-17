@@ -207,7 +207,7 @@
 <!-- Copyright (c) 2025 Leland Lucius -->
 
 <h1 id="dectalk-espress-firmware">DECtalk ESPress Firmware</h1>
-<p>An ESP32-S3 firmware that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol over USB CDC-ACM, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit.</p>
+<p>An ESP32 firmware for <strong>ESP32-S3</strong> and <strong>ESP32-C6</strong> boards that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit. On ESP32-S3 the host link uses <strong>USB CDC-ACM</strong>; on ESP32-C6 it uses the built-in <strong>USB Serial/JTAG</strong> interface.</p>
 <p>The speech synthesis itself is provided by the <strong>DECtalk component</strong> (<code>components/dectalk/</code>) which cross-compiles the upstream <code>dapi</code> library as a reusable ESP-IDF component. See the <a href="components/dectalk/README.html">component README</a> for component-specific documentation (language selection, dictionary storage modes, source resolution, porting notes).</p>
 <p>For detailed build instructions, toolchain setup, and architecture notes see <strong><a href="BUILD.html">BUILD.md</a></strong>.</p>
 <h2 id="acknowledgments">Acknowledgments</h2>
@@ -235,7 +235,7 @@
 <h2 id="key-features">Key Features</h2>
 <ul>
 <li><strong>ESPress serial protocol</strong> — drop-in replacement for a real DECtalk Express: plain-ASCII text input, ETX flush, ENQ status query, SO/SI pause/resume, DLE command sequences, XON/XOFF flow control</li>
-<li><strong>USB CDC-ACM host transport</strong> — the native USB port appears as a standard serial (COM / ttyACM) port to the host; no external UART adapter needed</li>
+<li><strong>Native USB host transport</strong> — ESP32-S3 uses TinyUSB CDC-ACM and ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial (COM / ttyACM) ports to the host; no external UART adapter needed</li>
 <li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
 <li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, sample rate, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
 <li><strong>Python host tools</strong> — a serial API module (<code>dectalk_serial.py</code>) and GUI applications for controlling the device from a PC</li>
@@ -253,7 +253,7 @@
 <tbody>
 <tr class="odd">
 <td>MCU board</td>
-<td>ESP32 development board with <strong>two USB data ports</strong>: one UART/serial port for flashing and logs, plus one native USB-OTG/device port for ESPress protocol communication</td>
+<td><strong>ESP32-S3</strong> development board with separate UART + native USB ports, or an <strong>ESP32-C6</strong> board with a native USB Serial/JTAG port for ESPress protocol communication</td>
 </tr>
 <tr class="even">
 <td>Flash</td>
@@ -269,13 +269,13 @@
 </tr>
 <tr class="odd">
 <td>USB cables</td>
-<td>Two USB data-capable connections are recommended in practice: UART USB for flashing/debugging and native USB for CDC-ACM host communication</td>
+<td><strong>ESP32-S3:</strong> two USB data-capable connections are recommended (UART USB for flashing/debugging plus native USB for ESPress). <strong>ESP32-C6:</strong> one data-capable native USB connection is sufficient for host communication</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p><strong>Board selection note:</strong> An Espressif <strong>ESP32-S3</strong> dev board is the recommended and currently configured option, but the important requirement is a chip/board combination that provides <strong>both</strong> a UART flashing/debug path and a separate native USB-OTG/device port for DECtalk ESPress communication. ESP32-S2 and ESP32-P4 based boards should also be viable in principle, but they are untested here and would require <code>sdkconfig</code> updates (the defaults currently set <code>CONFIG_IDF_TARGET="esp32s3"</code>).</p>
-<p><strong>Port usage:</strong> The UART-side USB connection is for reflashing and console logs. General users will typically only need it when using the <code>flasher</code> tool or <code>idf.py flash</code>, while developers/tinkerers will also use it for debugging. The native USB CDC port is reserved for normal runtime host↔︎ESPress protocol communication.</p>
+<p><strong>Board selection note:</strong> The firmware currently supports <strong>ESP32-S3</strong> and <strong>ESP32-C6</strong>. <code>sdkconfig.defaults</code> sets <code>CONFIG_IDF_TARGET="esp32s3"</code> by default; run <code>idf.py set-target esp32c6</code> when building for ESP32-C6 so ESP-IDF also applies <code>sdkconfig.defaults.esp32c6</code>.</p>
+<p><strong>Port usage:</strong> On <strong>ESP32-S3</strong>, the UART-side USB connection is for reflashing and console logs while the native USB CDC port is reserved for normal runtime host↔︎ESPress protocol communication. On <strong>ESP32-C6</strong>, the built-in USB Serial/JTAG port is now supported for host communication; the firmware disables the RTS-triggered reset so opening the port does not reboot the device.</p>
 <p><strong>Memory note:</strong> PSRAM is not strictly required to run the firmware because the ESPress application itself fits within the base 512 KB RAM budget. However, dictionary storage mode matters: embedded dictionaries and dedicated dictionary partitions can work without PSRAM, while loading the dictionary from a SPIFFS file uses additional heap, so a modest PSRAM size (roughly 2 MB, depending on filesystem size and usage) is recommended.</p>
 </blockquote>
 <h2 id="wiring">Wiring</h2>
@@ -353,15 +353,18 @@
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Navigate to the project directory</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> DECtalk_ESPress</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Build (dictionary is compiled automatically)</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Select the target if needed</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># idf.py set-target esp32c6</span></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Flash firmware</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Build (dictionary is compiled automatically)</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Monitor console logs (UART0)</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span></code></pre></div>
-<p>The device's native USB port will appear as <code>/dev/ttyACM0</code> (Linux) or a COM port (Windows). Open it at any baud rate — the CDC-ACM link ignores baud — and start sending text.</p>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Flash firmware</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 flash</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. Monitor console logs (UART0 or your board&#39;s console port)</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> <span class="at">-p</span> /dev/ttyUSB0 monitor</span></code></pre></div>
+<p>For <strong>ESP32-S3</strong>, the runtime host port is the board's native <strong>USB CDC-ACM</strong> device (typically <code>/dev/ttyACM0</code> on Linux). For <strong>ESP32-C6</strong>, use the native <strong>USB Serial/JTAG</strong> port exposed by the board. Open the port at any baud rate and start sending text.</p>
 <p>See <a href="BUILD.html">BUILD.md</a> for full prerequisites and configuration options.</p>
 <h2 id="web-flasher">Web Flasher</h2>
 <p>The published project site includes a browser-based flasher for installing released firmware without setting up ESP-IDF locally.</p>
@@ -372,11 +375,11 @@
 <li>Select the desired <strong>Release</strong> and <strong>Language</strong>, then click <strong>Flash Firmware</strong>.</li>
 <li>If you already downloaded a release archive from GitHub, click <strong>Flash from File…</strong> and select the <code>.tar.gz</code> / <code>.tgz</code> file instead.</li>
 </ol>
-<p>After flashing finishes, unplug or close the UART connection if needed and use the board's <strong>native USB CDC port</strong> for normal DECtalk ESPress runtime communication.</p>
+<p>After flashing finishes, unplug or close the flashing connection if needed and use the board's runtime host port: <strong>native USB CDC</strong> on ESP32-S3 or <strong>USB Serial/JTAG</strong> on ESP32-C6.</p>
 <h2 id="release-build-workflow">Release Build Workflow</h2>
 <p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release-builds.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
 <h2 id="serial-interfaces">Serial Interfaces</h2>
-<p>The firmware uses <strong>two</strong> serial paths simultaneously:</p>
+<p>The firmware's host transport depends on the target:</p>
 <table>
 <thead>
 <tr class="header">
@@ -392,18 +395,23 @@
 <td>Connect via the board's UART USB bridge (<code>/dev/ttyUSB0</code> or similar); use <code>idf.py monitor</code></td>
 </tr>
 <tr class="even">
-<td><strong>USB CDC-ACM</strong> (TinyUSB)</td>
+<td><strong>USB CDC-ACM</strong> (TinyUSB, <strong>ESP32-S3</strong>)</td>
 <td>ESPress protocol data — host ↔︎ device text, control chars, DLE sequences</td>
 <td>Connect via the native USB port (<code>/dev/ttyACM0</code> or similar); use <code>host/dectalk_serial.py</code> or any serial terminal</td>
 </tr>
+<tr class="odd">
+<td><strong>USB Serial/JTAG</strong> (<strong>ESP32-C6</strong>)</td>
+<td>ESPress protocol data — host ↔︎ device text, control chars, DLE sequences</td>
+<td>Connect via the native USB Serial/JTAG port exposed by the board; use <code>host/dectalk_serial.py</code> or any serial terminal</td>
+</tr>
 </tbody>
 </table>
-<p>This separation means log output never corrupts the ESPress byte stream and protocol debugging is straightforward.</p>
+<p>On <strong>ESP32-S3</strong>, this separation means log output never corrupts the ESPress byte stream and protocol debugging is straightforward. On <strong>ESP32-C6</strong>, the built-in USB Serial/JTAG interface is used for host communications instead.</p>
 <blockquote>
-<p><strong>Why TinyUSB CDC instead of the built-in USB Serial/JTAG?</strong> The ESP32-S3's onboard USB Serial/JTAG peripheral reboots the chip when the host toggles DTR. Since the ESPress protocol uses DTR to detect host connections, TinyUSB CDC-ACM is used instead to handle DTR line-state changes in firmware without triggering a reboot.</p>
+<p><strong>Transport note:</strong> <strong>ESP32-S3</strong> keeps using TinyUSB CDC-ACM because its built-in USB Serial/JTAG peripheral reboots the chip when the host toggles DTR. <strong>ESP32-C6</strong> now uses USB Serial/JTAG for host communication, with the RTS-triggered reset explicitly disabled in firmware so opening the port does not reboot the chip.</p>
 </blockquote>
 <h2 id="espress-protocol-summary">ESPress Protocol Summary</h2>
-<p>The firmware boots directly into ESPress protocol mode — no handshake or mode-switch command is needed. Opening the USB CDC port asserts DTR, which the firmware detects and responds to with a protocol-state reset and XON.</p>
+<p>The firmware boots directly into ESPress protocol mode — no handshake or mode-switch command is needed. When the host opens the transport port, the firmware detects the new connection and responds with a protocol-state reset and XON.</p>
 <table>
 <thead>
 <tr class="header">
@@ -414,7 +422,7 @@
 <tbody>
 <tr class="odd">
 <td>Transport</td>
-<td>USB CDC-ACM (appears as COM / ttyACM)</td>
+<td>USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6</td>
 </tr>
 <tr class="even">
 <td>Text input</td>
@@ -520,8 +528,8 @@
 <td>Speech task core affinity, main ESPress thread stack size</td>
 </tr>
 <tr class="odd">
-<td><em>USB CDC transport</em></td>
-<td>CDC RX stream buffer size</td>
+<td><em>USB CDC transport</em> / <em>JTAG serial transport</em></td>
+<td>Target-specific host transport buffer sizing</td>
 </tr>
 <tr class="even">
 <td><em>Diagnostics and logging</em></td>
@@ -551,12 +559,12 @@
 <td>ESP-IDF environment sourced; host C compiler available for dictionary build; try <code>idf.py fullclean</code></td>
 </tr>
 <tr class="even">
-<td><strong>No CDC port on host</strong></td>
-<td>USB cable is data-capable (not charge-only); board has native USB connector; TinyUSB enabled in sdkconfig</td>
+<td><strong>No host serial port appears</strong></td>
+<td>USB cable is data-capable (not charge-only); board has the expected native USB connector; for ESP32-S3 verify TinyUSB is enabled; for ESP32-C6 verify the board exposes USB Serial/JTAG</td>
 </tr>
 <tr class="odd">
 <td><strong>Device not responding</strong></td>
-<td>Check UART0 console for boot/crash logs; verify CDC DTR is asserted; try resetting board</td>
+<td>Check UART0 or the board's console logs for boot/crash output; verify the runtime host port is the correct one for the target; try resetting board</td>
 </tr>
 <tr class="even">
 <td><strong>WDT timeout</strong></td>
@@ -575,6 +583,7 @@
 <li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html">ESP-IDF Programming Guide</a></li>
 <li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2s.html">ESP-IDF I2S Driver</a></li>
 <li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/usb_device.html">TinyUSB CDC-ACM</a></li>
+<li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32c6/api-reference/peripherals/usb_serial_jtag.html">ESP-IDF USB Serial/JTAG</a></li>
 </ul>
   </main>
 

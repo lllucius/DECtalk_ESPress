@@ -232,7 +232,7 @@
 <li><a href="#thread-model">Thread Model</a></li>
 <li><a href="#data-flow">Data Flow</a></li>
 <li><a href="#tts-in-memory-mode">TTS In-Memory Mode</a></li>
-<li><a href="#usb-cdc-transport">USB CDC Transport</a></li>
+<li><a href="#host-serial-transport">Host Serial Transport</a></li>
 <li><a href="#dictionary-loading">Dictionary Loading</a></li>
 <li><a href="#flow-control">Flow Control</a></li>
 <li><a href="#idle-flush">Idle Flush</a></li>
@@ -295,8 +295,8 @@
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> esp-idf</span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> checkout v6.0   <span class="co"># or latest stable release</span></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Install toolchains (ESP32-S3 target)</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> esp32s3</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Install toolchains (ESP32-S3 + ESP32-C6 targets)</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> esp32s3 esp32c6</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Activate the environment (run in every new shell, or add to .bashrc)</span></span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span></code></pre></div>
@@ -313,6 +313,7 @@
 <pre><code>DECtalk_ESPress/
 ├── CMakeLists.txt                  # Top-level ESP-IDF project file
 ├── sdkconfig.defaults              # Default Kconfig values (target, flash, PSRAM, TinyUSB…)
+├── sdkconfig.defaults.esp32c6      # Target-specific overrides for ESP32-C6
 ├── sdkconfig.devel                 # Optional development overrides (diagnostics, PSRAM, debugging)
 ├── partitions.csv                  # Custom partition table
 ├── BUILD.md                        # ← this file (firmware build &amp; architecture)
@@ -337,12 +338,14 @@
 │
 ├── main/                           # Main application component
 │   ├── CMakeLists.txt              # Registers main sources; depends on dectalk, driver, pthread…
-│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC, diagnostics (ESPress menu)
+│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC/JTAG transport, diagnostics
 │   ├── idf_component.yml           # IDF component manager dep: espressif/esp_tinyusb ≥ 2.0.0
 │   ├── dectalk_espress.c           # Entry point (app_main), I2S init, threads, ESPress protocol
 │   ├── dectalk_espress.h           # Protocol constants, DLE encode/decode, public API
-│   ├── usb_cdc_transport.c         # USB CDC-ACM transport layer (TinyUSB wrapper)
-│   ├── usb_cdc_transport.h         # Transport API: init, read, write, connected, reconnect
+│   ├── usb_cdc_transport.c         # ESP32-S3 USB CDC-ACM transport layer (TinyUSB wrapper)
+│   ├── usb_cdc_transport.h         # ESP32-S3 transport API
+│   ├── jtag_serial_transport.c     # ESP32-C6 USB Serial/JTAG transport layer
+│   ├── jtag_serial_transport.h     # ESP32-C6 transport API
 │   ├── diag_mem.c                  # Optional heap/stack diagnostics task
 │   └── diag_mem.h                  # Diagnostics API
 │
@@ -376,9 +379,13 @@
 </tr>
 <tr class="even">
 <td><code>usb_cdc_transport.c</code></td>
-<td>TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection</td>
+<td>ESP32-S3 TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection</td>
 </tr>
 <tr class="odd">
+<td><code>jtag_serial_transport.c</code></td>
+<td>ESP32-C6 USB Serial/JTAG driver: buffered RX/TX, reconnect detection, RTS-reset suppression</td>
+</tr>
+<tr class="even">
 <td><code>diag_mem.c</code></td>
 <td>Optional diagnostic task enabled from <code>idf.py menuconfig</code> that logs stack HWM and heap stats every 10 s</td>
 </tr>
@@ -394,7 +401,7 @@
 </ul>
 <p>External dependency via <code>idf_component.yml</code>:</p>
 <ul>
-<li><code>espressif/esp_tinyusb ≥ 2.0.0</code> — TinyUSB CDC-ACM for native USB</li>
+<li><code>espressif/esp_tinyusb ≥ 2.0.0</code> — TinyUSB CDC-ACM for native USB on <strong>ESP32-S3</strong> only</li>
 </ul>
 <h3 id="4-partition-table">4. Partition Table</h3>
 <p><code>partitions.csv</code> defines a custom layout:</p>
@@ -462,7 +469,7 @@
 <tr class="odd">
 <td><code>CONFIG_IDF_TARGET</code></td>
 <td><code>esp32s3</code></td>
-<td>Target SoC</td>
+<td>Default target SoC</td>
 </tr>
 <tr class="even">
 <td><code>CONFIG_PARTITION_TABLE_CUSTOM</code></td>
@@ -477,7 +484,29 @@
 <tr class="even">
 <td><code>CONFIG_TINYUSB_CDC_ENABLED</code></td>
 <td><code>y</code></td>
-<td>Enable TinyUSB CDC-ACM for host protocol</td>
+<td>Enable TinyUSB CDC-ACM for the ESP32-S3 host protocol</td>
+</tr>
+</tbody>
+</table>
+<p>When building for <strong>ESP32-C6</strong>, ESP-IDF also loads <code>sdkconfig.defaults.esp32c6</code> after <code>idf.py set-target esp32c6</code>. That file currently overrides:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Setting</th>
+<th>Value</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160</code></td>
+<td><code>y</code></td>
+<td>ESP32-C6 default maximum CPU clock</td>
+</tr>
+<tr class="even">
+<td><code>CONFIG_TINYUSB_CDC_ENABLED</code></td>
+<td><code>n</code></td>
+<td>ESP32-C6 host communications use USB Serial/JTAG instead of TinyUSB CDC</td>
 </tr>
 </tbody>
 </table>
@@ -581,15 +610,15 @@
 <td><code>main_thread</code></td>
 <td>any</td>
 <td>12 KB (configurable)</td>
-<td>Runs the ESPress protocol loop: USB CDC reads, DLE state machine, flow control</td>
+<td>Runs the ESPress protocol loop: host-transport reads, DLE state machine, flow control</td>
 </tr>
 </tbody>
 </table>
 <p>CPU pinning is important: the speech synthesis in <code>TextToSpeechSpeak()</code> is compute-intensive and does not yield to the scheduler. Pinning it to CPU 1 keeps CPU 0 free so the IDLE0 task can service the Task Watchdog Timer (even though the watchdog is disabled in the defaults, this is defensive).</p>
 <h3 id="data-flow">Data Flow</h3>
-<pre><code>  Host (PC)                         ESP32-S3
-  ─────────                         ────────
-  Serial terminal / GUI             USB CDC-ACM
+<pre><code>  Host (PC)                         ESP32-S3 / ESP32-C6
+  ─────────                         ───────────────────
+  Serial terminal / GUI             USB CDC-ACM / USB Serial/JTAG
        │                                │
        │  ASCII text, control chars     │
        │  DLE command sequences         │
@@ -630,7 +659,13 @@
 <li>If speech is paused (SO received), samples are zeroed before writing.</li>
 <li>The buffer is reset and re-queued with <code>TextToSpeechAddBuffer()</code>.</li>
 </ol>
-<h3 id="usb-cdc-transport">USB CDC Transport</h3>
+<h3 id="host-serial-transport">Host Serial Transport</h3>
+<p>The <code>main/</code> component selects the host transport at build time based on <code>IDF_TARGET</code>:</p>
+<ul>
+<li><strong>ESP32-S3</strong> → <code>usb_cdc_transport.c</code> using TinyUSB CDC-ACM</li>
+<li><strong>ESP32-C6</strong> → <code>jtag_serial_transport.c</code> using the built-in <code>usb_serial_jtag</code> driver</li>
+</ul>
+<h4 id="esp32-s3-usb-cdc-acm">ESP32-S3: USB CDC-ACM</h4>
 <blockquote>
 <p><strong>Why TinyUSB CDC instead of the built-in USB Serial/JTAG?</strong> The ESP32-S3's onboard USB Serial/JTAG peripheral automatically reboots the chip whenever the host toggles DTR. Because the ESPress protocol relies on DTR transitions to detect host connect/disconnect events, using the built-in Serial/JTAG would cause the device to reboot every time a host application opens the port. TinyUSB's CDC-ACM device avoids this by giving the firmware full control over how DTR line-state changes are handled — no reboot, just a protocol-state reset.</p>
 </blockquote>
@@ -640,6 +675,13 @@
 <li><strong>TX path:</strong> <code>usb_cdc_transport_write()</code> queues data via <code>tinyusb_cdcacm_write_queue()</code> and flushes with a 50 ms timeout. Writes are silently dropped when no host is connected (<code>cdc_connected == false</code>).</li>
 <li><strong>Connection tracking:</strong> The line-state callback monitors DTR. When DTR transitions low→high (host opens the port), a reconnection counter is incremented. The protocol loop polls <code>usb_cdc_transport_check_reconnected()</code> each iteration and resets all protocol state on reconnection.</li>
 <li><strong>Initial boot:</strong> <code>cdc_had_disconnect</code> starts as <code>true</code> so the first host connection after power-on is treated as a reconnection, triggering XON.</li>
+</ul>
+<h4 id="esp32-c6-usb-serialjtag">ESP32-C6: USB Serial/JTAG</h4>
+<p><code>jtag_serial_transport.c</code> uses ESP-IDF's <code>usb_serial_jtag</code> driver:</p>
+<ul>
+<li><strong>RTS reset suppression:</strong> During initialisation the firmware sets <code>USB_SERIAL_JTAG.chip_rst.usb_uart_chip_rst_dis = 1</code>, disabling the host-RTS-triggered chip reset so opening the port does not reboot the device.</li>
+<li><strong>RX/TX buffering:</strong> ESP-IDF installs application-managed ring buffers sized by <code>CONFIG_DECTALK_JTAG_RX_BUF_SIZE</code> and <code>CONFIG_DECTALK_JTAG_TX_BUF_SIZE</code>.</li>
+<li><strong>Connection tracking:</strong> The protocol layer polls <code>usb_serial_jtag_is_connected()</code> and treats a disconnect→connect transition as a host reconnection, resetting protocol state and sending the initial XON just as the CDC transport does.</li>
 </ul>
 <h3 id="dictionary-loading">Dictionary Loading</h3>
 <p>Dictionary loading is handled by the DECtalk component. See the <a href="components/dectalk/README.html">component README</a> for dictionary storage modes and the <a href="components/dectalk/BUILD.html">component BUILD.md</a> for the dictionary build pipeline and <code>__wrap_load_dictionary()</code> implementation.</p>
@@ -676,7 +718,11 @@
 <span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
 <span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Set target (only needed once, or after fullclean)</span></span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32s3</span></code></pre></div>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32s3</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Build for ESP32-C6 instead</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> set-target esp32c6</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> build</span></code></pre></div>
 <h3 id="changing-language">Changing Language</h3>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">idf.py</span> menuconfig</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Navigate to: DECtalk → DECtalk Language</span></span>
