@@ -19,6 +19,9 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "esp_pthread.h"
+#if CONFIG_DECTALK_DISABLE_RGB_LED
+#include "driver/gpio.h"
+#endif
 #include "ttsapi.h"
 #include "dectalk_espress.h"
 #include "diag_mem.h"
@@ -1171,6 +1174,19 @@ void app_main(void)
 
 #if CONFIG_DECTALK_ENABLE_DIAG_MEM
     diag_mem_start();
+#endif
+
+#if CONFIG_DECTALK_DISABLE_RGB_LED
+    // Drive the onboard RGB LED data line low to keep the LED dark.
+    gpio_config_t led_cfg = {
+        .pin_bit_mask = 1ULL << CONFIG_DECTALK_RGB_LED_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&led_cfg);
+    gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0);
 #endif
 
     // Initialize the I2S audio output

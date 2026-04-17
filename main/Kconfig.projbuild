@@ -178,6 +178,34 @@ menu "DECtalk ESPress Firmware"
                 Size of the ring buffer for USB Serial/JTAG transmit data.
     endmenu
 
+    menu "Onboard RGB LED"
+        config DECTALK_DISABLE_RGB_LED
+            bool "Disable onboard RGB LED"
+            default n
+            help
+                Many ESP32 development boards include an onboard addressable
+                RGB LED (WS2812 / SK6812).  Enable this option to drive the
+                LED data GPIO low at startup, keeping the LED dark.
+
+                Not all boards have an RGB LED, so this option is disabled
+                by default.
+
+        config DECTALK_RGB_LED_GPIO
+            int "RGB LED data GPIO"
+            depends on DECTALK_DISABLE_RGB_LED
+            default 8  if IDF_TARGET_ESP32C6
+            default 18 if IDF_TARGET_ESP32S2
+            default 48
+            range 0 48
+            help
+                GPIO connected to the onboard addressable RGB LED data input.
+
+                Common defaults:
+                  ESP32-C6  – GPIO 8
+                  ESP32-S2  – GPIO 18
+                  ESP32-S3  – GPIO 48
+    endmenu
+
     menu "Diagnostics and logging"
         config DECTALK_ENABLE_DIAG_MEM
             bool "Enable heap and stack diagnostics"

@@ -9,6 +9,9 @@ CONFIG_ESP_TASK_WDT_EN=n
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_TINYUSB_CDC_ENABLED=y
 
+# Disable the onboard RGB LED that many dev boards include.
+CONFIG_DECTALK_DISABLE_RGB_LED=y
+
 # Default build target.  Override with "idf.py set-target <target>"
 # for other chips (e.g. esp32c6).  This must live in the common
 # defaults file -- target-specific files are loaded *after* the
