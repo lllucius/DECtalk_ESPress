@@ -587,11 +587,8 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
-static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
-                                            bool apply_digital_volume_default)
+static esp_err_t tlv320_apply_gain_defaults(bool apply_digital_volume_default)
 {
-    (void)profile;
-
     static const reg_val_t analog_gain_cfg[] =
     {
         {REG_HPL_VOL, 0x80},
@@ -941,7 +938,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
         return err;
     }
 
-    err = tlv320_apply_gain_defaults(profile, s_apply_profile_volume_default);
+    err = tlv320_apply_gain_defaults(s_apply_profile_volume_default);
     if (err != ESP_OK)
     {
         return err;
