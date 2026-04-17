@@ -80,6 +80,52 @@ menu "DECtalk ESPress Firmware"
                 7-bit I2C address of the TLV320DAC3100.  The Adafruit
                 breakout board defaults to 0x18.
 
+        menu "TLV320DAC3100 defaults"
+            depends on DECTALK_DAC_TLV320DAC3100
+
+            comment "More sound-shaping options may be added later after hardware tuning is validated."
+
+            choice DECTALK_TLV320_DEFAULT_PROFILE
+                prompt "Default output profile"
+                default DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
+                help
+                    Select the startup output profile used before optional
+                    headset auto-switching changes it.  Speaker keeps the
+                    current safe default.  Low-level DSP and register tuning
+                    are intentionally not exposed here yet.
+
+                config DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
+                    bool "Speaker"
+
+                config DECTALK_TLV320_DEFAULT_PROFILE_HEADPHONE
+                    bool "Headphone"
+            endchoice
+
+            config DECTALK_TLV320_HEADSET_AUTOSWITCH
+                bool "Enable headset auto-switching"
+                default y
+                help
+                    Poll the codec headset-detect status and automatically
+                    switch between speaker and headphone profiles.
+
+                    Enable this to keep the current behavior.  Disable it to
+                    leave the startup/default profile active until software
+                    changes it manually.  Jack-detect tuning is intentionally
+                    not exposed yet.
+
+            config DECTALK_TLV320_STARTUP_VOLUME
+                int "Startup digital volume"
+                range 0 9
+                default 6
+                help
+                    Startup digital volume level applied once during codec
+                    initialization (0 = near mute, 9 = 0 dB).
+
+                    The default is conservative and stays close to the current
+                    startup behavior.  Fine-grained dB, analog gain, EQ, DSP,
+                    and register-level tuning are intentionally not exposed yet.
+        endmenu
+
         menu "Advanced audio tuning"
             config DECTALK_I2S_DMA_DESC_NUM
                 int "I2S DMA descriptor count"

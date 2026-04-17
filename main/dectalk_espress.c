@@ -1230,7 +1230,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "I2S initialized at %d Hz", SAMPLE_RATE);
 
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_DECTALK_DAC_TLV320DAC3100 && CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
     // Start a periodic timer to poll the TLV320DAC3100 headset
     // detection status and switch between speaker / headphone output.
     {

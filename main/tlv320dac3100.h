@@ -18,10 +18,9 @@ typedef enum
  * @brief Initialize the TLV320DAC3100 DAC over I2C.
  *
  * Performs a software reset and configures the codec for I2S slave
- * operation with CODEC_CLKIN = BCLK (no PLL, no MCLK).  The speaker
- * amplifier is enabled and headphones are disabled by default.
- * Headset detection is enabled so that the polling function can
- * switch between speaker and headphone outputs.
+ * operation with CODEC_CLKIN = BCLK (no PLL, no MCLK).  Startup
+ * profile, startup volume, and optional headset auto-switching are
+ * taken from Kconfig.
  *
  * Must be called before I2S streaming begins so that the codec is
  * ready to accept audio data.

@@ -4,10 +4,8 @@
 // TLV320DAC3100 I2C initialisation for the Adafruit breakout board
 //
 // Configures the TI TLV320DAC3100 stereo DAC as an I2S slave with
-// CODEC_CLKIN = BCLK.  No PLL or MCLK is used.  The class-D
-// speaker amplifier is enabled by default; headphones are disabled.
-// Headset detection is enabled so that periodic polling can switch
-// between speaker and headphone outputs automatically.
+// CODEC_CLKIN = BCLK.  No PLL or MCLK is used.  Startup profile,
+// startup volume, and headset auto-switching are controlled by Kconfig.
 //
 // Register addresses and bit layouts are taken from the
 // TLV320DAC3100 datasheet (SLAS833) and cross-referenced against
@@ -61,13 +59,11 @@ static const char *TAG = "TLV320DAC3100";
 #define HEADSET_WITHOUT_MIC 0x01    // Headphone (no microphone)
 #define HEADSET_WITH_MIC    0x03    // Headset with microphone
 
-// ---- Default volume level ----------------------------------------
-#define DEFAULT_VOLUME              5
+// ---- Default runtime settings ------------------------------------
+#define DEFAULT_VOLUME              CONFIG_DECTALK_TLV320_STARTUP_VOLUME
 #define MAX_VOLUME                  TLV320DAC3100_MAX_VOLUME
 #define TLV320_MIN_VOLUME_DB        (-60.0f)
 #define TLV320_MAX_VOLUME_DB        (0.0f)
-#define TLV320_SPEAKER_DB           (-10.0f)
-#define TLV320_HEADPHONE_DB         (-6.0f)
 #define TLV320_MUTED_REG_VALUE      0x81
 #define TLV320_INVALID_PAGE         0xFF
 #define TLV320_EQ_BIQUAD_COUNT      6
@@ -200,9 +196,19 @@ static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
 
 
+static tlv320_profile_t tlv320_get_default_profile(void)
+{
+#if CONFIG_DECTALK_TLV320_DEFAULT_PROFILE_HEADPHONE
+    return TLV320_PROFILE_HEADPHONE;
+#else
+    return TLV320_PROFILE_SPEAKER;
+#endif
+}
+
+
 static esp_err_t write_reg_raw(i2c_master_dev_handle_t dev,
                                uint8_t reg,
-                                uint8_t val)
+                                 uint8_t val)
 {
     uint8_t buf[2] = {reg, val};
     return i2c_master_transmit(dev, buf, sizeof(buf), -1);
@@ -441,12 +447,12 @@ static uint8_t db_to_level(float db)
 static void tlv320_reset_state(void)
 {
     s_current_page = TLV320_INVALID_PAGE;
-    s_hp_active = false;
+    s_hp_active = (tlv320_get_default_profile() == TLV320_PROFILE_HEADPHONE);
     s_volume = DEFAULT_VOLUME;
-    s_volume_db = TLV320_SPEAKER_DB;
-    s_digital_volume_reg = db_to_reg(s_volume_db);
+    s_volume_db = vol_db_table[DEFAULT_VOLUME];
+    s_digital_volume_reg = vol_table[DEFAULT_VOLUME];
     s_muted = true;
-    s_profile = TLV320_PROFILE_SPEAKER;
+    s_profile = tlv320_get_default_profile();
     s_apply_profile_volume_default = false;
 }
 
@@ -584,9 +590,7 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
 static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
                                             bool apply_digital_volume_default)
 {
-    const float default_db = (profile == TLV320_PROFILE_HEADPHONE)
-        ? TLV320_HEADPHONE_DB
-        : TLV320_SPEAKER_DB;
+    (void)profile;
 
     static const reg_val_t analog_gain_cfg[] =
     {
@@ -608,7 +612,7 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
         return ESP_OK;
     }
 
-    return tlv320dac3100_set_volume_db(default_db);
+    return write_digital_volume(s_digital_volume_reg);
 }
 
 static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
@@ -769,6 +773,7 @@ esp_err_t tlv320dac3100_init(void)
     }
 
     // ---- Enable headset detection before profile selection ------
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
     err = write_regs(0x00,
                      headset_detect_init,
                      sizeof(headset_detect_init) / sizeof(headset_detect_init[0]));
@@ -776,23 +781,26 @@ esp_err_t tlv320dac3100_init(void)
     {
         goto init_fail;
     }
+#endif
 
-    // ---- Phases 7-8: apply the default speaker profile, gains, and EQ --
+    // ---- Phases 7-8: apply the configured startup profile, gains, and EQ --
     s_apply_profile_volume_default = true;
-    err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+    err = tlv320dac3100_set_profile(tlv320_get_default_profile());
     if (err != ESP_OK)
     {
         goto init_fail;
     }
     s_apply_profile_volume_default = false;
 
-    // Perform an initial headset check so we start in the correct mode
+    // Perform an initial headset check so we start in the correct mode.
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
     err = tlv320dac3100_check_headset();
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "Initial headset detection failed: %s",
                  esp_err_to_name(err));
     }
+#endif
 
     // ---- Phase 9: unmute at end ---------------------------------
     err = tlv320dac3100_mute(false);
@@ -820,6 +828,9 @@ init_fail:
 
 esp_err_t tlv320dac3100_check_headset(void)
 {
+#if !CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+    return ESP_OK;
+#else
     // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
     // (Page 0).
     uint8_t reg_val = 0;
@@ -857,6 +868,7 @@ esp_err_t tlv320dac3100_check_headset(void)
     }
 
     return ESP_OK;
+#endif
 }
 
 
