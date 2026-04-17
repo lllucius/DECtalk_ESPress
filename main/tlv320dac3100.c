@@ -121,7 +121,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_EVENT_POLL           TLV320_BIT(1)
 #define TLV320_HEADSET_POLL_US      500000ULL
 #define TLV320_RESET_ASSERT_MS      1
-#define TLV320_RESET_RELEASE_MS     10
+#define TLV320_RESET_SETTLE_MS      10
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -437,7 +437,7 @@ static esp_err_t tlv320_codec_hardware_reset(void)
     {
         return err;
     }
-    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_RELEASE_MS));
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_SETTLE_MS));
 
     return ESP_OK;
 }
@@ -1076,7 +1076,7 @@ esp_err_t tlv320dac3100_init(void)
         ESP_LOGE(TAG, "Software reset failed: %s", esp_err_to_name(err));
         goto init_fail;
     }
-    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_RELEASE_MS));
+    vTaskDelay(pdMS_TO_TICKS(TLV320_RESET_SETTLE_MS));
 
     // The software reset restores the codec's page-select state, so clear
     // the cached page before continuing with normal register programming.
@@ -1145,9 +1145,10 @@ esp_err_t tlv320dac3100_init(void)
         goto init_fail;
     }
 
-    err = tlv320_gpio1_set_mode((CODEC_INT_GPIO >= 0)
-        ? TLV320_GPIO1_MODE_INT1
-        : TLV320_GPIO1_MODE_DISABLED);
+    err = tlv320_gpio1_set_mode(
+        (CODEC_INT_GPIO >= 0)
+            ? TLV320_GPIO1_MODE_INT1
+            : TLV320_GPIO1_MODE_DISABLED);
     if (err != ESP_OK)
     {
         goto init_fail;
