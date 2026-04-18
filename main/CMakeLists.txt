@@ -4,11 +4,14 @@
 set(SRCS
     "dectalk_espress.c"
     "diag_mem.c"
+    "fw_commands.c"
+    "fw_settings.c"
 )
 
 set(REQUIRES
     dectalk
     driver
+    nvs_flash
     pthread
     esp_driver_i2c
     esp_driver_i2s

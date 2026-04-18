@@ -19,12 +19,15 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "esp_pthread.h"
+#include "nvs_flash.h"
 #if CONFIG_DECTALK_DISABLE_RGB_LED
 #include "driver/gpio.h"
 #endif
 #include "ttsapi.h"
 #include "dectalk_espress.h"
 #include "diag_mem.h"
+#include "fw_commands.h"
+#include "fw_settings.h"
 
 // Select the serial transport layer based on the target chip.
 #if CONFIG_IDF_TARGET_ESP32C6
@@ -847,6 +850,12 @@ static void *speech_task(void *arg)
                 text[wr] = '\0';
             }
 
+            // Extract and dispatch any [:fw ...] commands before the
+            // text reaches the TTS engine.  The matching sequences are
+            // stripped in-place; any remaining speakable text continues
+            // through the normal synthesis path below.
+            fw_commands_process_text(text);
+
             if (text[0] == '\0')
             {
                 ESP_LOGW(TAG, "Speech task: text empty after sanitisation, "
@@ -1171,6 +1180,21 @@ void app_main(void)
 {
     configure_logging();
 
+    // ---- NVS and firmware settings --------------------------------
+    // NVS must be ready before fw_settings_init() so that saved codec
+    // overrides can be loaded before the codec is configured.
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_err);
+
+    fw_settings_init();
+    fw_commands_init();
+
 #if CONFIG_DECTALK_ENABLE_DIAG_MEM
     diag_mem_start();
 #endif
@@ -1195,6 +1219,14 @@ void app_main(void)
     // The TLV320DAC3100 must be configured over I2C before the I2S
     // bus begins clocking, so that the codec is ready to receive data.
     ESP_ERROR_CHECK(tlv320dac3100_init());
+
+    // Apply any NVS-saved overrides on top of the Kconfig defaults
+    // that tlv320dac3100_init() used internally.
+    tlv320dac3100_set_volume(fw_settings_get_volume());
+    tlv320dac3100_set_profile(fw_settings_get_profile() == 1
+        ? TLV320_PROFILE_HEADPHONE
+        : TLV320_PROFILE_SPEAKER);
+    tlv320dac3100_set_autoswitch(fw_settings_get_autoswitch());
 #endif
 
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);

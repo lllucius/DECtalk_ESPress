@@ -267,6 +267,7 @@ static uint8_t s_digital_volume_reg = TLV320_STARTUP_VOLUME_REG;
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
+static bool s_autoswitch_enabled;
 static QueueHandle_t s_event_queue = NULL;
 static TaskHandle_t s_event_task = NULL;
 static esp_timer_handle_t s_poll_timer = NULL;
@@ -285,11 +286,7 @@ static tlv320_profile_t tlv320_get_default_profile(void)
 
 static bool tlv320_headset_events_enabled(void)
 {
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    return true;
-#else
-    return CODEC_INT_GPIO >= 0;
-#endif
+    return s_autoswitch_enabled || (CODEC_INT_GPIO >= 0);
 }
 
 static uint8_t tlv320_get_headset_status(uint8_t reg_val)
@@ -633,6 +630,11 @@ static void tlv320_reset_state(void)
     s_muted = true;
     s_profile = default_profile;
     s_apply_profile_volume_default = false;
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+    s_autoswitch_enabled = true;
+#else
+    s_autoswitch_enabled = false;
+#endif
 }
 
 static void tlv320_release_i2c_resources(void)
@@ -671,26 +673,27 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
         return ESP_OK;
     }
 
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    if (headset_present && !s_hp_active)
+    if (s_autoswitch_enabled)
     {
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
-        if (err != ESP_OK)
+        if (headset_present && !s_hp_active)
         {
-            ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
-                     esp_err_to_name(err));
+            err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
+                         esp_err_to_name(err));
+            }
+        }
+        else if (!headset_present && s_hp_active)
+        {
+            err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
+                         esp_err_to_name(err));
+            }
         }
     }
-    else if (!headset_present && s_hp_active)
-    {
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
-                     esp_err_to_name(err));
-        }
-    }
-#endif
 
     return err;
 }
@@ -1429,4 +1432,45 @@ esp_err_t tlv320dac3100_mute(bool enable)
     // instead of toggling a dedicated codec hardware mute bit.
     s_muted = enable;
     return write_digital_volume(get_effective_volume_reg());
+}
+
+esp_err_t tlv320dac3100_set_autoswitch(bool enabled)
+{
+    bool was_enabled = s_autoswitch_enabled;
+    s_autoswitch_enabled = enabled;
+
+    // If enabling for the first time and event handling was never started
+    // (e.g. autoswitch was off at compile time and no IRQ GPIO), bring up
+    // the headset-detect + event infrastructure now.
+    if (enabled && !was_enabled && s_event_queue == NULL)
+    {
+        esp_err_t err = write_regs(0x00,
+                                   headset_detect_init,
+                                   sizeof(headset_detect_init) /
+                                       sizeof(headset_detect_init[0]));
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+
+        err = tlv320_start_event_handling();
+        if (err != ESP_OK)
+        {
+            return err;
+        }
+
+        return tlv320dac3100_check_headset();
+    }
+
+    return ESP_OK;
+}
+
+bool tlv320dac3100_get_autoswitch(void)
+{
+    return s_autoswitch_enabled;
+}
+
+tlv320_profile_t tlv320dac3100_get_profile(void)
+{
+    return s_profile;
 }

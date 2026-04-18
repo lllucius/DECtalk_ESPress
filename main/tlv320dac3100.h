@@ -86,6 +86,39 @@ void tlv320dac3100_poll_headset(void);
 
 
 /**
+ * @brief Enable or disable headset auto-switching at runtime.
+ *
+ * When enabled, the driver automatically switches between the speaker
+ * and headphone profiles in response to headset insertion/removal.
+ * When disabled, the active profile stays as-is until changed through
+ * an explicit tlv320dac3100_set_profile() call.
+ *
+ * If event handling infrastructure was not started during init (e.g.
+ * because autoswitch was off at compile time and no IRQ GPIO was
+ * configured), calling this with @c true will start it.
+ *
+ * @param enabled  true to enable auto-switching, false to disable.
+ *
+ * @return ESP_OK on success, or an error code on failure.
+ */
+esp_err_t tlv320dac3100_set_autoswitch(bool enabled);
+
+/**
+ * @brief Query the current headset auto-switch setting.
+ *
+ * @return true if headset auto-switching is active.
+ */
+bool tlv320dac3100_get_autoswitch(void);
+
+/**
+ * @brief Get the currently active output profile.
+ *
+ * @return The active profile (TLV320_PROFILE_SPEAKER or
+ *         TLV320_PROFILE_HEADPHONE).
+ */
+tlv320_profile_t tlv320dac3100_get_profile(void);
+
+/**
  * @brief Maximum volume level.
  */
 #define TLV320DAC3100_MAX_VOLUME 9
