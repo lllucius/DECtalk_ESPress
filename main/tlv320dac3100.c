@@ -132,10 +132,10 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_DAC_DATAPATH_STEREO        0xD0
 #if TLV320_DIAG_USE_MONO_LEFT_ROUTING
 #define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_MONO_LEFT
-#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left diagnostic mode"
+#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left routing"
 #else
 #define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_STEREO
-#define TLV320_DAC_DATAPATH_MODE_LOG      "normal stereo mapping diagnostic mode"
+#define TLV320_DAC_DATAPATH_MODE_LOG      "normal stereo mapping"
 #endif
 #define TLV320_STARTUP_VOLUME_DB    \
     ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
@@ -238,10 +238,10 @@ static const reg_val_t dac_processing_init[] =
     {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
                                 // Previous value duplicated mono speech into
                                 // both outputs from the left I2S slot.
-                                // This diagnostic build instead tests whether
-                                // normal left/right DAC mapping sounds
-                                // cleaner on headphones when the switch above
-                                // is left at 0.
+                                // With TLV320_DIAG_USE_MONO_LEFT_ROUTING left
+                                // at 0, this diagnostic build instead tests
+                                // whether normal left/right DAC mapping
+                                // sounds cleaner on headphones.
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
 };
 
