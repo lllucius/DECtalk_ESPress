@@ -4,7 +4,7 @@
 // Audio Subsystem Initialization
 //
 // Configures the I2S output channel and, when selected, the
-// TLV320DAC3100 codec over I2C.  Separated from espress.c
+// TLV320DAC3100 codec over I2C.  Separated from dtesp.c
 // to keep audio hardware concerns in one place.
 // ----------------------------------------------------------------
 

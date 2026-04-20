@@ -233,7 +233,7 @@ The `host/` directory contains Python-based host software.  See
 - **`dtesp_serial.py`** — `DECtalkESPressSerial` class implementing the
   ESPress protocol: connect, speak, flush, pause/resume, status query,
   device detection.
-- **`dtesp_gui_qt.py`** — Tkinter GUI with voice/rate/pitch controls,
+- **`dtesp_gui_qt.py`** — Qt GUI with voice/rate/pitch controls,
   pause/resume/flush buttons, device status panel, and a communications log.
 
 ```python

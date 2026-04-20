@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Leland Lucius
 
 set(SRCS
-    "espress.c"
+    "dtesp.c"
     "diag_mem.c"
     "custom_commands.c"
     "custom_actions.c"

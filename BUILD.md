@@ -154,7 +154,7 @@ DECtalk_ESPress/
 ```cmake
 cmake_minimum_required(VERSION 3.5)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(espress)
+project(dtesp)
 ```
 
 ESP-IDF discovers the `components/dectalk/` and `main/` components
