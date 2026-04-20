@@ -127,7 +127,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
-// Temporary build-time routing-isolation flag for headphone clarity testing:
+// Build-time routing-isolation flag for headphone clarity testing:
 // set to 1 to keep the original mono speech duplication from the left I2S slot
 // on both outputs, or 0 to test normal stereo DAC mapping in this build.
 #define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
@@ -1155,9 +1155,7 @@ esp_err_t tlv320dac3100_init(void)
 
     ESP_LOGI(TAG, "Initializing TLV320DAC3100 (I2C addr 0x%02X)...",
              TLV320_I2C_ADDR);
-    ESP_LOGI(TAG, "DAC path: %s (0x%02X)",
-             TLV320_DAC_DATAPATH_MODE_LOG,
-             TLV320_DAC_DATAPATH_VALUE);
+    ESP_LOGI(TAG, "DAC path: %s", TLV320_DAC_DATAPATH_MODE_LOG);
 
     // ---- Create I2C master bus ----------------------------------
     i2c_master_bus_config_t bus_cfg =
