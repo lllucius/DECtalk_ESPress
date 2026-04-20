@@ -127,6 +127,8 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
+// Build-time diagnostic flag: set to 1 to keep routing mono speech from the
+// left I2S slot into both outputs, or 0 to test normal stereo DAC mapping.
 #define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
 #define TLV320_DAC_DATAPATH_MONO_LEFT     0xD8
 #define TLV320_DAC_DATAPATH_STEREO        0xD0
@@ -225,8 +227,9 @@ static const reg_val_t audio_interface_init[] =
 };
 
 // Diagnostic DAC routing switch:
-//   1 = keep the prior mono speech duplication that drives both outputs from
-//       the left I2S slot (REG_DAC_DATAPATH = 0xD8).
+//   1 = keep the prior mono speech duplication that was intended to feed the
+//       same speech stream into both outputs from the left I2S slot
+//       (REG_DAC_DATAPATH = 0xD8).
 //   0 = test the simpler normal left/right DAC mapping instead
 //       (REG_DAC_DATAPATH = 0xD0) to see whether mono-left routing is causing
 //       muddy headphone playback.
