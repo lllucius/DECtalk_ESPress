@@ -223,6 +223,7 @@
 <li><a href="#serial-interfaces">Serial Interfaces</a></li>
 <li><a href="#espress-protocol-summary">ESPress Protocol Summary</a></li>
 <li><a href="#host-tools">Host Tools</a></li>
+<li><a href="#custom-fw--commands">Custom <code>[:fw …]</code> Commands</a></li>
 <li><a href="#configuration-menuconfig">Configuration (<code>menuconfig</code>)</a>
 <ul>
 <li><a href="#dectalk-component-settings">DECtalk (component settings)</a></li>
@@ -475,6 +476,123 @@
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>dt.<span class="ex">connect</span>(<span class="st">&quot;/dev/ttyACM0&quot;</span>)</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>dt.speak(<span class="st">&quot;Hello from DECtalk on ESP32.&quot;</span>, voice<span class="op">=</span><span class="st">&quot;Betty&quot;</span>, rate<span class="op">=</span><span class="dv">180</span>)</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>dt.disconnect()</span></code></pre></div>
+<h2 id="custom-fw--commands">Custom <code>[:fw …]</code> Commands</h2>
+<p>Text passed through the ESPress protocol may contain custom <code>[:fw &lt;sub-command&gt; &lt;args…&gt;]</code> directives. These are intercepted before DECtalk sees them and run as firmware-side actions.</p>
+<p>Session / GPIO / Tone commands:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Command</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>[:fw gpio &lt;pin&gt; &lt;on|off|0|1&gt;]</code></td>
+<td>Set a GPIO pin level</td>
+</tr>
+<tr class="even">
+<td><code>[:fw voice &lt;name&gt;]</code></td>
+<td>Change DECtalk voice (session-scoped)</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw rate &lt;75..600&gt;]</code></td>
+<td>Change DECtalk speaking rate (session-scoped)</td>
+</tr>
+<tr class="even">
+<td><code>[:fw tone &lt;freq_hz&gt; &lt;duration_ms&gt;]</code></td>
+<td>Play a tone on the configured LEDC GPIO</td>
+</tr>
+</tbody>
+</table>
+<p>Codec / output commands (TLV320DAC3100):</p>
+<table>
+<thead>
+<tr class="header">
+<th>Command</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>[:fw volume &lt;0..9&gt;]</code></td>
+<td>Codec digital volume</td>
+</tr>
+<tr class="even">
+<td><code>[:fw profile &lt;speaker|headphone&gt;]</code></td>
+<td>Output profile</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw autoswitch &lt;on|off&gt;]</code></td>
+<td>Headset-jack auto-switch</td>
+</tr>
+<tr class="even">
+<td><code>[:fw mute &lt;on|off&gt;]</code></td>
+<td>Soft-mute the codec</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw save]</code></td>
+<td>Persist current codec + DSP state to NVS</td>
+</tr>
+</tbody>
+</table>
+<p>On-chip DSP tone controls — these exploit the TLV320DAC3100's built-in biquad/IIR engine and have <em>no</em> CPU cost:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Command</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>[:fw bass &lt;-12..+12&gt;]</code></td>
+<td>Low-shelf at ≈200 Hz, gain in dB</td>
+</tr>
+<tr class="even">
+<td><code>[:fw treble &lt;-12..+12&gt;]</code></td>
+<td>High-shelf at ≈4.5 kHz, gain in dB</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw eq &lt;1..5&gt; &lt;-12..+12&gt;]</code></td>
+<td>Set a peaking-EQ band gain (160/500/1.5k/3k/5k Hz)</td>
+</tr>
+<tr class="even">
+<td><code>[:fw eq reset]</code></td>
+<td>Flatten every peaking band (bass/treble unchanged)</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw eq show]</code></td>
+<td>Log the current DSP state</td>
+</tr>
+<tr class="even">
+<td><code>[:fw eq preset &lt;flat|speech|crisp|warm&gt;]</code></td>
+<td>Load a named preset</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw drc &lt;on|off&gt;]</code></td>
+<td>Dynamic Range Compression on/off</td>
+</tr>
+<tr class="even">
+<td><code>[:fw drc preset &lt;soft|speech|loud&gt;]</code></td>
+<td>DRC tuning preset</td>
+</tr>
+<tr class="odd">
+<td><code>[:fw spkgain &lt;6|12|18|24&gt;]</code></td>
+<td>Class-D speaker-amp analog gain (dB)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="why-eq-helps-dectalk-tts">Why EQ helps DECtalk TTS</h3>
+<p>DECtalk speech at 11 kHz has most of its energy in 200 Hz–4 kHz. Perceived <strong>muddiness</strong> usually comes from excess 150–400 Hz output plus weak 2–5 kHz; perceived <strong>crispness</strong> lives in the 2–4 kHz "presence" band plus 4–5 kHz "sibilance". Good default tunings therefore cut the bass mud and boost presence — which is exactly what the built-in presets do:</p>
+<ul>
+<li><code>speech</code> — gentle bass cut, 500 Hz cut, 3 kHz boost, 4.5 kHz treble boost, mild DRC. Recommended starting point for TTS.</li>
+<li><code>crisp</code> — more aggressive 3 kHz + 5 kHz boost for extra intelligibility.</li>
+<li><code>warm</code> — gentle bass lift, no treble boost.</li>
+</ul>
+<p>All tone-control values are clamped to ±12 dB. Each biquad coefficient is stored as Q1.23 two's-complement and applied live via a brief soft-mute so transitions are silent. The complete state (EQ + DRC + speaker gain) is persisted to NVS by <code>[:fw save]</code>.</p>
+<p>Example:</p>
+<pre><code>[:fw eq preset speech] [:fw save] The quick brown fox.</code></pre>
 <h2 id="configuration-menuconfig">Configuration (<code>menuconfig</code>)</h2>
 <p>Settings are split across two menus in <code>idf.py menuconfig</code>:</p>
 <h3 id="dectalk-component-settings">DECtalk (component settings)</h3>
@@ -533,7 +651,7 @@
 </tr>
 <tr class="even">
 <td><em>Custom firmware commands</em></td>
-<td>Enable/disable <code>[:fw …]</code> command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone)</td>
+<td>Enable/disable <code>[:fw …]</code> command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone, DSP/EQ/DRC)</td>
 </tr>
 <tr class="odd">
 <td><em>Onboard RGB LED</em></td>
