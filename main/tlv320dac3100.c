@@ -177,13 +177,19 @@ typedef struct
 //     MCLK = 2.8224 MHz and DAC_FS = Fs = 11025 Hz.  This keeps
 //     DAC_MOD_CLK inside the codec's ~2.8-6.758 MHz valid range.
 //
-//   * BCLK-only mode (CODEC_MCLK_GPIO < 0): BCLK alone at 32xFs =
-//     352.8 kHz is far below the minimum DAC modulator clock, so we must
-//     enable the codec's internal PLL.  PLL_CLKIN = BCLK, and the PLL
-//     multiplies BCLK up to ~88.2 MHz (P=1, R=4, J=62, D=5000,
-//     PLL_CLK = 352.8 kHz * 4 * 62.5 = 88.2 MHz).  CODEC_CLKIN = PLL_CLK,
-//     NDAC=2, MDAC=8, DOSR=500 gives DAC_MOD_CLK = 88.2/16 = 5.5125 MHz
-//     (in spec) and DAC_FS = 88.2 MHz / (2*8*500) = 11025 Hz.
+//   * BCLK-only mode (CODEC_MCLK_GPIO < 0): CODEC_CLKIN is driven from the
+//     codec's internal PLL, which is clocked from BCLK.  At Fs=11025 and
+//     16-bit stereo I2S, BCLK = 2*16*Fs = 352.8 kHz, which is far below the
+//     codec's ~2.8 MHz minimum DAC_MOD_CLK, so using BCLK directly leaves
+//     the DAC modulator out of spec.  The PLL multiplies BCLK by
+//     R * (J + D/10000) / P = 4 * 62.5 / 1 = 250, giving PLL_CLK = 88.2 MHz.
+//     With NDAC=2, MDAC=8, DOSR=500, DAC_MOD_CLK = 88.2 MHz / 16 = 5.5125
+//     MHz (in spec) and DAC_FS = 88.2 MHz / (2*8*500) = 11025 Hz.
+//
+// REG_CLOCK_MUX (0x04) bit layout (per TLV320DAC3100 datasheet and the
+// Adafruit_TLV320_I2S reference library):
+//   bits 3:2 = PLL_CLKIN source (00=MCLK, 01=BCLK, 10=GPIO1, 11=DIN)
+//   bits 1:0 = CODEC_CLKIN source (00=MCLK, 01=BCLK, 10=GPIO1, 11=PLL_CLK)
 #if CODEC_MCLK_GPIO >= 0
 static const reg_val_t clocking_init[] =
 {
@@ -197,15 +203,15 @@ static const reg_val_t clocking_init[] =
 #else
 static const reg_val_t clocking_init[] =
 {
-    // Route PLL_CLKIN from BCLK, CODEC_CLKIN from PLL_CLK.
-    // Bits 5:4 = 01 (PLL_CLKIN = BCLK), bits 3:2 = 11 (CODEC_CLKIN = PLL).
-    {REG_CLOCK_MUX,    0x1C},
+    // PLL_CLKIN = BCLK (01 at bits 3:2), CODEC_CLKIN = PLL_CLK (11 at bits
+    // 1:0).  Combined value: (01 << 2) | (11 << 0) = 0b0000_0111 = 0x07.
+    {REG_CLOCK_MUX,    0x07},
     // PLL: power on, P = 1, R = 4.
     //   Bit 7    = 1  (PLL enable)
     //   Bits 6:4 = P, literal 1..7 with 000 meaning 8; here 001 = 1
-    //   Bits 3:0 = R, literal 1..4; here 0100 = 4
+    //   Bits 3:0 = R, literal 1..15 with 0000 meaning 16; here 0100 = 4
     {REG_PLL_P_R,      0x94},   // 0b1_001_0100
-    {REG_PLL_J,        62},     // J = 62 (range 4..63)
+    {REG_PLL_J,        62},     // J = 62 (range 1..63)
     // D is a 14-bit fractional (0..9999) split across two registers.
     // For J.D = 62.5000, D = 5000 = 0x1388.
     //   REG_PLL_D_MSB holds D[13:8] in bits 5:0  -> 0x13
