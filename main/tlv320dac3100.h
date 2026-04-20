@@ -135,4 +135,47 @@ bool tlv320dac3100_get_autoswitch(void);
  */
 tlv320_profile_t tlv320dac3100_get_profile(void);
 
+// ----------------------------------------------------------------
+// DSP / EQ / analog-gain extensions
+// ----------------------------------------------------------------
+
+#include "tlv320_dsp.h"
+
+/**
+ * @brief Apply a DSP state (EQ bands + DRC) to the codec.
+ *
+ * Briefly mutes while rewriting biquad coefficients so the
+ * transition is silent.  A "flat" state leaves the codec in
+ * PRB_P1 (cheap processing block) with DRC disabled — i.e. the
+ * pre-DSP-feature behaviour.
+ *
+ * @return ESP_OK on success, an ESP-IDF error on hardware fault.
+ */
+esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state);
+
+/**
+ * @brief Allowed class-D speaker-driver analog gain stages (dB).
+ *
+ * The class-D amplifier's gain is coarsely quantised by the codec.
+ * Per TLV320DAC3100 datasheet (SLAS833) REG_SPK_DRIVER bits 4:3:
+ * 00=6 dB, 01=12 dB, 10=18 dB, 11=24 dB.  6 dB matches the pre-
+ * feature firmware behaviour.
+ */
+#define TLV320DAC3100_SPK_GAIN_VALID(db) \
+    ((db) == 6 || (db) == 12 || (db) == 18 || (db) == 24)
+
+/**
+ * @brief Set the class-D speaker driver analog gain.
+ *
+ * Only affects the speaker output path.  No-op when the codec is
+ * currently routed to headphones.  Valid values: 0, 6, 12, 18, 24.
+ * Other values are rejected with ESP_ERR_INVALID_ARG.
+ */
+esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db);
+
+/**
+ * @brief Return the current class-D speaker driver analog gain in dB.
+ */
+uint8_t tlv320dac3100_get_speaker_gain_db(void);
+
 #endif // TLV320DAC3100_H

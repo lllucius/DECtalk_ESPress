@@ -562,6 +562,217 @@ TEST(subcommand_case_insensitive)
 }
 
 // ================================================================
+// DSP / tone / EQ / DRC / spkgain / mute handlers
+// ================================================================
+
+static int action_count(const dtesp_job_list_t *jobs)
+{
+    int n = 0;
+    for (int i = 0; i < jobs->count; i++)
+    {
+        if (jobs->jobs[i]->type == DTESP_JOB_ACTION)
+        {
+            n++;
+        }
+    }
+    return n;
+}
+
+TEST(bass_handler_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw bass -3] [:fw bass 0] [:fw bass +12]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 3);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(bass_handler_out_of_range)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw bass 13] [:fw bass -13]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(bass_handler_bad_number)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw bass loud] [:fw bass]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(treble_handler_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw treble +4]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 1);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(treble_handler_invalid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw treble abc]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_band_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw eq 1 -6] [:fw eq 5 +4] [:fw eq 3 0]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 3);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_band_out_of_range)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw eq 0 3] [:fw eq 6 3] [:fw eq 2 99]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_reset_show)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw eq reset] [:fw eq show]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 2);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_preset_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw eq preset flat] [:fw eq preset speech] "
+        "[:fw eq preset crisp] [:fw eq preset warm]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 4);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_preset_unknown)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw eq preset punchy]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(eq_preset_missing_name)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw eq preset]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(drc_on_off)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw drc on] [:fw drc off]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 2);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(drc_preset_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw drc preset soft] [:fw drc preset speech] "
+        "[:fw drc preset loud]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 3);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(drc_preset_unknown)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw drc preset panic]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(drc_invalid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw drc maybe]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(spkgain_valid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw spkgain 6] [:fw spkgain 12] "
+        "[:fw spkgain 18] [:fw spkgain 24]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 4);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(spkgain_invalid)
+{
+    dtesp_job_list_t jobs;
+    // 0 dB isn't reachable on the class-D amp; 9 dB isn't a valid step.
+    int rc = custom_commands_tokenize(
+        "[:fw spkgain 0] [:fw spkgain 9] [:fw spkgain 30] "
+        "[:fw spkgain loud]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(mute_on_off)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw mute on] [:fw mute off] [:fw mute 1] [:fw mute 0]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 4);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(mute_invalid)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw mute yes]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 0);
+    dtesp_job_list_free(&jobs);
+}
+
+TEST(dsp_commands_case_insensitive)
+{
+    dtesp_job_list_t jobs;
+    int rc = custom_commands_tokenize(
+        "[:fw BASS -3] [:fw Treble +4] [:fw Eq Preset Speech]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(action_count(&jobs), 3);
+    dtesp_job_list_free(&jobs);
+}
+
+// ================================================================
 // Main
 // ================================================================
 
@@ -600,6 +811,27 @@ int main(void)
     run_test_autoswitch_handler_invalid();
     run_test_save_handler();
     run_test_subcommand_case_insensitive();
+
+    run_test_bass_handler_valid();
+    run_test_bass_handler_out_of_range();
+    run_test_bass_handler_bad_number();
+    run_test_treble_handler_valid();
+    run_test_treble_handler_invalid();
+    run_test_eq_band_valid();
+    run_test_eq_band_out_of_range();
+    run_test_eq_reset_show();
+    run_test_eq_preset_valid();
+    run_test_eq_preset_unknown();
+    run_test_eq_preset_missing_name();
+    run_test_drc_on_off();
+    run_test_drc_preset_valid();
+    run_test_drc_preset_unknown();
+    run_test_drc_invalid();
+    run_test_spkgain_valid();
+    run_test_spkgain_invalid();
+    run_test_mute_on_off();
+    run_test_mute_invalid();
+    run_test_dsp_commands_case_insensitive();
 
     printf("\n=== Results: %d/%d passed, %d failed ===\n",
            tests_passed, tests_run, tests_failed);

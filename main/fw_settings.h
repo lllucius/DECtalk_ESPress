@@ -20,7 +20,12 @@
 #define FW_SETTINGS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "esp_err.h"
+
+#ifdef CONFIG_DTESP_DAC_TLV320DAC3100
+#include "tlv320_dsp.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +69,24 @@ uint8_t fw_settings_get_autoswitch(void);
 void fw_settings_set_volume(uint8_t level);
 void fw_settings_set_profile(uint8_t profile);
 void fw_settings_set_autoswitch(uint8_t enable);
+
+#ifdef CONFIG_DTESP_DAC_TLV320DAC3100
+/**
+ * @brief Return a pointer to the in-memory DSP state (EQ + DRC).
+ *
+ * The returned pointer is valid until the next fw_settings_init().
+ * Callers mutate the state in place and then either apply it to
+ * the codec via tlv320dac3100_apply_dsp() and/or persist it with
+ * fw_settings_save().
+ */
+tlv320_dsp_state_t *fw_settings_get_dsp(void);
+
+/**
+ * @brief Speaker driver analog gain in dB (6 / 12 / 18 / 24).
+ */
+uint8_t fw_settings_get_spk_gain_db(void);
+void    fw_settings_set_spk_gain_db(uint8_t db);
+#endif
 
 #ifdef __cplusplus
 }

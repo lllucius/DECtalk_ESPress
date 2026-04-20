@@ -13,6 +13,7 @@
 #include <strings.h>
 #include <ctype.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "custom_actions.h"
 #include "custom_commands.h"
@@ -611,6 +612,485 @@ dtesp_job_t *custom_action_save(int argc, const char **argv)
 }
 
 // ================================================================
+// DSP: bass / treble / eq / drc / spkgain / mute
+//
+// On host builds these handlers allocate an ACTION job and log only
+// — no codec writes.  On ESP builds they mutate the in-memory DSP
+// state (in fw_settings.c) and push it to the codec immediately;
+// [:fw save] persists the state to NVS.
+//
+// Sub-commands:
+//   [:fw bass <-12..+12>]
+//   [:fw treble <-12..+12>]
+//   [:fw eq <1..5> <gain_db>]
+//   [:fw eq preset <flat|speech|crisp|warm>]
+//   [:fw eq reset]
+//   [:fw eq show]
+//   [:fw drc <on|off>]
+//   [:fw drc preset <soft|speech|loud>]
+//   [:fw spkgain <6|12|18|24>]
+//   [:fw mute <on|off>]
+// ================================================================
+
+// Parse an integer dB value and reject anything outside min..max.
+// Returns true on success with *out set to the parsed value.
+// Accepts an optional leading "+" and a single leading "-".
+static bool parse_int_db(const char *s, int minv, int maxv, int *out)
+{
+    if (s == NULL || *s == '\0')
+    {
+        return false;
+    }
+    const char *p = s;
+    int sign = 1;
+    if (*p == '+')
+    {
+        p++;
+    }
+    else if (*p == '-')
+    {
+        sign = -1;
+        p++;
+    }
+    if (*p == '\0')
+    {
+        return false;
+    }
+    int v = 0;
+    for (; *p; p++)
+    {
+        if (!isdigit((unsigned char)*p))
+        {
+            return false;
+        }
+        v = v * 10 + (*p - '0');
+        if (v > 10000)
+        {
+            return false;
+        }
+    }
+    v *= sign;
+    if (v < minv || v > maxv)
+    {
+        return false;
+    }
+    *out = v;
+    return true;
+}
+
+// ---- Bass / Treble ---------------------------------------------
+typedef struct
+{
+    int8_t gain_db;
+    uint8_t slot; // 0 = bass, 1 = treble
+} dsp_tone_action_ctx_t;
+
+static void dsp_tone_execute(void *ctx)
+{
+    dsp_tone_action_ctx_t *t = (dsp_tone_action_ctx_t *)ctx;
+    if (!t) return;
+    LOG_I("%s action: %+d dB",
+          t->slot == 0 ? "bass" : "treble", (int)t->gain_db);
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+    tlv320_dsp_state_t *s = fw_settings_get_dsp();
+    if (!s) return;
+    if (t->slot == 0)
+    {
+        tlv320_dsp_state_set_bass(s, (float)t->gain_db);
+    }
+    else
+    {
+        tlv320_dsp_state_set_treble(s, (float)t->gain_db);
+    }
+    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    if (err != ESP_OK)
+    {
+        LOG_E("%s: apply_dsp failed (%d)",
+              t->slot == 0 ? "bass" : "treble", (int)err);
+    }
+#endif
+}
+
+static dtesp_job_t *dsp_tone_common(int argc, const char **argv, uint8_t slot)
+{
+    const char *name = (slot == 0) ? "bass" : "treble";
+    if (argc < 2)
+    {
+        LOG_W("%s: need <-12..+12>", name);
+        return NULL;
+    }
+    int g;
+    if (!parse_int_db(argv[1], -12, 12, &g))
+    {
+        LOG_W("%s: invalid or out-of-range '%s' (-12..+12)", name, argv[1]);
+        return NULL;
+    }
+    dsp_tone_action_ctx_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return NULL;
+    ctx->gain_db = (int8_t)g;
+    ctx->slot = slot;
+    return dtesp_job_alloc_action(dsp_tone_execute, ctx, free);
+}
+
+dtesp_job_t *custom_action_bass(int argc, const char **argv)
+{
+    return dsp_tone_common(argc, argv, 0);
+}
+
+dtesp_job_t *custom_action_treble(int argc, const char **argv)
+{
+    return dsp_tone_common(argc, argv, 1);
+}
+
+// ---- 5-band EQ (band / reset / show / preset) -------------------
+typedef enum
+{
+    EQ_OP_BAND,
+    EQ_OP_RESET,
+    EQ_OP_SHOW,
+    EQ_OP_PRESET,
+} eq_op_t;
+
+typedef struct
+{
+    eq_op_t op;
+    uint8_t band_index; // 0..4
+    int8_t  gain_db;
+    char    preset_name[16];
+} eq_action_ctx_t;
+
+static void eq_execute(void *ctx)
+{
+    eq_action_ctx_t *e = (eq_action_ctx_t *)ctx;
+    if (!e) return;
+
+    switch (e->op)
+    {
+    case EQ_OP_BAND:
+        LOG_I("eq action: band %u = %+d dB",
+              (unsigned)(e->band_index + 1), (int)e->gain_db);
+        break;
+    case EQ_OP_RESET:
+        LOG_I("eq action: reset");
+        break;
+    case EQ_OP_SHOW:
+        LOG_I("eq action: show");
+        break;
+    case EQ_OP_PRESET:
+        LOG_I("eq action: preset '%s'", e->preset_name);
+        break;
+    }
+
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+    tlv320_dsp_state_t *s = fw_settings_get_dsp();
+    if (!s) return;
+
+    switch (e->op)
+    {
+    case EQ_OP_BAND:
+        tlv320_dsp_state_set_eq_band(s, (int)e->band_index, (float)e->gain_db);
+        break;
+    case EQ_OP_RESET:
+        tlv320_dsp_state_reset_eq(s);
+        break;
+    case EQ_OP_PRESET:
+        if (!tlv320_dsp_state_apply_preset(s, e->preset_name))
+        {
+            LOG_W("eq: unknown preset '%s'", e->preset_name);
+            return;
+        }
+        break;
+    case EQ_OP_SHOW:
+    {
+        char buf[160];
+        tlv320_dsp_state_format(s, buf, sizeof(buf));
+        LOG_I("eq state: %s", buf);
+        return; // show is read-only
+    }
+    }
+
+    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    if (err != ESP_OK)
+    {
+        LOG_E("eq: apply_dsp failed (%d)", (int)err);
+    }
+#endif
+}
+
+dtesp_job_t *custom_action_eq(int argc, const char **argv)
+{
+    if (argc < 2)
+    {
+        LOG_W("eq: need <1..5> <dB> | reset | show | preset <name>");
+        return NULL;
+    }
+
+    eq_action_ctx_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return NULL;
+    memset(ctx, 0, sizeof(*ctx));
+
+    if (strcasecmp(argv[1], "reset") == 0)
+    {
+        ctx->op = EQ_OP_RESET;
+    }
+    else if (strcasecmp(argv[1], "show") == 0)
+    {
+        ctx->op = EQ_OP_SHOW;
+    }
+    else if (strcasecmp(argv[1], "preset") == 0)
+    {
+        if (argc < 3)
+        {
+            LOG_W("eq preset: need <flat|speech|crisp|warm>");
+            free(ctx);
+            return NULL;
+        }
+        // Validate up front so a bad name is rejected at parse time.
+        const char *name = argv[2];
+        if (strcasecmp(name, "flat")   != 0 &&
+            strcasecmp(name, "speech") != 0 &&
+            strcasecmp(name, "crisp")  != 0 &&
+            strcasecmp(name, "warm")   != 0)
+        {
+            LOG_W("eq preset: unknown '%s' (flat|speech|crisp|warm)", name);
+            free(ctx);
+            return NULL;
+        }
+        ctx->op = EQ_OP_PRESET;
+        strncpy(ctx->preset_name, name, sizeof(ctx->preset_name) - 1);
+    }
+    else
+    {
+        // Numeric band index: 1..5
+        const char *b = argv[1];
+        if (!(b[0] >= '1' && b[0] <= '5' && b[1] == '\0'))
+        {
+            LOG_W("eq: band must be 1..5 (got '%s')", b);
+            free(ctx);
+            return NULL;
+        }
+        if (argc < 3)
+        {
+            LOG_W("eq %s: need gain_db (-12..+12)", b);
+            free(ctx);
+            return NULL;
+        }
+        int g;
+        if (!parse_int_db(argv[2], -12, 12, &g))
+        {
+            LOG_W("eq %s: invalid or out-of-range '%s' (-12..+12)",
+                  b, argv[2]);
+            free(ctx);
+            return NULL;
+        }
+        ctx->op = EQ_OP_BAND;
+        ctx->band_index = (uint8_t)(b[0] - '0' - 1);
+        ctx->gain_db    = (int8_t)g;
+    }
+
+    return dtesp_job_alloc_action(eq_execute, ctx, free);
+}
+
+// ---- DRC --------------------------------------------------------
+typedef enum
+{
+    DRC_OP_ON,
+    DRC_OP_OFF,
+    DRC_OP_PRESET,
+} drc_op_t;
+
+typedef struct
+{
+    drc_op_t op;
+    char     preset_name[16];
+} drc_action_ctx_t;
+
+static void drc_execute(void *ctx)
+{
+    drc_action_ctx_t *d = (drc_action_ctx_t *)ctx;
+    if (!d) return;
+
+    switch (d->op)
+    {
+    case DRC_OP_ON:     LOG_I("drc action: on");                    break;
+    case DRC_OP_OFF:    LOG_I("drc action: off");                   break;
+    case DRC_OP_PRESET: LOG_I("drc action: preset '%s'",
+                              d->preset_name);                      break;
+    }
+
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+    tlv320_dsp_state_t *s = fw_settings_get_dsp();
+    if (!s) return;
+
+    switch (d->op)
+    {
+    case DRC_OP_ON:
+        s->drc_enabled = true;
+        break;
+    case DRC_OP_OFF:
+        s->drc_enabled = false;
+        break;
+    case DRC_OP_PRESET:
+    {
+        tlv320_dsp_drc_preset_t p;
+        if (!tlv320_dsp_drc_preset_from_name(d->preset_name, &p))
+        {
+            LOG_W("drc: unknown preset '%s'", d->preset_name);
+            return;
+        }
+        s->drc_preset = p;
+        s->drc_enabled = true;
+        break;
+    }
+    }
+
+    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    if (err != ESP_OK)
+    {
+        LOG_E("drc: apply_dsp failed (%d)", (int)err);
+    }
+#endif
+}
+
+dtesp_job_t *custom_action_drc(int argc, const char **argv)
+{
+    if (argc < 2)
+    {
+        LOG_W("drc: need <on|off> | preset <soft|speech|loud>");
+        return NULL;
+    }
+
+    drc_action_ctx_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return NULL;
+    memset(ctx, 0, sizeof(*ctx));
+
+    if (strcasecmp(argv[1], "on") == 0 || strcmp(argv[1], "1") == 0)
+    {
+        ctx->op = DRC_OP_ON;
+    }
+    else if (strcasecmp(argv[1], "off") == 0 || strcmp(argv[1], "0") == 0)
+    {
+        ctx->op = DRC_OP_OFF;
+    }
+    else if (strcasecmp(argv[1], "preset") == 0)
+    {
+        if (argc < 3)
+        {
+            LOG_W("drc preset: need <soft|speech|loud>");
+            free(ctx);
+            return NULL;
+        }
+        const char *name = argv[2];
+        if (strcasecmp(name, "soft")   != 0 &&
+            strcasecmp(name, "speech") != 0 &&
+            strcasecmp(name, "loud")   != 0)
+        {
+            LOG_W("drc preset: unknown '%s' (soft|speech|loud)", name);
+            free(ctx);
+            return NULL;
+        }
+        ctx->op = DRC_OP_PRESET;
+        strncpy(ctx->preset_name, name, sizeof(ctx->preset_name) - 1);
+    }
+    else
+    {
+        LOG_W("drc: invalid '%s'", argv[1]);
+        free(ctx);
+        return NULL;
+    }
+
+    return dtesp_job_alloc_action(drc_execute, ctx, free);
+}
+
+// ---- Speaker analog gain ---------------------------------------
+typedef struct
+{
+    uint8_t gain_db;
+} spkgain_action_ctx_t;
+
+static void spkgain_execute(void *ctx)
+{
+    spkgain_action_ctx_t *s = (spkgain_action_ctx_t *)ctx;
+    if (!s) return;
+    LOG_I("spkgain action: %u dB", (unsigned)s->gain_db);
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+    fw_settings_set_spk_gain_db(s->gain_db);
+    esp_err_t err = tlv320dac3100_set_speaker_gain_db(s->gain_db);
+    if (err != ESP_OK)
+    {
+        LOG_E("spkgain: set failed (%d)", (int)err);
+    }
+#endif
+}
+
+dtesp_job_t *custom_action_spkgain(int argc, const char **argv)
+{
+    if (argc < 2)
+    {
+        LOG_W("spkgain: need <6|12|18|24>");
+        return NULL;
+    }
+    int g;
+    if (!parse_int_db(argv[1], 0, 24, &g) ||
+        !(g == 6 || g == 12 || g == 18 || g == 24))
+    {
+        LOG_W("spkgain: invalid '%s' (allowed: 6, 12, 18, 24)", argv[1]);
+        return NULL;
+    }
+    spkgain_action_ctx_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return NULL;
+    ctx->gain_db = (uint8_t)g;
+    return dtesp_job_alloc_action(spkgain_execute, ctx, free);
+}
+
+// ---- Mute -------------------------------------------------------
+typedef struct
+{
+    uint8_t enable;
+} mute_action_ctx_t;
+
+static void mute_execute(void *ctx)
+{
+    mute_action_ctx_t *m = (mute_action_ctx_t *)ctx;
+    if (!m) return;
+    LOG_I("mute action: %s", m->enable ? "on" : "off");
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+    esp_err_t err = tlv320dac3100_mute(m->enable != 0);
+    if (err != ESP_OK)
+    {
+        LOG_E("mute: set failed (%d)", (int)err);
+    }
+#endif
+}
+
+dtesp_job_t *custom_action_mute(int argc, const char **argv)
+{
+    if (argc < 2)
+    {
+        LOG_W("mute: need <on|off|0|1>");
+        return NULL;
+    }
+    int enable;
+    if (strcasecmp(argv[1], "on") == 0 || strcmp(argv[1], "1") == 0)
+    {
+        enable = 1;
+    }
+    else if (strcasecmp(argv[1], "off") == 0 || strcmp(argv[1], "0") == 0)
+    {
+        enable = 0;
+    }
+    else
+    {
+        LOG_W("mute: invalid '%s'", argv[1]);
+        return NULL;
+    }
+    mute_action_ctx_t *ctx = malloc(sizeof(*ctx));
+    if (!ctx) return NULL;
+    ctx->enable = (uint8_t)enable;
+    return dtesp_job_alloc_action(mute_execute, ctx, free);
+}
+
+// ================================================================
 // Action dispatch table.
 //
 // Extending [:fw ...]:  add a custom_action_<name>() above, then add
@@ -631,6 +1111,20 @@ static const custom_cmd_entry_t action_table[] =
     { "profile",    custom_action_profile    },
     { "autoswitch", custom_action_autoswitch },
     { "save",       custom_action_save       },
+#if !defined(ESP_PLATFORM) || \
+    (defined(CONFIG_DTESP_FW_CMD_ENABLE) && \
+     (!defined(CONFIG_DTESP_FW_CMD_DSP_ENABLE) || CONFIG_DTESP_FW_CMD_DSP_ENABLE))
+    // DSP / EQ / DRC / speaker-gain / mute handlers.  Per-command
+    // Kconfig toggles are all defaulted-enabled; on non-ESP (host
+    // test) builds every handler is compiled in so the parser test
+    // suite can exercise them without a Kconfig.
+    { "bass",       custom_action_bass       },
+    { "treble",     custom_action_treble     },
+    { "eq",         custom_action_eq         },
+    { "drc",        custom_action_drc        },
+    { "spkgain",    custom_action_spkgain    },
+    { "mute",       custom_action_mute       },
+#endif
     { NULL,         NULL                     },
 };
 

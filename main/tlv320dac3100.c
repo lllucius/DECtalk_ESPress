@@ -25,6 +25,7 @@
 #include "freertos/task.h"
 #include <stdint.h>
 #include "tlv320dac3100.h"
+#include "tlv320_dsp.h"
 
 static const char *TAG = "TLV320DAC3100";
 
@@ -299,6 +300,17 @@ static int s_irq_gpio = -1;
 static bool s_autoswitch = true;
 #else
 static bool s_autoswitch = false;
+#endif
+
+// Current class-D speaker driver analog gain in dB.  Mirrors what
+// has been written to REG_SPK_DRIVER bits 4:3 and is re-asserted on
+// every profile switch so the gain persists across speaker /
+// headphone transitions.  6 dB matches the pre-feature default
+// value programmed by analog_driver_init[].
+#ifdef CONFIG_DTESP_TLV320_DEFAULT_SPK_GAIN_DB
+static uint8_t s_spk_gain_db = CONFIG_DTESP_TLV320_DEFAULT_SPK_GAIN_DB;
+#else
+static uint8_t s_spk_gain_db = 6;
 #endif
 
 
@@ -788,15 +800,23 @@ static uint8_t get_effective_volume_reg(void)
         : s_digital_volume_reg;
 }
 
+static esp_err_t encode_spk_driver_gain(uint8_t db, uint8_t *reg_val_out);
+
 static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
 {
-    static const reg_val_t speaker_output_cfg[] =
+    // Compute the current SPK_DRIVER register from the stored
+    // analog-gain setting.  Fall back to 6 dB / unmute if the stored
+    // value somehow became invalid.
+    uint8_t spk_driver_val = 0x04;  // 6 dB + unmute (pre-feature default)
+    (void)encode_spk_driver_gain(s_spk_gain_db, &spk_driver_val);
+
+    const reg_val_t speaker_output_cfg[] =
     {
         {REG_HP_DRIVERS, 0x04},
         {REG_HPL_DRIVER, 0x00},
         {REG_HPR_DRIVER, 0x00},
         {REG_SPK_AMP,    0x86},
-        {REG_SPK_DRIVER, 0x04},
+        {REG_SPK_DRIVER, spk_driver_val},
     };
 
     // Conservative headphone bring-up: HP drivers powered with 1.35V CM and
@@ -1026,6 +1046,26 @@ esp_err_t tlv320dac3100_init(void)
         goto init_fail;
     }
     s_apply_profile_volume_default = false;
+
+    // ---- Initialise the on-chip DSP module (EQ / DRC) in a flat /
+    // bypassed state.  This is a no-op audio-path-wise (PRB_P1
+    // stays selected, DRC stays off) but registers the hw ops so
+    // later [:fw eq / bass / treble / drc ...] commands can drive
+    // the codec.  Failures here are logged but not fatal so a
+    // hardware revision lacking DSP RAM doesn't prevent basic TTS.
+    {
+        static const tlv320_dsp_hw_ops_t dsp_ops =
+        {
+            .write_reg = write_reg,
+            .mute      = tlv320dac3100_mute,
+        };
+        esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
+        if (dsp_err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "DSP init failed: %s; tone controls disabled",
+                     esp_err_to_name(dsp_err));
+        }
+    }
 
     if (tlv320_headset_events_enabled())
     {
@@ -1266,4 +1306,74 @@ bool tlv320dac3100_get_autoswitch(void)
 tlv320_profile_t tlv320dac3100_get_profile(void)
 {
     return s_profile;
+}
+
+// ----------------------------------------------------------------
+// DSP / EQ / speaker-gain extensions
+// ----------------------------------------------------------------
+
+esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state)
+{
+    if (s_dev == NULL)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    return tlv320_dsp_apply(state);
+}
+
+// Encode the requested dB into REG_SPK_DRIVER bits 4:3.  Returns
+// an ESP_ERR_INVALID_ARG for any value not in the valid set.
+static esp_err_t encode_spk_driver_gain(uint8_t db, uint8_t *reg_val_out)
+{
+    if (!TLV320DAC3100_SPK_GAIN_VALID(db))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    // Per SLAS833: bits 4:3 = 00/01/10/11 for 6/12/18/24 dB.
+    // Bit 2 must stay set to keep the driver unmuted.
+    uint8_t gain_field;
+    switch (db)
+    {
+    case 6:  gain_field = 0x00; break;
+    case 12: gain_field = 0x08; break;
+    case 18: gain_field = 0x10; break;
+    case 24: gain_field = 0x18; break;
+    default: return ESP_ERR_INVALID_ARG;
+    }
+    *reg_val_out = (uint8_t)(gain_field | 0x04);
+    return ESP_OK;
+}
+
+esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db)
+{
+    uint8_t reg_val;
+    esp_err_t err = encode_spk_driver_gain(db, &reg_val);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    s_spk_gain_db = db;
+
+    // Only apply immediately when the speaker path is active; on
+    // headphones the value will be re-asserted by the next profile
+    // switch.  If the codec isn't initialised yet (no s_dev) just
+    // store the value for the init path to pick up.
+    if (s_dev == NULL || s_hp_active)
+    {
+        return ESP_OK;
+    }
+
+    err = write_reg(0x01, REG_SPK_DRIVER, reg_val);
+    if (err == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Speaker driver gain = %u dB (reg=0x%02X)",
+                 (unsigned)db, reg_val);
+    }
+    return err;
+}
+
+uint8_t tlv320dac3100_get_speaker_gain_db(void)
+{
+    return s_spk_gain_db;
 }
