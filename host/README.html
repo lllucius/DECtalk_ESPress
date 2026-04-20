@@ -207,7 +207,7 @@
 <!-- Copyright (c) 2025 Leland Lucius -->
 
 <h1 id="dectalk---host-gui--serial-api">DECtalk - Host GUI &amp; Serial API</h1>
-<p>This directory contains a Python Tkinter GUI application and serial API module for controlling the DECtalk text-to-speech engine running on an ESP32 microcontroller.</p>
+<p>This directory contains a Qt-based Python GUI application and a serial API module for controlling the DECtalk text-to-speech engine running on an ESP32 microcontroller.</p>
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#overview">Overview</a></li>
@@ -221,8 +221,7 @@
 <li><a href="#text-editing">Text Editing</a></li>
 <li><a href="#dectalk-inline-commands">DECtalk Inline Commands</a></li>
 </ul></li>
-<li><a href="#espress-gui-dectalk_espress_gui_tkpy">ESPress GUI (<code>dectalk_espress_gui_tk.py</code>)</a></li>
-<li><a href="#espress-gui---qt-version-dectalk_espress_gui_qtpy">ESPress GUI - Qt Version (<code>dectalk_espress_gui_qt.py</code>)</a></li>
+<li><a href="#espress-gui-dectalk_espress_gui_qtpy">ESPress GUI (<code>dectalk_espress_gui_qt.py</code>)</a></li>
 <li><a href="#dectalk-espress-protocol">DECtalk ESPress Protocol</a>
 <ul>
 <li><a href="#key-protocol-elements">Key Protocol Elements</a></li>
@@ -239,25 +238,18 @@
 <ul>
 <li>Python 3.7 or later</li>
 <li><a href="https://pypi.org/project/pyserial/">pyserial</a> (<code>pip install pyserial</code>)</li>
-<li>Tkinter (included with most Python installations) — for the Tkinter GUI</li>
-<li><a href="https://pypi.org/project/PySide6/">PySide6</a> (<code>pip install PySide6</code>) — for the Qt GUI</li>
-<li>ESP32-S3 running the DECtalk firmware (see <code>../README.md</code>)</li>
+<li><a href="https://pypi.org/project/PySide6/">PySide6</a> (<code>pip install PySide6</code>) — for the Qt GUI. PyQt6 is accepted as a fallback.</li>
+<li>ESP32-S3 / ESP32-C6 running the DECtalk firmware (see <code>../README.md</code>)</li>
 </ul>
 <h2 id="quick-start">Quick Start</h2>
 <ol type="1">
-<li><p>Flash the DECtalk firmware to your ESP32 (see <code>../README.md</code>)</p></li>
+<li><p>Flash the DECtalk firmware to your ESP32 (see <code>../README.md</code>).</p></li>
 <li><p>Install the Python dependencies:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyserial</span></code></pre></div>
-<p>For the Qt GUI, also install PySide6:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install PySide6</span></code></pre></div></li>
-<li><p>Run the ESPress protocol GUI (full-featured, Tkinter):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_tk.py</span></code></pre></div>
-<p>Or the Qt version (with full accessibility support):</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_qt.py</span></code></pre></div>
-<p>Or run the simple GUI:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_gui_tk.py</span></code></pre></div></li>
-<li><p>Select the serial port for your ESP32 and click <strong>Connect</strong></p></li>
-<li><p>Type text in the text box and click <strong>Speak</strong></p></li>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyserial PySide6</span></code></pre></div></li>
+<li><p>Run the ESPress GUI:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_qt.py</span></code></pre></div></li>
+<li><p>Select the serial port for your ESP32 and click <strong>Connect</strong>.</p></li>
+<li><p>Type text in the text box and click <strong>Speak</strong>.</p></li>
 </ol>
 <h2 id="gui-features">GUI Features</h2>
 <h3 id="voice-selection">Voice Selection</h3>
@@ -313,48 +305,27 @@
 <h3 id="pitch-control">Pitch Control</h3>
 <p>Adjust the average pitch from 50 to 400 Hz using the slider. The leftmost position uses the voice's default pitch.</p>
 <h3 id="text-editing">Text Editing</h3>
-<p>The multi-line text box supports:</p>
-<ul>
-<li><strong>Vertical scrolling</strong> for long text</li>
-<li><strong>Horizontal scrolling</strong> for wide lines (word wrap is disabled)</li>
-<li><strong>Cut</strong>: Ctrl+X</li>
-<li><strong>Copy</strong>: Ctrl+C</li>
-<li><strong>Paste</strong>: Ctrl+V</li>
-<li><strong>Select All</strong>: Ctrl+A</li>
-<li><strong>Undo</strong>: Ctrl+Z</li>
-<li><strong>Redo</strong>: Ctrl+Y (or Ctrl+Shift+Z)</li>
-<li><strong>Clear</strong>: via the Clear Text button or right-click context menu</li>
-<li><strong>Right-click context menu</strong> with Cut, Copy, Paste, Select All, Clear</li>
-</ul>
+<p>The multi-line text box supports standard editing operations (Cut/Copy/Paste, Select All, Undo/Redo) and keyboard navigation.</p>
 <h3 id="dectalk-inline-commands">DECtalk Inline Commands</h3>
-<p>You can also include DECtalk inline commands directly in the text box. These are processed by the DECtalk engine on the ESP32. For example:</p>
+<p>You can include DECtalk inline commands directly in the text box. These are processed by the DECtalk engine on the ESP32. For example:</p>
 <pre><code>[:phoneme on][hxeh&lt;500,20&gt;low&lt;500,22&gt;]
 [:np] Hello, I am Paul. [:nb] And I am Betty.
 [:dv ap 160 pr 50] This voice has modified pitch.
 [:tone 500,500] A tone before speech.</code></pre>
 <p>See <code>../ref_man.txt</code> for the full DECtalk command reference.</p>
-<h2 id="espress-gui-dectalk_espress_gui_tkpy">ESPress GUI (<code>dectalk_espress_gui_tk.py</code>)</h2>
-<p>The full-featured GUI application that uses the DECtalk ESPress serial protocol. Run with:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_tk.py</span></code></pre></div>
-<p>The ESPress GUI includes all the features of the simple GUI plus:</p>
+<h2 id="espress-gui-dectalk_espress_gui_qtpy">ESPress GUI (<code>dectalk_espress_gui_qt.py</code>)</h2>
+<p>A Qt-based (PySide6/PyQt6) GUI for the DECtalk ESPress serial protocol with full accessibility support. Features:</p>
 <ul>
-<li><strong>Pause / Resume</strong> buttons -- send SO (0x0E) / SI (0x0F) control characters</li>
-<li><strong>Flush</strong> button -- cancel all pending speech using the TSR flush sequence (<code>]</code> + ETX + XON) with SOH acknowledgment</li>
-<li><strong>Query Status</strong> button -- send ENQ (0x05) and decode the DLE status response</li>
-<li><strong>Device Status panel</strong> -- displays the raw status word and colored indicators for Ready, Transmitting, Flushing, and Index states</li>
-<li><strong>Automatic status polling</strong> -- periodically queries the device for live status</li>
-<li><strong>Communications Log</strong> -- timestamped TX/RX event display</li>
-</ul>
-<h2 id="espress-gui---qt-version-dectalk_espress_gui_qtpy">ESPress GUI - Qt Version (<code>dectalk_espress_gui_qt.py</code>)</h2>
-<p>A Qt-based (PySide6/PyQt6) version of the ESPress GUI with identical functionality and full accessibility support. Run with:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_qt.py</span></code></pre></div>
-<p>Requires <code>pip install PySide6</code> (or <code>pip install PyQt6</code>).</p>
-<p>All features from the Tkinter version are included, plus:</p>
-<ul>
-<li><strong>Full screen-reader accessibility</strong> -- every control has an accessible name and description, enabling use with NVDA, Orca, VoiceOver, and other assistive technologies</li>
-<li><strong>Keyboard mnemonics</strong> -- Alt+key shortcuts on all buttons and labels (e.g., Alt+S for Speak, Alt+P for Port)</li>
-<li><strong>Logical tab order</strong> -- Tab and Shift+Tab navigate controls in the expected sequence</li>
-<li><strong>High-contrast status indicators</strong> -- colored indicator labels with bold styling when active, plus accessible state descriptions</li>
+<li><strong>Connection</strong> – select serial port and connect with automatic device probe</li>
+<li><strong>Multi-line text input</strong> with standard editing</li>
+<li><strong>Voice / rate / pitch</strong> controls</li>
+<li><strong>Pause / Resume</strong> buttons — send SO (0x0E) / SI (0x0F) control characters</li>
+<li><strong>Flush</strong> button — cancel all pending speech (TSR flush sequence + SOH ack)</li>
+<li><strong>Query Status</strong> — send ENQ (0x05) and decode the DLE status response</li>
+<li><strong>Device Status panel</strong> — raw status word and colored indicators for Ready, Transmitting, Flushing, and Index states</li>
+<li><strong>Automatic status polling</strong> for live state display</li>
+<li><strong>Communications Log</strong> with timestamped TX/RX events</li>
+<li><strong>Full screen-reader accessibility</strong> (NVDA, Orca, VoiceOver, …): accessible names/descriptions, keyboard mnemonics, logical tab order, high-contrast status indicators</li>
 </ul>
 <h2 id="dectalk-espress-protocol">DECtalk ESPress Protocol</h2>
 <p>The ESP32 firmware boots directly into ESPress protocol mode on its USB CDC-ACM port. No handshake or mode-switch command is needed. Opening the USB serial port triggers a DTR assertion that the firmware detects, causing it to reset protocol state and send XON to indicate readiness.</p>
@@ -399,54 +370,54 @@
 </table>
 <h2 id="python-api-module">Python API Module</h2>
 <p>The <code>dectalk_serial.py</code> module can be used independently from the GUI:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> DECtalkESPressSerial</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>espress <span class="op">=</span> DECtalkESPressSerial()</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># List available serial ports</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(DECtalkESPressSerial.list_ports())</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Connect to the ESP32</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>espress.<span class="ex">connect</span>(<span class="st">&quot;/dev/ttyACM0&quot;</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Detect device (same probe as the original comchk utility)</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> espress.detect_device():</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;DECtalk device detected!&quot;</span>)</span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Send text (device speaks it immediately)</span></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>espress.send_text(<span class="st">&quot;Hello world.&quot;</span>)</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Speak with voice and rate (uses inline commands)</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>espress.speak(<span class="st">&quot;Now I am Betty.&quot;</span>, voice<span class="op">=</span><span class="st">&quot;Betty&quot;</span>, rate<span class="op">=</span><span class="dv">250</span>)</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Request device status</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>status <span class="op">=</span> espress.request_status()</span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">&gt;=</span> <span class="dv">0</span>:</span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Device status: 0x</span><span class="sc">%04X</span><span class="st">&quot;</span> <span class="op">%</span> status)</span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Pause and resume speech</span></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>espress.pause()</span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>espress.resume()</span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Flush (cancel) all speech</span></span>
-<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>espress.flush()</span>
-<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Flush with acknowledgment (TSR FLUSH_TEXT sequence)</span></span>
-<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> espress.flush_with_ack():</span>
-<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Flush acknowledged&quot;</span>)</span>
-<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a><span class="co"># Disconnect</span></span>
-<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>espress.disconnect()</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> DECtalkESPressSerial</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>espress <span class="op">=</span> DECtalkESPressSerial()</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># List available serial ports</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(DECtalkESPressSerial.list_ports())</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Connect to the ESP32</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>espress.<span class="ex">connect</span>(<span class="st">&quot;/dev/ttyACM0&quot;</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Detect device (same probe as the original comchk utility)</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> espress.detect_device():</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;DECtalk device detected!&quot;</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Send text (device speaks it immediately)</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>espress.send_text(<span class="st">&quot;Hello world.&quot;</span>)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Speak with voice and rate (uses inline commands)</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>espress.speak(<span class="st">&quot;Now I am Betty.&quot;</span>, voice<span class="op">=</span><span class="st">&quot;Betty&quot;</span>, rate<span class="op">=</span><span class="dv">250</span>)</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Request device status</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>status <span class="op">=</span> espress.request_status()</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> status <span class="op">&gt;=</span> <span class="dv">0</span>:</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Device status: 0x</span><span class="sc">%04X</span><span class="st">&quot;</span> <span class="op">%</span> status)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Pause and resume speech</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>espress.pause()</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>espress.resume()</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Flush (cancel) all speech</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>espress.flush()</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Flush with acknowledgment (TSR FLUSH_TEXT sequence)</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> espress.flush_with_ack():</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">&quot;Flush acknowledged&quot;</span>)</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="co"># Disconnect</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>espress.disconnect()</span></code></pre></div>
 <h3 id="available-voices">Available Voices</h3>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> VOICES</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">list</span>(VOICES.keys()))</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># [&#39;Paul&#39;, &#39;Betty&#39;, &#39;Harry&#39;, &#39;Frank&#39;, &#39;Dennis&#39;, &#39;Kit&#39;, &#39;Ursula&#39;, &#39;Rita&#39;, &#39;Wendy&#39;]</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> VOICES</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">list</span>(VOICES.keys()))</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># [&#39;Paul&#39;, &#39;Betty&#39;, &#39;Harry&#39;, &#39;Frank&#39;, &#39;Dennis&#39;, &#39;Kit&#39;, &#39;Ursula&#39;, &#39;Rita&#39;, &#39;Wendy&#39;]</span></span></code></pre></div>
 <h3 id="building-dectalk-command-strings">Building DECtalk Command Strings</h3>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> build_dectalk_prefix</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build inline command prefix</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>prefix <span class="op">=</span> build_dectalk_prefix(voice<span class="op">=</span><span class="st">&quot;Harry&quot;</span>, rate<span class="op">=</span><span class="dv">150</span>, pitch<span class="op">=</span><span class="dv">90</span>)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(prefix)  <span class="co"># &quot;[:nh][:ra 150][:dv ap 90]&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> build_dectalk_prefix</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build inline command prefix</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>prefix <span class="op">=</span> build_dectalk_prefix(voice<span class="op">=</span><span class="st">&quot;Harry&quot;</span>, rate<span class="op">=</span><span class="dv">150</span>, pitch<span class="op">=</span><span class="dv">90</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(prefix)  <span class="co"># &quot;[:nh][:ra 150][:dv ap 90]&quot;</span></span></code></pre></div>
   </main>
 
   <footer class="footer">
