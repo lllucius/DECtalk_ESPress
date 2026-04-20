@@ -117,7 +117,8 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
 #define TLV320_HP_VOL_ROUTED_0DB 0x8A         // route enabled + 0 dB
-#define TLV320_HP_DRIVERS_ENABLED   0xC4      // HPL/HPR powered, 1.35 V CM
+#define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
+#define TLV320_HP_DRIVERS_ALT_MODE      0xCC  // HPL/HPR powered, 1.50 V CM
 #define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
@@ -127,6 +128,14 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
+#define TLV320_DIAG_ALT_HP_DRIVER_MODE 1
+#if TLV320_DIAG_ALT_HP_DRIVER_MODE
+#define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_ALT_MODE
+#define TLV320_HP_DRIVER_MODE_LOG         "alt-cm-1.50V"
+#else
+#define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_DEFAULT_MODE
+#define TLV320_HP_DRIVER_MODE_LOG         "default-cm-1.35V"
+#endif
 // Build-time routing-mode selection flag for headphone clarity testing:
 // set to 1 to keep the original mono speech duplication from the left I2S slot
 // on both outputs, or 0 to test normal stereo DAC mapping in this build.
@@ -1007,7 +1016,7 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     {
         {REG_SPK_DRIVER, 0x00},
         {REG_SPK_AMP,    0x06},
-        {REG_HP_DRIVERS, TLV320_HP_DRIVERS_ENABLED},
+        {REG_HP_DRIVERS, TLV320_HP_DRIVERS_HEADPHONE_VALUE},
         {REG_HPL_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
         {REG_HPR_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
     };
@@ -1068,41 +1077,16 @@ static void tlv320_log_headphone_profile_registers(void)
 {
     const uint8_t page = TLV320_PAGE_ANALOG;
     uint8_t hp_drivers = 0;
-    uint8_t hpl_vol = 0;
-    uint8_t hpr_vol = 0;
-    uint8_t hpl_driver = 0;
-    uint8_t hpr_driver = 0;
 
     esp_err_t err = read_reg(page, REG_HP_DRIVERS, &hp_drivers);
-    if (err == ESP_OK)
-    {
-        err = read_reg(page, REG_HPL_VOL, &hpl_vol);
-    }
-    if (err == ESP_OK)
-    {
-        err = read_reg(page, REG_HPR_VOL, &hpr_vol);
-    }
-    if (err == ESP_OK)
-    {
-        err = read_reg(page, REG_HPL_DRIVER, &hpl_driver);
-    }
-    if (err == ESP_OK)
-    {
-        err = read_reg(page, REG_HPR_DRIVER, &hpr_driver);
-    }
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "Headphone regs readback failed: %s", esp_err_to_name(err));
         return;
     }
 
-    ESP_LOGI(TAG,
-             "Headphone regs: HP_DRV=0x%02X HPL_VOL=0x%02X HPR_VOL=0x%02X HPL_DRV=0x%02X HPR_DRV=0x%02X",
-             hp_drivers,
-             hpl_vol,
-             hpr_vol,
-             hpl_driver,
-             hpr_driver);
+    ESP_LOGI(TAG, "HP drv mode=%s REG_HP_DRIVERS=0x%02X",
+             TLV320_HP_DRIVER_MODE_LOG, hp_drivers);
 }
 
 static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
