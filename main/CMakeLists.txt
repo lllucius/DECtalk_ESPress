@@ -18,9 +18,13 @@ set(REQUIRES
     esp_driver_i2c
     esp_driver_i2s
     esp_driver_gpio
-    esp_driver_ledc
     esp_timer
 )
+
+# LEDC is needed for the tone handler.
+if(CONFIG_DECTALK_FW_CMD_TONE_ENABLE)
+    list(APPEND REQUIRES esp_driver_ledc)
+endif()
 
 # Select the serial transport layer based on the target chip.
 # ESP32-S3 has native USB-OTG and uses TinyUSB CDC-ACM.
