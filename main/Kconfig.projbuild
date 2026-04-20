@@ -30,28 +30,28 @@ menu "DECtalk ESPress Firmware"
 
         config DECTALK_I2S_BCK_GPIO
             int "I2S BCK GPIO"
-            default 8
+            default 21
             range 0 48
             help
                 GPIO used for the I2S bit clock output.
 
         config DECTALK_I2S_WS_GPIO
             int "I2S WS GPIO"
-            default 3
+            default 20
             range 0 48
             help
                 GPIO used for the I2S word select / LRCK output.
 
         config DECTALK_I2S_DO_GPIO
             int "I2S data out GPIO"
-            default 18
+            default 19
             range 0 48
             help
                 GPIO used for the I2S serial data output.
 
         config DECTALK_I2C_SDA_GPIO
             int "I2C SDA GPIO"
-            default 1
+            default 18
             range 0 48
             depends on DECTALK_DAC_TLV320DAC3100
             help
@@ -59,7 +59,7 @@ menu "DECtalk ESPress Firmware"
 
         config DECTALK_I2C_SCL_GPIO
             int "I2C SCL GPIO"
-            default 2
+            default 9
             range 0 48
             depends on DECTALK_DAC_TLV320DAC3100
             help
@@ -75,7 +75,7 @@ menu "DECtalk ESPress Firmware"
 
         config DECTALK_CODEC_INT_GPIO
             int "TLV320DAC3100 interrupt GPIO"
-            default -1
+            default 15
             range -1 48
             depends on DECTALK_DAC_TLV320DAC3100
             help
@@ -88,7 +88,7 @@ menu "DECtalk ESPress Firmware"
 
         config DECTALK_CODEC_RESET_GPIO
             int "TLV320DAC3100 reset GPIO"
-            default -1
+            default 22
             range -1 48
             depends on DECTALK_DAC_TLV320DAC3100
             help
