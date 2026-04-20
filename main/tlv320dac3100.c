@@ -116,6 +116,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
 #define TLV320_HP_ANALOG_VOL_0DB    0x8A
+#define TLV320_HP_DRIVERS_ENABLED   0xC4
 #define TLV320_HP_DRIVER_6DB        0x34
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
@@ -992,7 +993,7 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     {
         {REG_SPK_DRIVER, 0x00},
         {REG_SPK_AMP,    0x06},
-        {REG_HP_DRIVERS, 0xC4},
+        {REG_HP_DRIVERS, TLV320_HP_DRIVERS_ENABLED},
         {REG_HPL_DRIVER, TLV320_HP_DRIVER_6DB},
         {REG_HPR_DRIVER, TLV320_HP_DRIVER_6DB},
     };
@@ -1409,7 +1410,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     {
         ESP_LOGI(TAG,
                  "Headphone regs: HP_DRV=0x%02X HPL_VOL=0x%02X HPR_VOL=0x%02X HPL_DRV=0x%02X HPR_DRV=0x%02X",
-                 0xC4,
+                 TLV320_HP_DRIVERS_ENABLED,
                  TLV320_HP_ANALOG_VOL_0DB,
                  TLV320_HP_ANALOG_VOL_0DB,
                  TLV320_HP_DRIVER_6DB,
