@@ -1020,12 +1020,13 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
-    // Initial hardware bring-up tuning for low headphone output; may be reduced
-    // later.
+    // Diagnostic test: revert only HPL/HPR analog path registers to the baseline
+    // routed setting to check whether the current values are causing headphone
+    // muddiness.
     static const reg_val_t headphone_analog_gain_cfg[] =
     {
-        {REG_HPL_VOL, TLV320_HP_VOL_ROUTED_0DB},
-        {REG_HPR_VOL, TLV320_HP_VOL_ROUTED_0DB},
+        {REG_HPL_VOL, 0x80},   // HPL routed, analog gain = 0 dB
+        {REG_HPR_VOL, 0x80},   // HPR routed, analog gain = 0 dB
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
