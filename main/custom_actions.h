@@ -15,6 +15,16 @@
 //   profile    <speaker|headphone>         – set codec output profile
 //   autoswitch <on|off>                    – enable/disable headset auto-switch
 //   save                                   – persist codec settings to NVS
+//   bass       <-12..+12>                 – low-shelf tone control (dB)
+//   treble     <-12..+12>                 – high-shelf tone control (dB)
+//   eq         <1..5> <-12..+12>          – set peaking EQ band gain (dB)
+//   eq reset                              – flatten every EQ slot
+//   eq show                               – log the current EQ / DRC state
+//   eq preset  <flat|speech|crisp|warm>   – load a named preset
+//   drc        <on|off>                   – enable/disable DRC
+//   drc preset <soft|speech|loud>         – select DRC preset
+//   spkgain    <6|12|18|24>               – class-D speaker amp gain (dB)
+//   mute       <on|off>                   – soft-mute the codec
 //
 // Adding a new sub-command:
 //   1. Add a `custom_action_<name>()` below that parses argv and
@@ -45,6 +55,12 @@ dtesp_job_t *custom_action_volume(int argc, const char **argv);
 dtesp_job_t *custom_action_profile(int argc, const char **argv);
 dtesp_job_t *custom_action_autoswitch(int argc, const char **argv);
 dtesp_job_t *custom_action_save(int argc, const char **argv);
+dtesp_job_t *custom_action_bass(int argc, const char **argv);
+dtesp_job_t *custom_action_treble(int argc, const char **argv);
+dtesp_job_t *custom_action_eq(int argc, const char **argv);
+dtesp_job_t *custom_action_drc(int argc, const char **argv);
+dtesp_job_t *custom_action_spkgain(int argc, const char **argv);
+dtesp_job_t *custom_action_mute(int argc, const char **argv);
 
 // ----------------------------------------------------------------
 // Single entry point for the tokenizer: look up `argv[0]` in the
