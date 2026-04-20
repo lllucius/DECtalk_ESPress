@@ -1351,7 +1351,13 @@ void app_main(void)
     };
 
     // Ensure MCLK is a stable 256 x Fs when routed to the codec.
-    std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+    // This setting has no external effect in BCLK-only mode (MCLK pin
+    // is not assigned), but we leave it on the default path to keep the
+    // ESP32's internal I2S MCLK divider ratio consistent.
+    if (I2S_MCLK_IO >= 0)
+    {
+        std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+    }
 
     i2s_channel_init_std_mode(audio_handle, &std_cfg);
     i2s_channel_enable(audio_handle);

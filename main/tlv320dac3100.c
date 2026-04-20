@@ -254,12 +254,18 @@ static const reg_val_t clocking_init[] =
     // Route PLL_CLKIN from BCLK, CODEC_CLKIN from PLL_CLK.
     // Bits 5:4 = 01 (PLL_CLKIN = BCLK), bits 3:2 = 11 (CODEC_CLKIN = PLL).
     {REG_CLOCK_MUX,    0x1C},
-    // PLL: power on, P = 1, R = 4.  Bit7=1 enables PLL; bits6:4 hold P
-    // (encoded as value, with 0 meaning 8); bits3:0 hold R.
+    // PLL: power on, P = 1, R = 4.
+    //   Bit 7    = 1  (PLL enable)
+    //   Bits 6:4 = P, literal 1..7 with 000 meaning 8; here 001 = 1
+    //   Bits 3:0 = R, literal 1..4; here 0100 = 4
     {REG_PLL_P_R,      0x94},   // 0b1_001_0100
-    {REG_PLL_J,        62},     // J = 62
-    {REG_PLL_D_MSB,    0x13},   // D = 5000 -> 0x1388, MSB bits 13:8 = 0x13
-    {REG_PLL_D_LSB,    0x88},   // D LSB
+    {REG_PLL_J,        62},     // J = 62 (range 4..63)
+    // D is a 14-bit fractional (0..9999) split across two registers.
+    // For J.D = 62.5000, D = 5000 = 0x1388.
+    //   REG_PLL_D_MSB holds D[13:8] in bits 5:0  -> 0x13
+    //   REG_PLL_D_LSB holds D[7:0]               -> 0x88
+    {REG_PLL_D_MSB,    0x13},
+    {REG_PLL_D_LSB,    0x88},
     {REG_NDAC,         0x82},   // NDAC = 2, powered up
     {REG_MDAC,         0x88},   // MDAC = 8, powered up
     {REG_DOSR_MSB,     0x01},   // DOSR = 500 (0x01F4)
