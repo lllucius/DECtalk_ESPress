@@ -94,9 +94,6 @@ typedef struct
     espress_job_t *(*handler)(int argc, const char **argv);
 } custom_cmd_entry_t;
 
-// Retrieve the built-in dispatch table (NULL-terminated).
-const custom_cmd_entry_t *custom_commands_table(void);
-
 // ----------------------------------------------------------------
 // Initialise custom command subsystem (register handlers, etc.)
 // Called once at startup.

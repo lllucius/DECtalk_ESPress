@@ -3,14 +3,16 @@
 // ----------------------------------------------------------------
 // TLV320DAC3100 I2C initialisation for the Adafruit breakout board
 //
-// Configures the TI TLV320DAC3100 stereo DAC as an I2S slave with
-// CODEC_CLKIN = BCLK.  No PLL or MCLK is used.  Startup profile,
-// startup volume, optional reset GPIO, and deferred codec event handling
-// are controlled by Kconfig.
+// Configures the TI TLV320DAC3100 stereo DAC as an I2S slave.  When a
+// master clock GPIO is configured (DECTALK_I2S_MCLK_GPIO >= 0) the
+// codec uses CODEC_CLKIN = MCLK directly; otherwise the codec's internal
+// PLL is locked onto BCLK.  Startup profile, startup volume, optional
+// reset GPIO, and optional codec-event handling are controlled by
+// Kconfig.
 //
-// Register addresses and bit layouts are taken from the
-// TLV320DAC3100 datasheet (SLAS833) and cross-referenced against
-// the Adafruit TLV320_I2S Arduino library.
+// Register addresses and bit layouts are taken from the TLV320DAC3100
+// datasheet (SLAS833) and cross-referenced against the Adafruit
+// TLV320_I2S Arduino library.
 // ----------------------------------------------------------------
 
 #include "sdkconfig.h"
@@ -21,7 +23,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include <math.h>
 #include <stdint.h>
 #include "tlv320dac3100.h"
 
@@ -37,7 +38,6 @@ static const char *TAG = "TLV320DAC3100";
 
 // ---- Page 0 registers -------------------------------------------
 #define REG_PAGE_SELECT     0x00
-#define TLV320_PAGE_ANALOG  0x01
 #define REG_RESET           0x01
 #define REG_CLOCK_MUX       0x04    // CODEC_CLKIN / PLL_CLKIN source
 #define REG_PLL_P_R         0x05    // PLL power / P / R dividers
@@ -65,8 +65,6 @@ static const char *TAG = "TLV320DAC3100";
 // ---- Page 1 registers -------------------------------------------
 #define REG_HP_DRIVERS      0x1F    // Headphone driver control
 #define REG_SPK_AMP         0x20    // Class-D speaker amplifier
-#define REG_HP_POP          0x21    // HP pop-removal control
-#define REG_PGA_RAMP        0x22    // Output-driver ramp control
 #define REG_OUT_ROUTING     0x23    // DAC output mixer routing
 #define REG_HPL_VOL         0x24    // Analog vol to HPL
 #define REG_HPR_VOL         0x25    // Analog vol to HPR
@@ -74,7 +72,6 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_HPL_DRIVER      0x28    // HPL driver gain / mute
 #define REG_HPR_DRIVER      0x29    // HPR driver gain / mute
 #define REG_SPK_DRIVER      0x2A    // SPK driver gain / mute
-#define REG_HP_DRIVER_CTRL  0x2C    // HP driver mode control
 
 // ---- Headset detection status (bits 6:5 of REG_HEADSET_DETECT) ---
 #define HEADSET_NONE        0x00    // No headset detected
@@ -110,29 +107,10 @@ static const char *TAG = "TLV320DAC3100";
 
 // ---- Default runtime settings ------------------------------------
 #define MAX_VOLUME                  TLV320DAC3100_MAX_VOLUME
-#define TLV320_MIN_VOLUME_DB        (-60.0f)
-#define TLV320_MAX_VOLUME_DB        (0.0f)
 #define TLV320_MUTED_REG_VALUE      0x81
 #define TLV320_INVALID_PAGE         0xFF
-#define TLV320_EQ_BIQUAD_COUNT      6
-#define TLV320_EQ_BYTES_PER_BIQUAD  10
-#define TLV320_EQ_PAGE_SPEAKER      0x08
-#define TLV320_EQ_PAGE_HEADPHONE    0x0C
-#define TLV320_EQ_START_REG         0x02
-#define TLV320_EQ_COEFFICIENT_WRITES_VERIFIED 0
-#define TLV320_Q15_POSITIVE_SCALE   32767.0f
-#define TLV320_Q15_NEGATIVE_SCALE   32768.0f
-#define TLV320_PI                   3.14159265358979323846f
-#define TLV320_VOLUME_STEPS_PER_DB  2.0f
-#define TLV320_SAMPLE_RATE_HZ  11025.0f
-#define TLV320_HP_VOL_ROUTED_0DB 0x8A         // route enabled + 0 dB
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
-#define TLV320_HP_DRIVERS_ALT_MODE      0xCC  // HPL/HPR powered, 1.50 V CM
 #define TLV320_HP_DRIVER_GAIN_0DB_UNMUTED 0x04 // 0 dB gain + unmute (safe default)
-#define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
-#define TLV320_HP_POP_DIAGNOSTIC_VALUE   0xBE // bit7: wait-for-powerdown, bits[6:3]: 0b0111 (304 ms), bits[2:1]: 0b11 (3.9 ms ramp)
-#define TLV320_PGA_RAMP_DIAGNOSTIC_VALUE 0x40 // conservative output-driver ramp timing
-#define TLV320_HP_DRIVER_CTRL_HEADPHONE_VALUE 0x00 // normal headphone mode, not line-out
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
 #define TLV320_EVENT_IRQ            TLV320_BIT(0)
@@ -145,33 +123,12 @@ static const char *TAG = "TLV320DAC3100";
 // 1.50V + 6 dB diagnostic combination risked clipping the headphone output
 // with sensitive / low-impedance phones and contributed to audible distortion.
 #define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_DEFAULT_MODE
-#define TLV320_HP_DRIVER_MODE_LOG         "cm-1.35V"
 #define TLV320_HP_DRIVER_GAIN_VALUE       TLV320_HP_DRIVER_GAIN_0DB_UNMUTED
 // Mono TTS is duplicated on both left and right DACs so that both earcups /
-// speakers reproduce the same signal.  Previous 0xD0 value powered both DACs
-// but disabled the right DAC's data path, which silenced the right earcup.
+// speakers reproduce the same signal.  0xD0 would power both DACs but leave
+// the right DAC's data path silenced.
 #define TLV320_DAC_DATAPATH_VALUE         0xD8  // LDAC<-L, RDAC<-L, soft-step on
 #define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left duplicated to L+R"
-#define TLV320_STARTUP_VOLUME_DB    \
-    ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 1) ? -32.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 2) ? -28.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 3) ? -24.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 4) ? -20.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 5) ? -16.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 6) ? -12.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 7) ? -8.0f : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 8) ? -4.0f : 0.0f)
-#define TLV320_STARTUP_VOLUME_REG   \
-    ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? 0x81 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 1) ? 0xC0 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 2) ? 0xC8 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 3) ? 0xD0 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 4) ? 0xD8 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 5) ? 0xE0 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 6) ? 0xE8 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 7) ? 0xF0 : \
-    (TLV320_STARTUP_VOLUME_LEVEL == 8) ? 0xF8 : 0x00)
 
 // Volume table: maps level 0–9 to DAC digital volume register values.
 // The register uses two's complement in 0.5 dB steps:
@@ -210,17 +167,6 @@ typedef struct
     uint8_t reg;
     uint8_t val;
 } reg_val_t;
-
-// miniDSP biquad coefficients stored in signed Q15 format:
-// b0-b2 are feedforward taps, a1-a2 are feedback taps.
-typedef struct
-{
-    int16_t b0;
-    int16_t b1;
-    int16_t b2;
-    int16_t a1;
-    int16_t a2;
-} tlv320_biquad_t;
 
 // Page 0 phase: configure clocking.
 //
@@ -326,18 +272,6 @@ static const reg_val_t analog_driver_init[] =
     {REG_SPK_DRIVER,   0x04},   // SPK: 6 dB class-D gain, unmuted
 };
 
-// Diagnostic-only headphone control block: mirrors the equivalent page-1
-// headphone controls exposed by the external Adafruit TLV320 library
-// (configureHeadphonePop(), its REG_PGA_RAMP helper named setSpeakerWaitTime(),
-// and headphoneLineout()) so headphone clarity can be evaluated without
-// changing speaker behavior.
-static const reg_val_t headphone_control_diag_cfg[] =
-{
-    {REG_HP_POP,         TLV320_HP_POP_DIAGNOSTIC_VALUE},
-    {REG_PGA_RAMP,       TLV320_PGA_RAMP_DIAGNOSTIC_VALUE},
-    {REG_HP_DRIVER_CTRL, TLV320_HP_DRIVER_CTRL_HEADPHONE_VALUE},
-};
-
 // ---- Module state ------------------------------------------------
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
@@ -345,8 +279,8 @@ static uint8_t s_current_page = TLV320_INVALID_PAGE;
 static bool s_hp_active; // true when headphone output is active
 static bool s_headset_present;
 static uint8_t s_volume = TLV320_STARTUP_VOLUME_LEVEL;
-static float s_volume_db = TLV320_STARTUP_VOLUME_DB;
-static uint8_t s_digital_volume_reg = TLV320_STARTUP_VOLUME_REG;
+static float s_volume_db = 0.0f; // initialised from vol_db_table in tlv320_reset_state
+static uint8_t s_digital_volume_reg = 0; // initialised from vol_table in tlv320_reset_state
 static bool s_muted = true;
 static tlv320_profile_t s_profile = TLV320_PROFILE_SPEAKER;
 static bool s_apply_profile_volume_default;
@@ -549,160 +483,6 @@ static esp_err_t tlv320_codec_hardware_reset(void)
     return ESP_OK;
 }
 
-static float clamp_volume_db(float db)
-{
-    if (db < TLV320_MIN_VOLUME_DB)
-    {
-        return TLV320_MIN_VOLUME_DB;
-    }
-
-    if (db > TLV320_MAX_VOLUME_DB)
-    {
-        return TLV320_MAX_VOLUME_DB;
-    }
-
-    return db;
-}
-
-static float clamp_cutoff_hz(float cutoff_hz)
-{
-    float nyquist_margin_hz = TLV320_SAMPLE_RATE_HZ * 0.45f;
-
-    if (cutoff_hz < 20.0f)
-    {
-        return 20.0f;
-    }
-
-    if (cutoff_hz > nyquist_margin_hz)
-    {
-        return nyquist_margin_hz;
-    }
-
-    return cutoff_hz;
-}
-
-static int16_t float_to_q15(float value)
-{
-    if (value >= 1.0f)
-    {
-        return INT16_MAX;
-    }
-
-    if (value <= -1.0f)
-    {
-        return INT16_MIN;
-    }
-
-    // Use symmetrical round-to-nearest conversion for signed Q15 output.
-    float scaled = (value >= 0.0f)
-        ? (value * TLV320_Q15_POSITIVE_SCALE) + 0.5f
-        : (value * TLV320_Q15_NEGATIVE_SCALE) - 0.5f;
-
-    return (int16_t)scaled;
-}
-
-static tlv320_biquad_t tlv320_make_identity_biquad(void)
-{
-    return (tlv320_biquad_t)
-    {
-        .b0 = float_to_q15(1.0f),
-        .b1 = 0,
-        .b2 = 0,
-        .a1 = 0,
-        .a2 = 0,
-    };
-}
-
-static tlv320_biquad_t tlv320_make_highpass_biquad(float cutoff_hz)
-{
-    // First-order high-pass: H(z) = g * (1 - z^-1) / (1 - p z^-1),
-    // with p derived from the requested cutoff and g chosen for unity HF gain.
-    float pole =
-        expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) / TLV320_SAMPLE_RATE_HZ);
-    float gain = (1.0f + pole) * 0.5f;
-
-    return (tlv320_biquad_t)
-    {
-        .b0 = float_to_q15(gain),
-        .b1 = float_to_q15(-gain),
-        .b2 = 0,
-        .a1 = float_to_q15(-pole),
-        .a2 = 0,
-    };
-}
-
-static tlv320_biquad_t tlv320_make_lowpass_biquad(float cutoff_hz)
-{
-    // First-order low-pass: H(z) = (1 - p) / (1 - p z^-1), where the pole
-    // position sets the cutoff and keeps the section stable for all profiles.
-    float pole =
-        expf((-2.0f * TLV320_PI * clamp_cutoff_hz(cutoff_hz)) / TLV320_SAMPLE_RATE_HZ);
-    float feedforward = 1.0f - pole;
-
-    return (tlv320_biquad_t)
-    {
-        .b0 = float_to_q15(feedforward),
-        .b1 = 0,
-        .b2 = 0,
-        .a1 = float_to_q15(-pole),
-        .a2 = 0,
-    };
-}
-
-static tlv320_biquad_t tlv320_make_preemphasis_biquad(float alpha)
-{
-    if (alpha < 0.0f)
-    {
-        alpha = 0.0f;
-    }
-    else if (alpha > 0.95f)
-    {
-        alpha = 0.95f;
-    }
-
-    return (tlv320_biquad_t)
-    {
-        .b0 = float_to_q15(1.0f),
-        .b1 = float_to_q15(-alpha),
-        .b2 = 0,
-        .a1 = 0,
-        .a2 = 0,
-    };
-}
-
-static uint8_t db_to_reg(float db)
-{
-    // The codec stores digital gain as a signed 8-bit two's complement
-    // attenuation value in 0.5 dB steps, so -10.0 dB becomes -20 steps.
-    float attenuation_db = -clamp_volume_db(db);
-    int steps = (int)((attenuation_db * TLV320_VOLUME_STEPS_PER_DB) + 0.5f);
-
-    return (uint8_t)((int8_t)(-steps));
-}
-
-static uint8_t db_to_level(float db)
-{
-    uint8_t best_level = 0;
-    float best_diff = 1000.0f;
-
-    for (uint8_t level = 0; level <= MAX_VOLUME; level++)
-    {
-        float diff = db - vol_db_table[level];
-        if (diff < 0.0f)
-        {
-            diff = -diff;
-        }
-
-        if (diff < best_diff)
-        {
-            best_diff = diff;
-            best_level = level;
-        }
-    }
-
-    return best_level;
-}
-
 static void tlv320_reset_state(void)
 {
     tlv320_profile_t default_profile = tlv320_get_default_profile();
@@ -893,7 +673,7 @@ static esp_err_t tlv320_start_event_handling(void)
         }
     }
 
-    if (s_irq_handler_registered && (CODEC_INT_GPIO < 0 || s_irq_gpio != CODEC_INT_GPIO) && s_irq_gpio >= 0)
+    if (s_irq_handler_registered && CODEC_INT_GPIO < 0 && s_irq_gpio >= 0)
     {
         esp_err_t err = gpio_isr_handler_remove(s_irq_gpio);
         if (err != ESP_OK)
@@ -904,7 +684,7 @@ static esp_err_t tlv320_start_event_handling(void)
         s_irq_gpio = -1;
     }
 
-    if (CODEC_INT_GPIO >= 0)
+    if (CODEC_INT_GPIO >= 0 && !s_irq_handler_registered)
     {
         int irq_gpio = CODEC_INT_GPIO;
         gpio_config_t irq_cfg = {
@@ -925,17 +705,6 @@ static esp_err_t tlv320_start_event_handling(void)
         if (err != ESP_OK && err != ESP_ERR_INVALID_STATE)
         {
             return err;
-        }
-
-        if (s_irq_handler_registered && s_irq_gpio >= 0)
-        {
-            err = gpio_isr_handler_remove(s_irq_gpio);
-            if (err != ESP_OK)
-            {
-                return err;
-            }
-            s_irq_handler_registered = false;
-            s_irq_gpio = -1;
         }
 
         err = gpio_isr_handler_add(irq_gpio, tlv320_codec_gpio_isr, NULL);
@@ -983,72 +752,6 @@ static esp_err_t write_digital_volume(uint8_t reg_val)
     return write_reg(0x00, REG_DAC_RVOL, reg_val);
 }
 
-static esp_err_t write_sequential_bytes(uint8_t page,
-                                        uint8_t start_reg,
-                                        const uint8_t *data,
-                                        size_t count)
-{
-    esp_err_t err = select_page(page);
-    if (err != ESP_OK)
-    {
-        return err;
-    }
-
-    for (size_t i = 0; i < count; i++)
-    {
-        err = write_reg_raw(s_dev, (uint8_t)(start_reg + i), data[i]);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "I2C write failed: page 0x%02X reg 0x%02X val 0x%02X (%s)",
-                     page,
-                     (uint8_t)(start_reg + i),
-                     data[i],
-                     esp_err_to_name(err));
-            return err;
-        }
-    }
-
-    return ESP_OK;
-}
-
-static esp_err_t write_biquad_bank(uint8_t page,
-                                   const tlv320_biquad_t *biquads,
-                                   size_t biquad_count)
-{
-    uint8_t bank_bytes[TLV320_EQ_BIQUAD_COUNT * TLV320_EQ_BYTES_PER_BIQUAD] = {0};
-
-    if (biquad_count > TLV320_EQ_BIQUAD_COUNT)
-    {
-        biquad_count = TLV320_EQ_BIQUAD_COUNT;
-    }
-
-    for (size_t i = 0; i < biquad_count; i++)
-    {
-        const int16_t coeffs[5] =
-        {
-            biquads[i].b0,
-            biquads[i].b1,
-            biquads[i].b2,
-            biquads[i].a1,
-            biquads[i].a2,
-        };
-
-        for (size_t j = 0; j < 5; j++)
-        {
-            size_t offset = (i * TLV320_EQ_BYTES_PER_BIQUAD) + (j * 2);
-
-            // The codec expects each Q15 coefficient MSB first on I2C.
-            bank_bytes[offset] = (uint8_t)(((uint16_t)coeffs[j]) >> 8);
-            bank_bytes[offset + 1] = (uint8_t)((uint16_t)coeffs[j] & 0xFF);
-        }
-    }
-
-    return write_sequential_bytes(page,
-                                  TLV320_EQ_START_REG,
-                                  bank_bytes,
-                                  sizeof(bank_bytes));
-}
-
 static uint8_t get_effective_volume_reg(void)
 {
     return s_muted
@@ -1090,42 +793,23 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
-static esp_err_t tlv320_apply_headphone_control_diagnostic(void)
-{
-    return write_regs(TLV320_PAGE_ANALOG,
-                      headphone_control_diag_cfg,
-                      sizeof(headphone_control_diag_cfg) / sizeof(headphone_control_diag_cfg[0]));
-}
-
 static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
                                             bool apply_startup_volume)
 {
-    // Speaker profile: existing conservative analog gain defaults.
-    static const reg_val_t speaker_analog_gain_cfg[] =
+    // Both profiles share the same conservative 0 dB analog gain defaults;
+    // loudness is controlled by digital volume.
+    static const reg_val_t analog_gain_cfg[] =
     {
         {REG_HPL_VOL, 0x80},   // HPL routed, analog gain = 0 dB
         {REG_HPR_VOL, 0x80},   // HPR routed, analog gain = 0 dB
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
-    // Diagnostic test: revert only HPL/HPR analog path registers to the baseline
-    // routed setting to check whether the current values are causing headphone
-    // muddiness.
-    static const reg_val_t headphone_analog_gain_cfg[] =
-    {
-        {REG_HPL_VOL, 0x80},   // HPL routed, analog gain = 0 dB
-        {REG_HPR_VOL, 0x80},   // HPR routed, analog gain = 0 dB
-        {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
-    };
+    (void)profile;
 
-    const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE)
-        ? headphone_analog_gain_cfg
-        : speaker_analog_gain_cfg;
-    size_t count = (profile == TLV320_PROFILE_HEADPHONE)
-        ? sizeof(headphone_analog_gain_cfg) / sizeof(headphone_analog_gain_cfg[0])
-        : sizeof(speaker_analog_gain_cfg) / sizeof(speaker_analog_gain_cfg[0]);
-
-    esp_err_t err = write_regs(0x01, cfg, count);
+    esp_err_t err = write_regs(0x01,
+                               analog_gain_cfg,
+                               sizeof(analog_gain_cfg) / sizeof(analog_gain_cfg[0]));
     if (err != ESP_OK)
     {
         return err;
@@ -1137,92 +821,6 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     }
 
     return write_digital_volume(s_digital_volume_reg);
-}
-
-static void tlv320_log_headphone_profile_registers(void)
-{
-    const uint8_t page = TLV320_PAGE_ANALOG;
-    uint8_t hp_drivers = 0;
-    uint8_t hp_pop = 0;
-    uint8_t pga_ramp = 0;
-    uint8_t hp_driver_ctrl = 0;
-
-    esp_err_t err = read_reg(page, REG_HP_DRIVERS, &hp_drivers);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Headphone regs readback failed: %s", esp_err_to_name(err));
-        return;
-    }
-
-    err = read_reg(page, REG_HP_POP, &hp_pop);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Headphone control readback failed at REG_HP_POP: %s", esp_err_to_name(err));
-        return;
-    }
-
-    err = read_reg(page, REG_PGA_RAMP, &pga_ramp);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Headphone control readback failed at REG_PGA_RAMP: %s", esp_err_to_name(err));
-        return;
-    }
-
-    err = read_reg(page, REG_HP_DRIVER_CTRL, &hp_driver_ctrl);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "Headphone control readback failed at REG_HP_DRIVER_CTRL: %s", esp_err_to_name(err));
-        return;
-    }
-
-    ESP_LOGI(TAG,
-             "HP drv mode=%s REG_HP_DRIVERS=0x%02X REG_HP_POP=0x%02X REG_PGA_RAMP=0x%02X REG_HP_DRIVER_CTRL=0x%02X",
-             TLV320_HP_DRIVER_MODE_LOG,
-             hp_drivers,
-             hp_pop,
-             pga_ramp,
-             hp_driver_ctrl);
-}
-
-static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
-{
-    tlv320_biquad_t biquads[TLV320_EQ_BIQUAD_COUNT];
-    uint8_t eq_page = (profile == TLV320_PROFILE_HEADPHONE)
-        ? TLV320_EQ_PAGE_HEADPHONE
-        : TLV320_EQ_PAGE_SPEAKER;
-
-    for (size_t i = 0; i < TLV320_EQ_BIQUAD_COUNT; i++)
-    {
-        biquads[i] = tlv320_make_identity_biquad();
-    }
-
-    if (profile == TLV320_PROFILE_HEADPHONE)
-    {
-        // Headphones stay closer to flat: a gentle low-cut for rumble plus
-        // light pre-emphasis to keep consonants forward without sounding sharp.
-        biquads[0] = tlv320_make_highpass_biquad(70.0f);
-        biquads[1] = tlv320_make_preemphasis_biquad(0.18f);
-    }
-    else
-    {
-        // Speakers get stronger speech shaping for a small enclosure:
-        // low-cut to reduce boom, pre-emphasis for presence, then a mild
-        // treble rolloff to avoid harshness at the top of the band.
-        biquads[0] = tlv320_make_highpass_biquad(150.0f);
-        biquads[1] = tlv320_make_preemphasis_biquad(0.32f);
-        biquads[2] = tlv320_make_lowpass_biquad(3600.0f);
-    }
-
-    // Keep the EQ scaffold in place, but defer coefficient-bank programming
-    // until the selected DAC processing block and coefficient-page mapping are
-    // verified against the TLV320DAC3100 datasheet for this driver setup.
-    if (TLV320_EQ_COEFFICIENT_WRITES_VERIFIED)
-    {
-        return write_biquad_bank(eq_page, biquads, TLV320_EQ_BIQUAD_COUNT);
-    }
-
-    ESP_LOGD(TAG, "Speech EQ coefficient writes deferred pending verified TLV320DAC3100 processing-block mapping");
-    return ESP_OK;
 }
 
 
@@ -1538,30 +1136,10 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
         return err;
     }
 
-    if (profile == TLV320_PROFILE_HEADPHONE)
-    {
-        err = tlv320_apply_headphone_control_diagnostic();
-        if (err != ESP_OK)
-        {
-            return err;
-        }
-    }
-
     err = tlv320_apply_gain_defaults(profile, s_apply_profile_volume_default);
     if (err != ESP_OK)
     {
         return err;
-    }
-
-    err = tlv320_apply_speech_eq(profile);
-    if (err != ESP_OK)
-    {
-        return err;
-    }
-
-    if (profile == TLV320_PROFILE_HEADPHONE)
-    {
-        tlv320_log_headphone_profile_registers();
     }
 
     ESP_LOGI(TAG, "%s %s profile",
@@ -1581,28 +1159,6 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     }
 
     return ESP_OK;
-}
-
-esp_err_t tlv320dac3100_set_volume_db(float db)
-{
-    if (s_dev == NULL)
-    {
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    db = clamp_volume_db(db);
-
-    s_volume_db = db;
-    s_digital_volume_reg = db_to_reg(db);
-    s_volume = db_to_level(db);
-
-    esp_err_t err = write_digital_volume(get_effective_volume_reg());
-    if (err == ESP_OK)
-    {
-        ESP_LOGI(TAG, "Volume set to %.1f dB", db);
-    }
-
-    return err;
 }
 
 esp_err_t tlv320dac3100_mute(bool enable)

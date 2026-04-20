@@ -376,6 +376,15 @@ menu "DECtalk ESPress Firmware"
                 when you want the quietest runtime logging or the lowest
                 possible overhead.
 
+        config DECTALK_DIAG_MEM_INTERVAL_MS
+            int "Diagnostics print interval (ms)"
+            depends on DECTALK_ENABLE_DIAG_MEM
+            range 1000 600000
+            default 10000
+            help
+                How often the diagnostics task prints task stack and heap
+                statistics, in milliseconds.
+
         choice DECTALK_LOG_LEVEL
             prompt "DECtalk log level"
             default DECTALK_LOG_LEVEL_ERROR

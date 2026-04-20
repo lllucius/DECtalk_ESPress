@@ -45,22 +45,16 @@ static volatile bool cdc_connected = false;
 
 // ----------------------------------------------------------------
 // Reconnection detection.  The callback increments the counter each
-// time a disconnect->connect transition occurs.  The application task
-// compares against its own last-seen value -- a single uint32_t read
-// is atomic on ESP32, so no lock is needed.
-// ----------------------------------------------------------------
-static volatile uint32_t cdc_reconnect_seq = 0;
-
-// ----------------------------------------------------------------
-// Track whether a disconnect has occurred so a
-// disconnect->connect transition increments the counter.
-// Initialized to true so that the very first host connection
-// after boot is also treated as a reconnection event, causing
-// the protocol layer to send the initial XON.  (The XON sent
-// in app_main before USB is enumerated is silently dropped
+// time a disconnect->connect transition occurs.  The counter starts
+// at 1 so the very first call from the protocol task returns true
+// once, causing the protocol layer to send the initial XON.  (The
+// XON sent in app_main before USB is enumerated is silently dropped
 // because cdc_connected is still false at that point.)
+//
+// The application task compares against its own last-seen value --
+// a single uint32_t read is atomic on ESP32, so no lock is needed.
 // ----------------------------------------------------------------
-static bool cdc_had_disconnect = true;
+static volatile uint32_t cdc_reconnect_seq = 1;
 
 // ------------------------------------------------------------------
 // CDC-ACM callbacks (called from the TinyUSB task)
@@ -120,20 +114,16 @@ static void cdc_line_state_callback(int itf, cdcacm_event_t *event)
     if (cdc_connected && !was_connected)
     {
         ESP_LOGI(TAG, "Host connected (DTR=%d RTS=%d)", dtr, rts);
-        if (cdc_had_disconnect)
-        {
-            // This is a reconnection after a prior disconnect --
-            // increment the sequence counter so the application
-            // layer detects it and resets protocol state.
-            cdc_reconnect_seq++;
-        }
+        // Every connect transition bumps the counter so the
+        // application layer resets its protocol state on the next
+        // poll of usb_cdc_transport_check_reconnected().
+        cdc_reconnect_seq++;
     }
     else if (!cdc_connected && was_connected)
     {
         ESP_LOGI(TAG, "Host disconnected (DTR=%d RTS=%d)", dtr, rts);
         // Discard any stale RX data so the next session starts clean
         xStreamBufferReset(rx_stream);
-        cdc_had_disconnect = true;
     }
     else
     {

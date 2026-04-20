@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 
 #include "custom_actions.h"
@@ -56,25 +57,6 @@ void custom_actions_reset_session(void)
     LOG_I("session action state reset");
 }
 
-// ----------------------------------------------------------------
-// Helper: case-insensitive string comparison
-// ----------------------------------------------------------------
-static int strcasecmp_local(const char *a, const char *b)
-{
-    while (*a && *b)
-    {
-        int ca = tolower((unsigned char)*a);
-        int cb = tolower((unsigned char)*b);
-        if (ca != cb)
-        {
-            return ca - cb;
-        }
-        a++;
-        b++;
-    }
-    return (unsigned char)*a - (unsigned char)*b;
-}
-
 // ================================================================
 // GPIO handler: [:fw gpio <pin> <on|off|0|1>]
 // ================================================================
@@ -119,12 +101,56 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
         return NULL;
     }
 
+#ifdef ESP_PLATFORM
+    // Reject pins that are reserved by firmware-configured peripherals
+    // (I2S, I2C, codec reset/interrupt, RGB LED) so host code cannot
+    // accidentally clobber them via [:fw gpio <n> on].
+    static const int reserved[] =
+    {
+# ifdef CONFIG_DECTALK_I2S_BCK_GPIO
+        CONFIG_DECTALK_I2S_BCK_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_I2S_WS_GPIO
+        CONFIG_DECTALK_I2S_WS_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_I2S_DO_GPIO
+        CONFIG_DECTALK_I2S_DO_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_I2S_MCLK_GPIO
+        CONFIG_DECTALK_I2S_MCLK_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_I2C_SDA_GPIO
+        CONFIG_DECTALK_I2C_SDA_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_I2C_SCL_GPIO
+        CONFIG_DECTALK_I2C_SCL_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_CODEC_INT_GPIO
+        CONFIG_DECTALK_CODEC_INT_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_CODEC_RESET_GPIO
+        CONFIG_DECTALK_CODEC_RESET_GPIO,
+# endif
+# ifdef CONFIG_DECTALK_RGB_LED_GPIO
+        CONFIG_DECTALK_RGB_LED_GPIO,
+# endif
+    };
+    for (size_t i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++)
+    {
+        if (reserved[i] == pin)
+        {
+            LOG_W("gpio: pin %d is reserved by firmware; rejecting", pin);
+            return NULL;
+        }
+    }
+#endif
+
     int level;
-    if (strcasecmp_local(argv[2], "on") == 0 || strcmp(argv[2], "1") == 0)
+    if (strcasecmp(argv[2], "on") == 0 || strcmp(argv[2], "1") == 0)
     {
         level = 1;
     }
-    else if (strcasecmp_local(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0)
+    else if (strcasecmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0)
     {
         level = 0;
     }
@@ -150,10 +176,20 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
 //
 // Translates the voice name to a native DECtalk inline command
 // and stores it as a session prefix.  The prefix is prepended to
-// subsequent SPEAK_TEXT jobs by the protocol layer, so the DECtalk
+// subsequent SPEAK_TEXT jobs by the speech task, so the DECtalk
 // library receives the voice-change command in-band.  The library
 // itself is NOT modified.
+//
+// Because the session prefix must update in order with respect to
+// interleaved text, the prefix is set by the ACTION job's execute
+// callback (which runs on the speech task in submission order),
+// not at tokenization time.
 // ================================================================
+
+typedef struct
+{
+    const char *cmd; // inline command string, e.g. "[:nb]"
+} voice_action_ctx_t;
 
 typedef struct
 {
@@ -177,13 +213,12 @@ static const voice_map_entry_t voice_map[] =
 
 static void voice_execute(void *ctx)
 {
-    // The voice prefix is set immediately when the command is
-    // parsed rather than deferred.  The execute callback is a
-    // no-op — ordering is maintained because the next SPEAK_TEXT
-    // job will pick up the prefix.
-    (void)ctx;
-    LOG_I("voice action applied (prefix now: %s)",
-          voice_prefix[0] ? voice_prefix : "(none)");
+    voice_action_ctx_t *v = (voice_action_ctx_t *)ctx;
+    if (v && v->cmd)
+    {
+        snprintf(voice_prefix, sizeof(voice_prefix), "%s", v->cmd);
+        LOG_I("voice action applied (prefix now: %s)", voice_prefix);
+    }
 }
 
 espress_job_t *custom_action_voice(int argc, const char **argv)
@@ -197,10 +232,15 @@ espress_job_t *custom_action_voice(int argc, const char **argv)
     const voice_map_entry_t *entry = voice_map;
     while (entry->name)
     {
-        if (strcasecmp_local(argv[1], entry->name) == 0)
+        if (strcasecmp(argv[1], entry->name) == 0)
         {
-            snprintf(voice_prefix, sizeof(voice_prefix), "%s", entry->cmd);
-            return espress_job_alloc_action(voice_execute, NULL, NULL);
+            voice_action_ctx_t *ctx = malloc(sizeof(voice_action_ctx_t));
+            if (!ctx)
+            {
+                return NULL;
+            }
+            ctx->cmd = entry->cmd; // static string, no copy needed
+            return espress_job_alloc_action(voice_execute, ctx, free);
         }
         entry++;
     }
@@ -212,15 +252,23 @@ espress_job_t *custom_action_voice(int argc, const char **argv)
 // ================================================================
 // Rate handler: [:fw rate <75..600>]
 //
-// Translates to [:ra <value>] and stores as a session prefix.
-// Same mechanism as voice — library is NOT modified.
+// Translates to [:ra <value>] and stores as a session prefix via
+// the action's execute callback (see voice handler rationale).
 // ================================================================
+
+typedef struct
+{
+    int rate;
+} rate_action_ctx_t;
 
 static void rate_execute(void *ctx)
 {
-    (void)ctx;
-    LOG_I("rate action applied (prefix now: %s)",
-          rate_prefix[0] ? rate_prefix : "(none)");
+    rate_action_ctx_t *r = (rate_action_ctx_t *)ctx;
+    if (r)
+    {
+        snprintf(rate_prefix, sizeof(rate_prefix), "[:ra %d]", r->rate);
+        LOG_I("rate action applied (prefix now: %s)", rate_prefix);
+    }
 }
 
 espress_job_t *custom_action_rate(int argc, const char **argv)
@@ -238,8 +286,13 @@ espress_job_t *custom_action_rate(int argc, const char **argv)
         return NULL;
     }
 
-    snprintf(rate_prefix, sizeof(rate_prefix), "[:ra %d]", rate);
-    return espress_job_alloc_action(rate_execute, NULL, NULL);
+    rate_action_ctx_t *ctx = malloc(sizeof(rate_action_ctx_t));
+    if (!ctx)
+    {
+        return NULL;
+    }
+    ctx->rate = rate;
+    return espress_job_alloc_action(rate_execute, ctx, free);
 }
 
 // ================================================================

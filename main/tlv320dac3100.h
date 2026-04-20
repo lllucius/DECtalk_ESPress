@@ -32,24 +32,15 @@ esp_err_t tlv320dac3100_init(void);
 /**
  * @brief Switch between the speaker and headphone output profiles.
  *
- * Reconfigures routing, reapplies conservative analog/output-path defaults,
- * and updates the speech EQ scaffold for the selected output path while
- * preserving the current digital volume after initialization.
+ * Reconfigures routing and reapplies conservative analog/output-path
+ * defaults for the selected output path while preserving the current
+ * digital volume after initialization.
  *
  * @param profile  Output profile to apply.
  *
  * @return ESP_OK on success, or an error code on failure.
  */
 esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile);
-
-/**
- * @brief Set the DAC digital volume in dB.
- *
- * @param db  Desired digital gain in dB, clamped to a safe range.
- *
- * @return ESP_OK on success, or an error code on failure.
- */
-esp_err_t tlv320dac3100_set_volume_db(float db);
 
 /**
  * @brief Mute or unmute the codec output.

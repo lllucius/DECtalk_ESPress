@@ -249,7 +249,9 @@ TEST(voice_handler)
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(jobs.count, 1);
     ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
-    // Check that voice prefix was set
+    // Prefix is only set once the action's execute callback runs.
+    ASSERT_NULL(custom_action_get_voice_prefix());
+    jobs.jobs[0]->action.execute(jobs.jobs[0]->action.ctx);
     const char *vp = custom_action_get_voice_prefix();
     ASSERT_NOT_NULL(vp);
     ASSERT_STR_EQ(vp, "[:nb]");
@@ -268,6 +270,8 @@ TEST(rate_handler)
     ASSERT_EQ(rc, 0);
     ASSERT_EQ(jobs.count, 1);
     ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    ASSERT_NULL(custom_action_get_rate_prefix());
+    jobs.jobs[0]->action.execute(jobs.jobs[0]->action.ctx);
     const char *rp = custom_action_get_rate_prefix();
     ASSERT_NOT_NULL(rp);
     ASSERT_STR_EQ(rp, "[:ra 200]");
@@ -323,6 +327,9 @@ TEST(session_reset)
     custom_actions_reset_session();
     espress_job_list_t jobs;
     custom_commands_tokenize("[:fw voice Harry]", &jobs);
+    // Run the action to apply the prefix.
+    ASSERT_EQ(jobs.count, 1);
+    jobs.jobs[0]->action.execute(jobs.jobs[0]->action.ctx);
     espress_job_list_free(&jobs);
     ASSERT_NOT_NULL(custom_action_get_voice_prefix());
 
@@ -410,6 +417,36 @@ TEST(bracket_colon_at_end)
     espress_job_list_free(&jobs);
 }
 
+// ----------------------------------------------------------------
+// 21. Voice action applies in order (regression: voice prefix used
+//     to be set at tokenization time, which broke when multiple
+//     voice changes were interleaved with text in one flush).
+// ----------------------------------------------------------------
+TEST(voice_order_interleaved)
+{
+    custom_actions_reset_session();
+    espress_job_list_t jobs;
+    // betty, text1, paul, text2 — at tokenize time vp must not be set
+    int rc = custom_commands_tokenize(
+        "[:fw voice betty]hello[:fw voice paul]world", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 4);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    ASSERT_EQ(jobs.jobs[1]->type, ESPRESS_JOB_SPEAK_TEXT);
+    ASSERT_EQ(jobs.jobs[2]->type, ESPRESS_JOB_ACTION);
+    ASSERT_EQ(jobs.jobs[3]->type, ESPRESS_JOB_SPEAK_TEXT);
+    ASSERT_NULL(custom_action_get_voice_prefix());
+
+    // Simulate speech-task execution order: action → text → action → text.
+    jobs.jobs[0]->action.execute(jobs.jobs[0]->action.ctx);
+    ASSERT_STR_EQ(custom_action_get_voice_prefix(), "[:nb]");
+    // After first text (which reads vp=[:nb]) execute second action.
+    jobs.jobs[2]->action.execute(jobs.jobs[2]->action.ctx);
+    ASSERT_STR_EQ(custom_action_get_voice_prefix(), "[:np]");
+    espress_job_list_free(&jobs);
+    custom_actions_reset_session();
+}
+
 // ================================================================
 // Main
 // ================================================================
@@ -438,6 +475,7 @@ int main(void)
     run_test_job_alloc_free();
     run_test_adjacent_fw_commands();
     run_test_bracket_colon_at_end();
+    run_test_voice_order_interleaved();
 
     printf("\n=== Results: %d/%d passed, %d failed ===\n",
            tests_passed, tests_run, tests_failed);
