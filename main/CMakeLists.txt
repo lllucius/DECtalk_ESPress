@@ -6,6 +6,8 @@ set(SRCS
     "diag_mem.c"
     "custom_commands.c"
     "custom_actions.c"
+    "espress_job_pool.c"
+    "espress_audio.c"
 )
 
 set(REQUIRES

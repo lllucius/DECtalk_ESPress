@@ -26,6 +26,7 @@
 #include "dectalk_espress.h"
 #include "diag_mem.h"
 #include "espress_jobs.h"
+#include "espress_job_pool.h"
 #include "custom_commands.h"
 #include "custom_actions.h"
 
@@ -33,12 +34,7 @@
 // The vtable in espress_transport.h decouples this module from the
 // physical link; each transport .c file exposes a single instance.
 #include "espress_transport.h"
-
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
-#include "tlv320dac3100.h"
-#include "fw_settings.h"
-#include "nvs_flash.h"
-#endif
+#include "espress_audio.h"
 
 static const char *TAG = "DECtalk ESPress";
 
@@ -70,17 +66,8 @@ static void configure_logging(void)
     esp_log_level_set("DIAG", log_level);
 }
 
-#define SAMPLE_RATE              11025
-#define I2S_BCK_IO               CONFIG_DECTALK_I2S_BCK_GPIO
-#define I2S_WS_IO                CONFIG_DECTALK_I2S_WS_GPIO
-#define I2S_DO_IO                CONFIG_DECTALK_I2S_DO_GPIO
-#define I2S_MCLK_IO              CONFIG_DECTALK_I2S_MCLK_GPIO
-#define I2S_DMA_DESC_NUM         CONFIG_DECTALK_I2S_DMA_DESC_NUM
-#define I2S_DMA_FRAME_NUM        CONFIG_DECTALK_I2S_DMA_FRAME_NUM
 #define ESPRESS_SPEECH_TASK_CORE CONFIG_DECTALK_SPEECH_TASK_CORE
 #define ESPRESS_MAIN_STACK_SIZE  CONFIG_DECTALK_MAIN_TASK_STACK_SIZE
-
-static i2s_chan_handle_t audio_handle;
 
 
 // -- Configuration ---------------------------------------------------
@@ -396,7 +383,7 @@ static void espress_check_flow_control(void)
 // Send a flush signal to the speech task.
 static void espress_send_flush(void)
 {
-    espress_job_t *job = espress_job_alloc_flush();
+    espress_job_t *job = espress_job_pool_alloc_flush();
     if (!job)
     {
         ESP_LOGE(TAG, "Failed to allocate FLUSH job");
@@ -405,7 +392,7 @@ static void espress_send_flush(void)
     if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
     {
         ESP_LOGW(TAG, "Speech queue full; dropping FLUSH job");
-        espress_job_free(job);
+        espress_job_pool_free(job);
     }
 }
 
@@ -456,7 +443,7 @@ static void espress_flush_text_to_queue(void)
                 ESP_LOGW(TAG, "Speech queue full, dropped job type %d",
                          job->type);
             }
-            espress_job_free(job);
+            espress_job_pool_free(job);
         }
     }
 
@@ -552,7 +539,7 @@ static void espress_process_dle(void)
         estate.text_pos = 0;
         // Queue the single character for speech
         char single[2] = {(char)ch, '\0'};
-        espress_job_t *job = espress_job_alloc_text(single, 1);
+        espress_job_t *job = espress_job_pool_alloc_text(single, 1);
         if (!job)
         {
             ESP_LOGE(TAG, "Failed to allocate text job for FLUSHCH");
@@ -560,7 +547,7 @@ static void espress_process_dle(void)
         else if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
         {
             ESP_LOGW(TAG, "Speech queue full; dropping FLUSHCH char 0x%02X", ch);
-            espress_job_free(job);
+            espress_job_pool_free(job);
         }
     }
     else if (type_byte == DLE_PREFIX_SYNC)
@@ -821,10 +808,11 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
                 }
 
                 // Write audio to I2S
-                if (audio_handle)
+                i2s_chan_handle_t tx = espress_audio_get_handle();
+                if (tx)
                 {
                     size_t bytes_written;
-                    i2s_channel_write(audio_handle,
+                    i2s_channel_write(tx,
                                       samples,
                                       pBuf->dwBufferLength,
                                       &bytes_written,
@@ -868,15 +856,15 @@ static void *speech_task(void *arg)
                 // Flush: cancel any ongoing synthesis
                 ESP_LOGI(TAG, "Speech task: FLUSH job received, "
                          "resetting TTS and clearing I2S DMA");
-                espress_job_free(job);
+                espress_job_pool_free(job);
                 TextToSpeechReset(espress_tts_handle, FALSE);
 
                 // Clear the I2S DMA buffer so that any audio already
                 // queued for playback is silenced immediately.  This
                 // matches the real DECtalk ESPress behaviour where ETX
                 // stops speech output at once.
-                i2s_channel_disable(audio_handle);
-                i2s_channel_enable(audio_handle);
+                i2s_channel_disable(espress_audio_get_handle());
+                i2s_channel_enable(espress_audio_get_handle());
 
                 // Drain any remaining jobs that were queued before the
                 // flush.  Without this, stale text or actions would
@@ -896,7 +884,7 @@ static void *speech_task(void *arg)
                         {
                             ESP_LOGD(TAG, "Speech task: drained stale action");
                         }
-                        espress_job_free(stale);
+                        espress_job_pool_free(stale);
                         drained++;
                     }
                     if (drained > 0)
@@ -925,7 +913,7 @@ static void *speech_task(void *arg)
                 {
                     job->action.execute(job->action.ctx);
                 }
-                espress_job_free(job);
+                espress_job_pool_free(job);
                 continue;
             }
 
@@ -946,7 +934,7 @@ static void *speech_task(void *arg)
             if (text[0] == '\0')
             {
                 ESP_LOGD(TAG, "Speech task: text empty, skipping synthesis");
-                espress_job_free(job);
+                espress_job_pool_free(job);
                 estate.speaking = 0;
                 estate.status &= ~STAT_tr_char;
                 estate.status |= STAT_rr_char | STAT_cmd_ready;
@@ -1000,7 +988,7 @@ static void *speech_task(void *arg)
             TextToSpeechSync(espress_tts_handle);
             ESP_LOGD(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned");
             free(composed);
-            espress_job_free(job);
+            espress_job_pool_free(job);
 
             estate.speaking = 0;
             estate.status &= ~STAT_tr_char;
@@ -1328,90 +1316,15 @@ void app_main(void)
     ESP_ERROR_CHECK(gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0));
 #endif
 
-    // Initialize the I2S audio output
-    ESP_LOGI(TAG, "Initializing I2S audio output...");
-
-    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
-    chan_cfg.dma_desc_num = I2S_DMA_DESC_NUM;
-    chan_cfg.dma_frame_num = I2S_DMA_FRAME_NUM;
-    chan_cfg.auto_clear = true;
-
-    i2s_new_channel(&chan_cfg, &audio_handle, NULL);
-
-    i2s_std_config_t std_cfg =
-    {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
-        .gpio_cfg =
-        {
-            .mclk = (I2S_MCLK_IO >= 0) ? (gpio_num_t)I2S_MCLK_IO : I2S_GPIO_UNUSED,
-            .bclk = I2S_BCK_IO,
-            .ws = I2S_WS_IO,
-            .dout = I2S_DO_IO,
-            .din = I2S_GPIO_UNUSED,
-            .invert_flags =
-            {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false,
-            },
-        },
-    };
-
-    // Ensure MCLK is a stable 256 x Fs when routed to the codec.
-    // This setting has no external effect in BCLK-only mode (MCLK pin
-    // is not assigned), but we leave it on the default path to keep the
-    // ESP32's internal I2S MCLK divider ratio consistent.
-    if (I2S_MCLK_IO >= 0)
-    {
-        std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
-    }
-
-    i2s_channel_init_std_mode(audio_handle, &std_cfg);
-    i2s_channel_enable(audio_handle);
-
-    if (I2S_MCLK_IO >= 0)
-    {
-        ESP_LOGI(TAG, "I2S initialized at %d Hz (MCLK on GPIO %d, 256xFs)",
-                 SAMPLE_RATE, I2S_MCLK_IO);
-    }
-    else
-    {
-        ESP_LOGI(TAG, "I2S initialized at %d Hz (BCLK-only, codec PLL)",
-                 SAMPLE_RATE);
-    }
-
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
-    // Initialise NVS so fw_settings can persist/restore codec state,
-    // then load the stored firmware settings (with Kconfig fallbacks).
-    esp_err_t nvs_err = nvs_flash_init();
-    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_LOGW(TAG, "NVS partition needs erase (%s); reformatting",
-                 esp_err_to_name(nvs_err));
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        nvs_err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(nvs_err);
-    ESP_ERROR_CHECK(fw_settings_init());
-
-    // The TLV320DAC3100 is configured over I2C after BCLK/MCLK are running
-    // so that its internal PLL (when used in BCLK-only mode) has a stable
-    // reference clock to lock onto.  The codec keeps its digital volume
-    // muted until the end of init, so DMA zeros on dout during this window
-    // are silent.
-    ESP_ERROR_CHECK(tlv320dac3100_init());
-
-    // Apply the NVS-backed settings now that the codec is ready.
-    fw_settings_apply();
-#endif
+    // Initialize audio subsystem (I2S + codec if configured)
+    ESP_ERROR_CHECK(espress_audio_init());
 
     // Create the speech queue and initialise the custom-command
     // subsystem BEFORE spawning the worker threads so both threads see
     // a fully-initialised queue from their first iteration.
     speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(espress_job_t *));
     ESP_ERROR_CHECK(speech_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
+    espress_job_pool_init();
     custom_commands_init();
 
     // Retrieve the default pthread configuration

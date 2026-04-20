@@ -348,14 +348,23 @@ menu "DECtalk ESPress Firmware"
                 Enable the [:fw gpio <pin> <on|off|0|1>] handler.
 
         config DECTALK_FW_CMD_TONE_ENABLE
-            bool "Enable tone handler (stub)"
+            bool "Enable tone handler"
             default n
             depends on DECTALK_FW_CMD_ENABLE
             help
                 Enable the [:fw tone <freq_hz> <duration_ms>] handler.
-                This is currently a stub that logs the request but does
-                not produce audio.  Enable it to reserve the command
-                namespace for future hardware-specific implementation.
+                When enabled and DECTALK_TONE_GPIO is configured, produces
+                a square-wave tone via the LEDC PWM peripheral.
+
+        config DECTALK_TONE_GPIO
+            int "Tone output GPIO (-1 to disable)"
+            default -1
+            range -1 48
+            depends on DECTALK_FW_CMD_TONE_ENABLE
+            help
+                GPIO connected to a piezo buzzer or small speaker for tone
+                generation via LEDC PWM.  Set to -1 to disable hardware
+                tone output (the handler will only log the request).
 
         config DECTALK_FW_CMD_RESET_ON_RECONNECT
             bool "Reset custom command state on reconnect"

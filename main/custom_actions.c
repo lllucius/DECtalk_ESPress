@@ -24,6 +24,9 @@
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "driver/ledc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
 #include "fw_settings.h"
@@ -307,9 +310,10 @@ espress_job_t *custom_action_rate(int argc, const char **argv)
 // ================================================================
 // Tone handler: [:fw tone <freq_hz> <duration_ms>]
 //
-// TODO: This is a stub.  A real implementation needs to know which
-// audio path to use (I2S direct, LEDC PWM, dedicated tone GPIO,
-// etc.), which is board-specific.  For now it logs the request.
+// Generates a square-wave tone via the LEDC PWM peripheral.  The
+// tone GPIO is configured via CONFIG_DECTALK_TONE_GPIO (Kconfig).
+// On non-ESP builds or when the tone GPIO is not configured, falls
+// back to a diagnostic log.
 // ================================================================
 
 typedef struct
@@ -321,14 +325,45 @@ typedef struct
 static void tone_execute(void *ctx)
 {
     tone_action_ctx_t *t = (tone_action_ctx_t *)ctx;
-    LOG_I("tone action: freq=%d Hz, duration=%d ms (STUB — not implemented)",
-          t->freq_hz, t->duration_ms);
-    // TODO: Implement tone generation for the target hardware.
-    // Options include:
-    //   - LEDC PWM output to a GPIO connected to a speaker/buzzer
-    //   - Mixing a sine wave into the I2S audio stream
-    //   - Using the DAC peripheral if available
-    // The correct approach depends on the board hardware.
+    LOG_I("tone action: freq=%d Hz, duration=%d ms", t->freq_hz, t->duration_ms);
+
+#if defined(ESP_PLATFORM) && defined(CONFIG_DECTALK_TONE_GPIO) && \
+    (CONFIG_DECTALK_TONE_GPIO >= 0)
+    ledc_timer_config_t timer_cfg = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .timer_num = LEDC_TIMER_0,
+        .freq_hz = (uint32_t)t->freq_hz,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    if (ledc_timer_config(&timer_cfg) != ESP_OK)
+    {
+        LOG_E("tone: LEDC timer config failed");
+        return;
+    }
+
+    ledc_channel_config_t chan_cfg = {
+        .gpio_num = CONFIG_DECTALK_TONE_GPIO,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LEDC_CHANNEL_0,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 128, // 50% duty for square wave (8-bit resolution)
+        .hpoint = 0,
+    };
+    if (ledc_channel_config(&chan_cfg) != ESP_OK)
+    {
+        LOG_E("tone: LEDC channel config failed");
+        return;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(t->duration_ms));
+
+    // Stop the tone
+    ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
+#else
+    (void)t;
+    LOG_W("tone: no tone GPIO configured (set CONFIG_DECTALK_TONE_GPIO)");
+#endif
 }
 
 espress_job_t *custom_action_tone(int argc, const char **argv)
