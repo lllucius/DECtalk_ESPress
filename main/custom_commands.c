@@ -147,22 +147,6 @@ void espress_job_free(espress_job_t *job)
 }
 
 // ----------------------------------------------------------------
-// Built-in dispatch table
-// ----------------------------------------------------------------
-
-static const custom_cmd_entry_t dispatch_table[] =
-{
-    { "gpio",  custom_action_gpio  },
-    { "voice", custom_action_voice },
-    { "rate",  custom_action_rate  },
-#if !defined(ESP_PLATFORM) || \
-    (defined(CONFIG_CUSTOM_CMD_ENABLE) && defined(CONFIG_CUSTOM_CMD_TONE_ENABLE))
-    { "tone",  custom_action_tone  },
-#endif
-    { NULL,    NULL                },
-};
-
-// ----------------------------------------------------------------
 // Argument splitter: splits `token` (the content between [: and ])
 // by whitespace into argv[].  Returns argc.
 // ----------------------------------------------------------------
@@ -212,14 +196,14 @@ static int split_args(const char *token, int token_len,
 // ----------------------------------------------------------------
 static int is_custom_namespace(const char *token, int token_len)
 {
-    int ns_len = (int)strlen(CUSTOM_CMD_NAMESPACE);
+    int ns_len = (int)strlen(DECTALK_FW_CMD_NAMESPACE);
 
     if (token_len < ns_len)
     {
         return 0;
     }
 
-    if (strncmp(token, CUSTOM_CMD_NAMESPACE, (size_t)ns_len) != 0)
+    if (strncmp(token, DECTALK_FW_CMD_NAMESPACE, (size_t)ns_len) != 0)
     {
         return 0;
     }
@@ -248,22 +232,13 @@ static espress_job_t *dispatch_custom_command(int argc, const char **argv)
         return NULL;
     }
 
-    const char *sub_cmd = argv[1];
-    const custom_cmd_entry_t *entry = dispatch_table;
-
-    while (entry->name)
+    // Pass argc-1, argv+1 so handlers see their own name as argv[0].
+    espress_job_t *job = custom_actions_dispatch(argc - 1, argv + 1);
+    if (!job)
     {
-        if (strcmp(entry->name, sub_cmd) == 0)
-        {
-            // Pass argc-1, argv+1 so the handler sees its own name
-            // as argv[0].
-            return entry->handler(argc - 1, argv + 1);
-        }
-        entry++;
+        LOG_W("unknown or invalid custom command: [:%.16s ...]", argv[1]);
     }
-
-    LOG_W("unknown custom command: [:%.16s ...]", sub_cmd);
-    return NULL;
+    return job;
 }
 
 // ----------------------------------------------------------------
@@ -283,7 +258,7 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
 
     // If custom commands are compiled out, just produce a single
     // text job.
-#if defined(ESP_PLATFORM) && !defined(CONFIG_CUSTOM_CMD_ENABLE)
+#if defined(ESP_PLATFORM) && !defined(CONFIG_DECTALK_FW_CMD_ENABLE)
     {
         int len = (int)strlen(text);
         if (len > 0)
@@ -337,10 +312,10 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
                 is_custom_namespace(&text[content_start], token_len))
             {
                 // Enforce max token length
-                if (token_len > CUSTOM_CMD_MAX_TOKEN_LEN)
+                if (token_len > DECTALK_FW_CMD_MAX_TOKEN_LEN)
                 {
                     LOG_W("custom command token too long (%d > %d), skipping",
-                          token_len, CUSTOM_CMD_MAX_TOKEN_LEN);
+                          token_len, DECTALK_FW_CMD_MAX_TOKEN_LEN);
                     // Consume the token (don't pass to DECtalk)
                     if (bracket_start > seg_start)
                     {
@@ -368,10 +343,10 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
                 }
 
                 // Parse and dispatch the custom command
-                const char *argv[CUSTOM_CMD_MAX_ARGS];
-                char arg_buf[CUSTOM_CMD_MAX_TOKEN_LEN + 1];
+                const char *argv[DECTALK_FW_CMD_MAX_ARGS];
+                char arg_buf[DECTALK_FW_CMD_MAX_TOKEN_LEN + 1];
                 int argc = split_args(&text[content_start], token_len,
-                                      argv, CUSTOM_CMD_MAX_ARGS,
+                                      argv, DECTALK_FW_CMD_MAX_ARGS,
                                       arg_buf, (int)sizeof(arg_buf));
 
                 espress_job_t *action = dispatch_custom_command(argc, argv);
@@ -419,9 +394,9 @@ void custom_commands_init(void)
 {
     LOG_I("custom commands initialised (namespace=\"%s\", "
           "max_token=%d, max_args=%d)",
-          CUSTOM_CMD_NAMESPACE,
-          CUSTOM_CMD_MAX_TOKEN_LEN,
-          CUSTOM_CMD_MAX_ARGS);
+          DECTALK_FW_CMD_NAMESPACE,
+          DECTALK_FW_CMD_MAX_TOKEN_LEN,
+          DECTALK_FW_CMD_MAX_ARGS);
 }
 
 void custom_commands_reset_session(void)

@@ -236,3 +236,22 @@ bool usb_cdc_transport_check_reconnected(void)
 
     return false;
 }
+
+
+// ----------------------------------------------------------------
+// Transport vtable instance for USB CDC-ACM
+// ----------------------------------------------------------------
+#include "espress_transport.h"
+
+static const espress_transport_t s_usb_cdc_transport = {
+    .init              = usb_cdc_transport_init,
+    .read              = usb_cdc_transport_read,
+    .write             = usb_cdc_transport_write,
+    .connected         = usb_cdc_transport_connected,
+    .check_reconnected = usb_cdc_transport_check_reconnected,
+};
+
+const espress_transport_t *espress_transport_get(void)
+{
+    return &s_usb_cdc_transport;
+}

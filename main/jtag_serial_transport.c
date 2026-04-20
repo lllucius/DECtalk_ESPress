@@ -141,3 +141,22 @@ bool jtag_serial_transport_check_reconnected(void)
 
     return false;
 }
+
+
+// ----------------------------------------------------------------
+// Transport vtable instance for USB Serial/JTAG
+// ----------------------------------------------------------------
+#include "espress_transport.h"
+
+static const espress_transport_t s_jtag_serial_transport = {
+    .init              = jtag_serial_transport_init,
+    .read              = jtag_serial_transport_read,
+    .write             = jtag_serial_transport_write,
+    .connected         = jtag_serial_transport_connected,
+    .check_reconnected = jtag_serial_transport_check_reconnected,
+};
+
+const espress_transport_t *espress_transport_get(void)
+{
+    return &s_jtag_serial_transport;
+}

@@ -127,10 +127,13 @@ menu "DECtalk ESPress Firmware"
                 prompt "Default output profile"
                 default DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
                 help
-                    Select the startup output profile used before optional
-                    headset auto-switching changes it.  Speaker keeps the
-                    current safe default.  Low-level DSP and register tuning
-                    are intentionally not exposed here yet.
+                    Factory-default startup output profile used when NVS does
+                    not yet contain a saved value.  The runtime profile can
+                    be changed with [:fw profile speaker|headphone] and
+                    persisted with [:fw save].
+
+                    Low-level DSP and register tuning are intentionally not
+                    exposed here yet.
 
                 config DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
                     bool "Speaker"
@@ -143,25 +146,26 @@ menu "DECtalk ESPress Firmware"
                 bool "Enable headset auto-switching"
                 default y
                 help
-                    Poll the codec headset-detect status and automatically
-                    switch between speaker and headphone profiles.
+                    Factory-default for the headset auto-switch flag.  When
+                    on, the codec polls jack detect and switches between
+                    speaker and headphone profiles automatically.
 
-                    Enable this to keep the current behavior.  Disable it to
-                    leave the startup/default profile active until software
-                    changes it manually.  Jack-detect tuning is intentionally
-                    not exposed yet.
+                    The runtime value can be changed with
+                    [:fw autoswitch on|off] and persisted with [:fw save].
+                    Jack-detect tuning is intentionally not exposed yet.
 
             config DECTALK_TLV320_STARTUP_VOLUME
                 int "Startup digital volume"
                 range 0 9
                 default 5
                 help
-                    Startup digital volume level applied once during codec
-                    initialization (0 = near mute, 9 = 0 dB).
+                    Factory-default startup digital volume (0 = near mute,
+                    9 = 0 dB).  Used when NVS does not yet contain a saved
+                    volume.  Change the runtime value with
+                    [:fw volume <0..9>] and persist with [:fw save].
 
-                    The default is a conservative startup level.  Fine-grained
-                    dB, analog gain, EQ, DSP, and register-level tuning are
-                    intentionally not exposed yet.
+                    Fine-grained dB, analog gain, EQ, DSP, and register-level
+                    tuning are intentionally not exposed yet.
         endmenu
 
         menu "Advanced audio tuning"
@@ -291,7 +295,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "Custom firmware commands"
-        config CUSTOM_CMD_ENABLE
+        config DECTALK_FW_CMD_ENABLE
             bool "Enable [:fw ...] custom commands"
             default y
             help
@@ -299,64 +303,73 @@ menu "DECtalk ESPress Firmware"
                 When disabled, all bracket-colon tokens pass through
                 to DECtalk unchanged.
 
-        config CUSTOM_CMD_NAMESPACE
+        config DECTALK_FW_CMD_NAMESPACE
             string "Custom command namespace"
             default "fw"
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 The keyword that follows [: to identify a firmware
                 custom command (e.g. "fw" matches [:fw ...]).
 
-        config CUSTOM_CMD_MAX_TOKEN_LEN
+        config DECTALK_FW_CMD_MAX_TOKEN_LEN
             int "Max custom command token length"
             default 128
             range 32 512
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Maximum number of characters between [: and ] for a
                 custom command.  Tokens longer than this are consumed
                 and logged as oversized.
 
-        config CUSTOM_CMD_MAX_ARGS
+        config DECTALK_FW_CMD_MAX_ARGS
             int "Max custom command argument count"
             default 8
             range 2 32
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Maximum number of whitespace-delimited arguments in
                 a single custom command (including the sub-command name).
 
-        config CUSTOM_CMD_ALLOW_NATIVE_OVERRIDE
+        config DECTALK_FW_CMD_ALLOW_NATIVE_OVERRIDE
             bool "Allow native DECtalk command override"
             default n
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 When enabled, custom command handlers may intercept
                 tokens that would otherwise be native DECtalk inline
                 commands.  Default is off: only [:fw ...] tokens
                 are intercepted.
 
-        config CUSTOM_CMD_GPIO_ENABLE
+        config DECTALK_FW_CMD_GPIO_ENABLE
             bool "Enable GPIO handler"
             default y
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Enable the [:fw gpio <pin> <on|off|0|1>] handler.
 
-        config CUSTOM_CMD_TONE_ENABLE
-            bool "Enable tone handler (stub)"
+        config DECTALK_FW_CMD_TONE_ENABLE
+            bool "Enable tone handler"
             default n
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Enable the [:fw tone <freq_hz> <duration_ms>] handler.
-                This is currently a stub that logs the request but does
-                not produce audio.  Enable it to reserve the command
-                namespace for future hardware-specific implementation.
+                When enabled and DECTALK_TONE_GPIO is configured, produces
+                a square-wave tone via the LEDC PWM peripheral.
 
-        config CUSTOM_CMD_RESET_ON_RECONNECT
+        config DECTALK_TONE_GPIO
+            int "Tone output GPIO (-1 to disable)"
+            default -1
+            range -1 48
+            depends on DECTALK_FW_CMD_TONE_ENABLE
+            help
+                GPIO connected to a piezo buzzer or small speaker for tone
+                generation via LEDC PWM.  Set to -1 to disable hardware
+                tone output (the handler will only log the request).
+
+        config DECTALK_FW_CMD_RESET_ON_RECONNECT
             bool "Reset custom command state on reconnect"
             default y
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Clear session-level custom command state (e.g. stored
                 voice and rate overrides) when the USB host reconnects.

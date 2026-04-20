@@ -295,6 +295,11 @@ static TaskHandle_t s_event_task = NULL;
 static esp_timer_handle_t s_poll_timer = NULL;
 static bool s_irq_handler_registered = false;
 static int s_irq_gpio = -1;
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+static bool s_autoswitch = true;
+#else
+static bool s_autoswitch = false;
+#endif
 
 
 static tlv320_profile_t tlv320_get_default_profile(void)
@@ -390,6 +395,15 @@ static esp_err_t select_page(uint8_t page)
     }
 
     return err;
+}
+
+// Invalidate the page-select cache.  Call this after any operation that
+// resets the codec's internal page state (software reset register write,
+// hardware reset pulse) so the next select_page() always issues an I2C
+// write regardless of the cached value.
+static inline void invalidate_page_cache(void)
+{
+    s_current_page = TLV320_INVALID_PAGE;
 }
 
 static esp_err_t write_reg(uint8_t page, uint8_t reg, uint8_t val)
@@ -493,7 +507,7 @@ static void tlv320_reset_state(void)
 {
     tlv320_profile_t default_profile = tlv320_get_default_profile();
 
-    s_current_page = TLV320_INVALID_PAGE;
+    invalidate_page_cache();
     s_hp_active = (default_profile == TLV320_PROFILE_HEADPHONE);
     s_headset_present = false;
     s_volume = CONFIG_DECTALK_TLV320_STARTUP_VOLUME;
@@ -518,8 +532,16 @@ static void tlv320_release_i2c_resources(void)
         s_bus = NULL;
     }
 
-    s_current_page = TLV320_INVALID_PAGE;
+    invalidate_page_cache();
     s_headset_present = false;
+}
+
+// Combined "release I2C handles + reset all codec driver state + invalidate
+// the page-select cache".  Used on both hardware reset and cleanup paths.
+static void tlv320_full_reset(void)
+{
+    tlv320_release_i2c_resources();
+    tlv320_reset_state();
 }
 
 static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_irq_seen)
@@ -540,8 +562,10 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
         return ESP_OK;
     }
 
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    if (headset_present && !s_hp_active)
+    // Honor the runtime s_autoswitch flag (initialised from Kconfig,
+    // but switchable via [:fw autoswitch ...]).  When disabled,
+    // headset insertion/removal only updates the presence flag.
+    if (s_autoswitch && headset_present && !s_hp_active)
     {
         err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
         if (err != ESP_OK)
@@ -550,7 +574,7 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
                      esp_err_to_name(err));
         }
     }
-    else if (!headset_present && s_hp_active)
+    else if (s_autoswitch && !headset_present && s_hp_active)
     {
         err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
         if (err != ESP_OK)
@@ -559,7 +583,6 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
                      esp_err_to_name(err));
         }
     }
-#endif
 
     return err;
 }
@@ -851,8 +874,7 @@ esp_err_t tlv320dac3100_init(void)
         .flags.enable_internal_pullup = true,
     };
 
-    tlv320_release_i2c_resources();
-    tlv320_reset_state();
+    tlv320_full_reset();
 
     err = tlv320_codec_hardware_reset();
     if (err != ESP_OK)
@@ -899,7 +921,7 @@ esp_err_t tlv320dac3100_init(void)
 
     // The software reset restores the codec's page-select state, so clear
     // the cached page before continuing with normal register programming.
-    s_current_page = TLV320_INVALID_PAGE;
+    invalidate_page_cache();
 
     // ---- Phase 2: configure clocks / PLL path -------------------
     err = write_regs(0x00,
@@ -1052,8 +1074,7 @@ esp_err_t tlv320dac3100_init(void)
 
 init_fail:
     s_apply_profile_volume_default = false;
-    tlv320_release_i2c_resources();
-    tlv320_reset_state();
+    tlv320_full_reset();
     return err;
 }
 
@@ -1087,25 +1108,72 @@ void tlv320dac3100_set_volume(uint8_t level)
         level = MAX_VOLUME;
     }
 
+    // Delegate to the dB-based setter using the lookup table.
+    tlv320dac3100_set_volume_db(vol_db_table[level]);
     s_volume = level;
-    s_volume_db = vol_db_table[level];
-    s_digital_volume_reg = vol_table[level];
-    esp_err_t err = write_digital_volume(get_effective_volume_reg());
-    if (err == ESP_OK)
-    {
-        ESP_LOGI(TAG, "Volume set to %u (reg 0x%02X)", level, s_digital_volume_reg);
-    }
-    else
-    {
-        ESP_LOGE(TAG, "Failed to set volume level %u: %s",
-                 level, esp_err_to_name(err));
-    }
 }
 
 
 uint8_t tlv320dac3100_get_volume(void)
 {
     return s_volume;
+}
+
+void tlv320dac3100_set_volume_db(float db)
+{
+    // Clamp to the hardware-representable range.
+    if (db > 0.0f)
+    {
+        db = 0.0f;
+    }
+    if (db < -63.5f)
+    {
+        db = -63.5f;
+    }
+
+    s_volume_db = db;
+
+    // Convert dB to the codec register value.  The register uses two's-
+    // complement in 0.5 dB steps:  0x00 = 0 dB, 0xFF = -0.5 dB, …,
+    // 0x81 = -63.5 dB.  So reg = (int8_t)(db * 2.0f) cast to uint8_t.
+    int8_t reg_signed = (int8_t)(db * 2.0f);
+    s_digital_volume_reg = (uint8_t)reg_signed;
+
+    // Reverse-map the closest level for get_volume().
+    // Find the nearest entry in vol_db_table (linear scan is fine for 10).
+    uint8_t best = 0;
+    float best_diff = 100.0f; // larger than any possible table delta
+    for (int i = 0; i <= MAX_VOLUME; i++)
+    {
+        float diff = db - vol_db_table[i];
+        if (diff < 0.0f)
+        {
+            diff = -diff;
+        }
+        if (diff < best_diff)
+        {
+            best_diff = diff;
+            best = (uint8_t)i;
+        }
+    }
+    s_volume = best;
+
+    esp_err_t err = write_digital_volume(get_effective_volume_reg());
+    if (err == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Volume set to %.1f dB (level %u, reg 0x%02X)",
+                 s_volume_db, s_volume, s_digital_volume_reg);
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to set volume %.1f dB: %s",
+                 db, esp_err_to_name(err));
+    }
+}
+
+float tlv320dac3100_get_volume_db(void)
+{
+    return s_volume_db;
 }
 
 esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
@@ -1178,4 +1246,24 @@ esp_err_t tlv320dac3100_mute(bool enable)
     // instead of toggling a dedicated codec hardware mute bit.
     s_muted = enable;
     return write_digital_volume(get_effective_volume_reg());
+}
+
+void tlv320dac3100_set_autoswitch(bool enable)
+{
+    if (s_autoswitch == enable)
+    {
+        return;
+    }
+    s_autoswitch = enable;
+    ESP_LOGI(TAG, "Headset autoswitch %s", enable ? "enabled" : "disabled");
+}
+
+bool tlv320dac3100_get_autoswitch(void)
+{
+    return s_autoswitch;
+}
+
+tlv320_profile_t tlv320dac3100_get_profile(void)
+{
+    return s_profile;
 }

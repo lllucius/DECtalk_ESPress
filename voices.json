@@ -1,0 +1,13 @@
+{
+    "voices": [
+        {"name": "Paul",    "code": "np"},
+        {"name": "Betty",   "code": "nb"},
+        {"name": "Harry",   "code": "nh"},
+        {"name": "Frank",   "code": "nf"},
+        {"name": "Dennis",  "code": "nd"},
+        {"name": "Kit",     "code": "nk"},
+        {"name": "Ursula",  "code": "nu"},
+        {"name": "Rita",    "code": "nr"},
+        {"name": "Wendy",   "code": "nw"}
+    ]
+}

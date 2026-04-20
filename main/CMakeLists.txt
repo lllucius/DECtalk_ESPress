@@ -6,6 +6,8 @@ set(SRCS
     "diag_mem.c"
     "custom_commands.c"
     "custom_actions.c"
+    "espress_job_pool.c"
+    "espress_audio.c"
 )
 
 set(REQUIRES
@@ -18,6 +20,11 @@ set(REQUIRES
     esp_driver_gpio
     esp_timer
 )
+
+# LEDC is needed for the tone handler.
+if(CONFIG_DECTALK_FW_CMD_TONE_ENABLE)
+    list(APPEND REQUIRES esp_driver_ledc)
+endif()
 
 # Select the serial transport layer based on the target chip.
 # ESP32-S3 has native USB-OTG and uses TinyUSB CDC-ACM.
@@ -32,8 +39,8 @@ else()
 endif()
 
 if(CONFIG_DECTALK_DAC_TLV320DAC3100)
-    list(APPEND SRCS "tlv320dac3100.c")
-    list(APPEND REQUIRES esp_driver_i2c)
+    list(APPEND SRCS "tlv320dac3100.c" "fw_settings.c")
+    list(APPEND REQUIRES esp_driver_i2c nvs_flash)
 endif()
 
 idf_component_register(
