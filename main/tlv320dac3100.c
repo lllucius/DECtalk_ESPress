@@ -127,7 +127,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
-// Build-time routing-isolation flag for headphone clarity testing:
+// Build-time routing-mode selection flag for headphone clarity testing:
 // set to 1 to keep the original mono speech duplication from the left I2S slot
 // on both outputs, or 0 to test normal stereo DAC mapping in this build.
 #define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
@@ -232,12 +232,11 @@ static const reg_val_t dac_processing_init[] =
 {
     {REG_DAC_PRB,      0x01},   // Processing block PRB_P1
     {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
-                                // Previous value duplicated mono speech into
-                                // both outputs from the left I2S slot.
-                                // This build selects the alternative value via
-                                // TLV320_DIAG_USE_MONO_LEFT_ROUTING to test
-                                // whether normal left/right DAC mapping
-                                // sounds cleaner on headphones.
+                                // TLV320_DIAG_USE_MONO_LEFT_ROUTING = 1 keeps
+                                // the previous mono speech duplication from
+                                // the left I2S slot into both outputs.
+                                // Leaving it at 0 selects normal left/right
+                                // DAC mapping for this routing test build.
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
 };
 
