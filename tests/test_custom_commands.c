@@ -447,6 +447,120 @@ TEST(voice_order_interleaved)
     custom_actions_reset_session();
 }
 
+// ----------------------------------------------------------------
+// Codec fw commands (new in this PR): volume / profile /
+// autoswitch / save.  On host builds the handlers only parse args
+// and allocate ACTION jobs — the codec side is #ifdef'd out.
+// ----------------------------------------------------------------
+
+TEST(volume_handler_valid)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw volume 7]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 1);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    espress_job_list_free(&jobs);
+}
+
+TEST(volume_handler_out_of_range)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw volume 99]", &jobs);
+    ASSERT_EQ(rc, 0);
+    // Out-of-range level: handler rejects, token is consumed.
+    ASSERT_EQ(jobs.count, 0);
+    espress_job_list_free(&jobs);
+}
+
+TEST(volume_handler_non_numeric)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw volume loud]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 0);
+    espress_job_list_free(&jobs);
+}
+
+TEST(profile_handler_speaker)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw profile speaker]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 1);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    espress_job_list_free(&jobs);
+}
+
+TEST(profile_handler_headphone_alias)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw profile HP]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 1);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    espress_job_list_free(&jobs);
+}
+
+TEST(profile_handler_invalid)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw profile bluetooth]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 0);
+    espress_job_list_free(&jobs);
+}
+
+TEST(autoswitch_handler_on_off)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw autoswitch on] [:fw autoswitch off]",
+                                      &jobs);
+    ASSERT_EQ(rc, 0);
+    // Two action jobs plus the space between (text job).
+    int action_count = 0;
+    for (int i = 0; i < jobs.count; i++)
+    {
+        if (jobs.jobs[i]->type == ESPRESS_JOB_ACTION)
+        {
+            action_count++;
+        }
+    }
+    ASSERT_EQ(action_count, 2);
+    espress_job_list_free(&jobs);
+}
+
+TEST(autoswitch_handler_invalid)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw autoswitch maybe]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 0);
+    espress_job_list_free(&jobs);
+}
+
+TEST(save_handler)
+{
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw save]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 1);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    espress_job_list_free(&jobs);
+}
+
+TEST(subcommand_case_insensitive)
+{
+    // The refactored dispatcher is case-insensitive for sub-command
+    // names, so VOLUME / Volume / volume are all accepted.
+    espress_job_list_t jobs;
+    int rc = custom_commands_tokenize("[:fw VOLUME 3]", &jobs);
+    ASSERT_EQ(rc, 0);
+    ASSERT_EQ(jobs.count, 1);
+    ASSERT_EQ(jobs.jobs[0]->type, ESPRESS_JOB_ACTION);
+    espress_job_list_free(&jobs);
+}
+
 // ================================================================
 // Main
 // ================================================================
@@ -476,6 +590,16 @@ int main(void)
     run_test_adjacent_fw_commands();
     run_test_bracket_colon_at_end();
     run_test_voice_order_interleaved();
+    run_test_volume_handler_valid();
+    run_test_volume_handler_out_of_range();
+    run_test_volume_handler_non_numeric();
+    run_test_profile_handler_speaker();
+    run_test_profile_handler_headphone_alias();
+    run_test_profile_handler_invalid();
+    run_test_autoswitch_handler_on_off();
+    run_test_autoswitch_handler_invalid();
+    run_test_save_handler();
+    run_test_subcommand_case_insensitive();
 
     printf("\n=== Results: %d/%d passed, %d failed ===\n",
            tests_passed, tests_run, tests_failed);

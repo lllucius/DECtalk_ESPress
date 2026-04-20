@@ -295,6 +295,11 @@ static TaskHandle_t s_event_task = NULL;
 static esp_timer_handle_t s_poll_timer = NULL;
 static bool s_irq_handler_registered = false;
 static int s_irq_gpio = -1;
+#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+static bool s_autoswitch = true;
+#else
+static bool s_autoswitch = false;
+#endif
 
 
 static tlv320_profile_t tlv320_get_default_profile(void)
@@ -540,8 +545,10 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
         return ESP_OK;
     }
 
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
-    if (headset_present && !s_hp_active)
+    // Honor the runtime s_autoswitch flag (initialised from Kconfig,
+    // but switchable via [:fw autoswitch ...]).  When disabled,
+    // headset insertion/removal only updates the presence flag.
+    if (s_autoswitch && headset_present && !s_hp_active)
     {
         err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
         if (err != ESP_OK)
@@ -550,7 +557,7 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
                      esp_err_to_name(err));
         }
     }
-    else if (!headset_present && s_hp_active)
+    else if (s_autoswitch && !headset_present && s_hp_active)
     {
         err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
         if (err != ESP_OK)
@@ -559,7 +566,6 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
                      esp_err_to_name(err));
         }
     }
-#endif
 
     return err;
 }
@@ -1178,4 +1184,24 @@ esp_err_t tlv320dac3100_mute(bool enable)
     // instead of toggling a dedicated codec hardware mute bit.
     s_muted = enable;
     return write_digital_volume(get_effective_volume_reg());
+}
+
+void tlv320dac3100_set_autoswitch(bool enable)
+{
+    if (s_autoswitch == enable)
+    {
+        return;
+    }
+    s_autoswitch = enable;
+    ESP_LOGI(TAG, "Headset autoswitch %s", enable ? "enabled" : "disabled");
+}
+
+bool tlv320dac3100_get_autoswitch(void)
+{
+    return s_autoswitch;
+}
+
+tlv320_profile_t tlv320dac3100_get_profile(void)
+{
+    return s_profile;
 }

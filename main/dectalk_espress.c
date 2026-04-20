@@ -48,6 +48,8 @@
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
+#include "fw_settings.h"
+#include "nvs_flash.h"
 #endif
 
 static const char *TAG = "DECtalk ESPress";
@@ -1364,12 +1366,29 @@ void app_main(void)
     }
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
+    // Initialise NVS so fw_settings can persist/restore codec state,
+    // then load the stored firmware settings (with Kconfig fallbacks).
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_LOGW(TAG, "NVS partition needs erase (%s); reformatting",
+                 esp_err_to_name(nvs_err));
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        nvs_err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(nvs_err);
+    ESP_ERROR_CHECK(fw_settings_init());
+
     // The TLV320DAC3100 is configured over I2C after BCLK/MCLK are running
     // so that its internal PLL (when used in BCLK-only mode) has a stable
     // reference clock to lock onto.  The codec keeps its digital volume
     // muted until the end of init, so DMA zeros on dout during this window
     // are silent.
     ESP_ERROR_CHECK(tlv320dac3100_init());
+
+    // Apply the NVS-backed settings now that the codec is ready.
+    fw_settings_apply();
 #endif
 
     // Create the speech queue and initialise the custom-command

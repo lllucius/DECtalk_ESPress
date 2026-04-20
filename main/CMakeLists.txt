@@ -32,8 +32,8 @@ else()
 endif()
 
 if(CONFIG_DECTALK_DAC_TLV320DAC3100)
-    list(APPEND SRCS "tlv320dac3100.c")
-    list(APPEND REQUIRES esp_driver_i2c)
+    list(APPEND SRCS "tlv320dac3100.c" "fw_settings.c")
+    list(APPEND REQUIRES esp_driver_i2c nvs_flash)
 endif()
 
 idf_component_register(

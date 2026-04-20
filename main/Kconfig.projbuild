@@ -127,10 +127,13 @@ menu "DECtalk ESPress Firmware"
                 prompt "Default output profile"
                 default DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
                 help
-                    Select the startup output profile used before optional
-                    headset auto-switching changes it.  Speaker keeps the
-                    current safe default.  Low-level DSP and register tuning
-                    are intentionally not exposed here yet.
+                    Factory-default startup output profile used when NVS does
+                    not yet contain a saved value.  The runtime profile can
+                    be changed with [:fw profile speaker|headphone] and
+                    persisted with [:fw save].
+
+                    Low-level DSP and register tuning are intentionally not
+                    exposed here yet.
 
                 config DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
                     bool "Speaker"
@@ -143,25 +146,26 @@ menu "DECtalk ESPress Firmware"
                 bool "Enable headset auto-switching"
                 default y
                 help
-                    Poll the codec headset-detect status and automatically
-                    switch between speaker and headphone profiles.
+                    Factory-default for the headset auto-switch flag.  When
+                    on, the codec polls jack detect and switches between
+                    speaker and headphone profiles automatically.
 
-                    Enable this to keep the current behavior.  Disable it to
-                    leave the startup/default profile active until software
-                    changes it manually.  Jack-detect tuning is intentionally
-                    not exposed yet.
+                    The runtime value can be changed with
+                    [:fw autoswitch on|off] and persisted with [:fw save].
+                    Jack-detect tuning is intentionally not exposed yet.
 
             config DECTALK_TLV320_STARTUP_VOLUME
                 int "Startup digital volume"
                 range 0 9
                 default 5
                 help
-                    Startup digital volume level applied once during codec
-                    initialization (0 = near mute, 9 = 0 dB).
+                    Factory-default startup digital volume (0 = near mute,
+                    9 = 0 dB).  Used when NVS does not yet contain a saved
+                    volume.  Change the runtime value with
+                    [:fw volume <0..9>] and persist with [:fw save].
 
-                    The default is a conservative startup level.  Fine-grained
-                    dB, analog gain, EQ, DSP, and register-level tuning are
-                    intentionally not exposed yet.
+                    Fine-grained dB, analog gain, EQ, DSP, and register-level
+                    tuning are intentionally not exposed yet.
         endmenu
 
         menu "Advanced audio tuning"

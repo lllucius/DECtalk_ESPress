@@ -7,10 +7,19 @@
 // ACTION job that will be executed in order on the speech task.
 //
 // Handlers:
-//   gpio  <pin> <on|off|0|1>        – set a GPIO pin level
-//   voice <name>                     – change DECtalk voice
-//   rate  <75..600>                  – change DECtalk speaking rate
-//   tone  <freq_hz> <duration_ms>   – play a tone (stub/TODO)
+//   gpio       <pin> <on|off|0|1>         – set a GPIO pin level
+//   voice      <name>                      – change DECtalk voice
+//   rate       <75..600>                   – change DECtalk speaking rate
+//   tone       <freq_hz> <duration_ms>    – play a tone (stub/TODO)
+//   volume     <0..9>                      – set codec digital volume
+//   profile    <speaker|headphone>         – set codec output profile
+//   autoswitch <on|off>                    – enable/disable headset auto-switch
+//   save                                   – persist codec settings to NVS
+//
+// Adding a new sub-command:
+//   1. Add a `custom_action_<name>()` below that parses argv and
+//      returns a job (or NULL on invalid args).
+//   2. Add one row to the table in custom_actions.c.
 // ----------------------------------------------------------------
 
 #ifndef CUSTOM_ACTIONS_H
@@ -32,6 +41,19 @@ espress_job_t *custom_action_gpio(int argc, const char **argv);
 espress_job_t *custom_action_voice(int argc, const char **argv);
 espress_job_t *custom_action_rate(int argc, const char **argv);
 espress_job_t *custom_action_tone(int argc, const char **argv);
+espress_job_t *custom_action_volume(int argc, const char **argv);
+espress_job_t *custom_action_profile(int argc, const char **argv);
+espress_job_t *custom_action_autoswitch(int argc, const char **argv);
+espress_job_t *custom_action_save(int argc, const char **argv);
+
+// ----------------------------------------------------------------
+// Single entry point for the tokenizer: look up `argv[0]` in the
+// action table and invoke the matching handler.  Returns NULL when
+// the sub-command is unknown or the handler rejects the arguments.
+//
+// Matching is case-insensitive.
+// ----------------------------------------------------------------
+espress_job_t *custom_actions_dispatch(int argc, const char **argv);
 
 // ----------------------------------------------------------------
 // Session state

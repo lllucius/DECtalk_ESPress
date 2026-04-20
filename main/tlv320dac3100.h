@@ -96,4 +96,24 @@ void tlv320dac3100_set_volume(uint8_t level);
  */
 uint8_t tlv320dac3100_get_volume(void);
 
+/**
+ * @brief Enable or disable headset auto-switching at runtime.
+ *
+ * When enabled, a detected headset insertion switches to the
+ * headphone profile and removal switches back to the speaker
+ * profile.  When disabled, profile changes must be performed
+ * explicitly.  Initial value is taken from Kconfig.
+ */
+void tlv320dac3100_set_autoswitch(bool enable);
+
+/**
+ * @brief Query the current headset auto-switching flag.
+ */
+bool tlv320dac3100_get_autoswitch(void);
+
+/**
+ * @brief Query the currently-active output profile.
+ */
+tlv320_profile_t tlv320dac3100_get_profile(void);
+
 #endif // TLV320DAC3100_H

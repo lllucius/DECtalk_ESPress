@@ -147,22 +147,6 @@ void espress_job_free(espress_job_t *job)
 }
 
 // ----------------------------------------------------------------
-// Built-in dispatch table
-// ----------------------------------------------------------------
-
-static const custom_cmd_entry_t dispatch_table[] =
-{
-    { "gpio",  custom_action_gpio  },
-    { "voice", custom_action_voice },
-    { "rate",  custom_action_rate  },
-#if !defined(ESP_PLATFORM) || \
-    (defined(CONFIG_CUSTOM_CMD_ENABLE) && defined(CONFIG_CUSTOM_CMD_TONE_ENABLE))
-    { "tone",  custom_action_tone  },
-#endif
-    { NULL,    NULL                },
-};
-
-// ----------------------------------------------------------------
 // Argument splitter: splits `token` (the content between [: and ])
 // by whitespace into argv[].  Returns argc.
 // ----------------------------------------------------------------
@@ -248,22 +232,13 @@ static espress_job_t *dispatch_custom_command(int argc, const char **argv)
         return NULL;
     }
 
-    const char *sub_cmd = argv[1];
-    const custom_cmd_entry_t *entry = dispatch_table;
-
-    while (entry->name)
+    // Pass argc-1, argv+1 so handlers see their own name as argv[0].
+    espress_job_t *job = custom_actions_dispatch(argc - 1, argv + 1);
+    if (!job)
     {
-        if (strcmp(entry->name, sub_cmd) == 0)
-        {
-            // Pass argc-1, argv+1 so the handler sees its own name
-            // as argv[0].
-            return entry->handler(argc - 1, argv + 1);
-        }
-        entry++;
+        LOG_W("unknown or invalid custom command: [:%.16s ...]", argv[1]);
     }
-
-    LOG_W("unknown custom command: [:%.16s ...]", sub_cmd);
-    return NULL;
+    return job;
 }
 
 // ----------------------------------------------------------------
