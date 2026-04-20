@@ -115,7 +115,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_PI                   3.14159265358979323846f
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
-#define TLV320_HP_ANALOG_VOL_BRINGUP 0x8A
+#define TLV320_HP_ANALOG_VOL_INCREASED 0x8A
 #define TLV320_HP_DRIVERS_ENABLED   0xC4
 #define TLV320_HP_DRIVER_6DB        0x34
 #define TLV320_EVENT_QUEUE_LEN      8
@@ -1023,8 +1023,8 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     // later.
     static const reg_val_t headphone_analog_gain_cfg[] =
     {
-        {REG_HPL_VOL, TLV320_HP_ANALOG_VOL_BRINGUP},
-        {REG_HPR_VOL, TLV320_HP_ANALOG_VOL_BRINGUP},
+        {REG_HPL_VOL, TLV320_HP_ANALOG_VOL_INCREASED},
+        {REG_HPR_VOL, TLV320_HP_ANALOG_VOL_INCREASED},
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
@@ -1051,28 +1051,29 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
 
 static void tlv320_log_headphone_profile_registers(void)
 {
+    const uint8_t page = 0x01;
     uint8_t hp_drivers = 0;
     uint8_t hpl_vol = 0;
     uint8_t hpr_vol = 0;
     uint8_t hpl_driver = 0;
     uint8_t hpr_driver = 0;
 
-    esp_err_t err = read_reg(0x01, REG_HP_DRIVERS, &hp_drivers);
+    esp_err_t err = read_reg(page, REG_HP_DRIVERS, &hp_drivers);
     if (err == ESP_OK)
     {
-        err = read_reg(0x01, REG_HPL_VOL, &hpl_vol);
+        err = read_reg(page, REG_HPL_VOL, &hpl_vol);
     }
     if (err == ESP_OK)
     {
-        err = read_reg(0x01, REG_HPR_VOL, &hpr_vol);
+        err = read_reg(page, REG_HPR_VOL, &hpr_vol);
     }
     if (err == ESP_OK)
     {
-        err = read_reg(0x01, REG_HPL_DRIVER, &hpl_driver);
+        err = read_reg(page, REG_HPL_DRIVER, &hpl_driver);
     }
     if (err == ESP_OK)
     {
-        err = read_reg(0x01, REG_HPR_DRIVER, &hpr_driver);
+        err = read_reg(page, REG_HPR_DRIVER, &hpr_driver);
     }
     if (err != ESP_OK)
     {
