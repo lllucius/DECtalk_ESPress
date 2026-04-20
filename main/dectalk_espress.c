@@ -428,46 +428,15 @@ static void espress_flush_text_to_queue(void)
              estate.text_buf);
     ESP_LOG_BUFFER_HEXDUMP(TAG, estate.text_buf, estate.text_pos, ESP_LOG_DEBUG);
 
-    // Tokenise the text into jobs
+    // Tokenise the text into jobs.  Voice/rate prefix application is
+    // deferred to the speech task so that actions and text are applied
+    // in strict submission order; the tokenizer simply produces jobs.
     espress_job_list_t jobs;
     custom_commands_tokenize(estate.text_buf, &jobs);
-
-    // Prepend session voice/rate prefixes to the first SPEAK_TEXT job
-    // that follows (or all of them for simplicity — the prefix is
-    // idempotent because DECtalk applies it immediately).
-    const char *vp = custom_action_get_voice_prefix();
-    const char *rp = custom_action_get_rate_prefix();
 
     for (int i = 0; i < jobs.count; i++)
     {
         espress_job_t *job = jobs.jobs[i];
-
-        // Prepend session prefixes to text jobs
-        if (job->type == ESPRESS_JOB_SPEAK_TEXT && (vp || rp))
-        {
-            int vp_len = vp ? (int)strlen(vp) : 0;
-            int rp_len = rp ? (int)strlen(rp) : 0;
-            int txt_len = (int)strlen(job->text);
-            int new_len = vp_len + rp_len + txt_len;
-            char *new_text = malloc((size_t)new_len + 1);
-            if (new_text)
-            {
-                int pos = 0;
-                if (vp)
-                {
-                    memcpy(new_text + pos, vp, (size_t)vp_len);
-                    pos += vp_len;
-                }
-                if (rp)
-                {
-                    memcpy(new_text + pos, rp, (size_t)rp_len);
-                    pos += rp_len;
-                }
-                memcpy(new_text + pos, job->text, (size_t)txt_len + 1);
-                free(job->text);
-                job->text = new_text;
-            }
-        }
 
         if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(500)) != pdTRUE)
         {
@@ -968,6 +937,38 @@ static void *speech_task(void *arg)
                 continue;
             }
 
+            // Prepend current session voice/rate prefixes in-order so
+            // DECtalk sees the selected voice/rate for this chunk.
+            // This runs on the speech task (after any preceding ACTION
+            // jobs have executed), ensuring the prefix reflects the
+            // true session state at the point this text is spoken.
+            const char *vp = custom_action_get_voice_prefix();
+            const char *rp = custom_action_get_rate_prefix();
+            char *composed = NULL;
+            if (vp || rp)
+            {
+                int vp_len = vp ? (int)strlen(vp) : 0;
+                int rp_len = rp ? (int)strlen(rp) : 0;
+                int txt_len = (int)strlen(text);
+                composed = malloc((size_t)(vp_len + rp_len + txt_len) + 1);
+                if (composed)
+                {
+                    int pos = 0;
+                    if (vp)
+                    {
+                        memcpy(composed + pos, vp, (size_t)vp_len);
+                        pos += vp_len;
+                    }
+                    if (rp)
+                    {
+                        memcpy(composed + pos, rp, (size_t)rp_len);
+                        pos += rp_len;
+                    }
+                    memcpy(composed + pos, text, (size_t)txt_len + 1);
+                    text = composed;
+                }
+            }
+
             // Synthesise this text chunk.  Do NOT reset the I2S channel
             // here -- the DMA buffer may still contain audio from the
             // previous chunk that has not finished playing.  Clearing
@@ -984,6 +985,7 @@ static void *speech_task(void *arg)
                      "audio_callbacks=%d, total_samples=%d",
                      audio_cb_call_count,
                      audio_cb_total_samples);
+            free(composed);
             espress_job_free(job);
 
             estate.speaking = 0;
