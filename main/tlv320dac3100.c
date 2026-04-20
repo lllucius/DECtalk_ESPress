@@ -127,6 +127,16 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
+#define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
+#define TLV320_DAC_DATAPATH_MONO_LEFT     0xD8
+#define TLV320_DAC_DATAPATH_STEREO        0xD0
+#if TLV320_DIAG_USE_MONO_LEFT_ROUTING
+#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_MONO_LEFT
+#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left diagnostic mode"
+#else
+#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_STEREO
+#define TLV320_DAC_DATAPATH_MODE_LOG      "normal stereo mapping diagnostic mode"
+#endif
 #define TLV320_STARTUP_VOLUME_DB    \
     ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
     (TLV320_STARTUP_VOLUME_LEVEL == 1) ? -32.0f : \
@@ -214,16 +224,24 @@ static const reg_val_t audio_interface_init[] =
                                 // (slave mode)
 };
 
-// Page 0 phase: select a simple DAC processing block and mono data path.
+// Diagnostic DAC routing switch:
+//   1 = keep the prior mono speech duplication that drives both outputs from
+//       the left I2S slot (REG_DAC_DATAPATH = 0xD8).
+//   0 = test the simpler normal left/right DAC mapping instead
+//       (REG_DAC_DATAPATH = 0xD0) to see whether mono-left routing is causing
+//       muddy headphone playback.
+//
+// Page 0 phase: select a simple DAC processing block and DAC data path.
 static const reg_val_t dac_processing_init[] =
 {
     {REG_DAC_PRB,      0x01},   // Processing block PRB_P1
-    {REG_DAC_DATAPATH, 0xD8},   // L DAC on, R DAC on,
-                                // L path = normal (left data),
-                                // R path = swapped (left data)
-                                //   → mono: both outputs play the
-                                //     same audio from the L I2S slot;
-                                // soft-step = 1 step/sample
+    {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
+                                // Previous value duplicated mono speech into
+                                // both outputs from the left I2S slot.
+                                // This diagnostic build instead tests whether
+                                // normal left/right DAC mapping sounds
+                                // cleaner on headphones when the switch above
+                                // is left at 0.
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
 };
 
@@ -1141,6 +1159,9 @@ esp_err_t tlv320dac3100_init(void)
 
     ESP_LOGI(TAG, "Initializing TLV320DAC3100 (I2C addr 0x%02X)...",
              TLV320_I2C_ADDR);
+    ESP_LOGI(TAG, "DAC path: %s (0x%02X)",
+             TLV320_DAC_DATAPATH_MODE_LOG,
+             TLV320_DAC_DATAPATH_VALUE);
 
     // ---- Create I2C master bus ----------------------------------
     i2c_master_bus_config_t bus_cfg =
