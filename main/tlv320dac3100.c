@@ -127,8 +127,9 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
-// Build-time diagnostic flag: set to 1 to keep routing mono speech from the
-// left I2S slot into both outputs, or 0 to test normal stereo DAC mapping.
+// Temporary build-time routing-isolation flag for headphone clarity testing:
+// set to 1 to keep the original mono speech duplication from the left I2S slot
+// on both outputs, or 0 to test normal stereo DAC mapping in this build.
 #define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
 #define TLV320_DAC_DATAPATH_MONO_LEFT     0xD8
 #define TLV320_DAC_DATAPATH_STEREO        0xD0
@@ -226,14 +227,6 @@ static const reg_val_t audio_interface_init[] =
                                 // (slave mode)
 };
 
-// Diagnostic DAC routing switch:
-//   1 = keep the prior mono speech duplication that was intended to feed the
-//       same speech stream into both outputs from the left I2S slot
-//       (REG_DAC_DATAPATH = 0xD8).
-//   0 = test the simpler normal left/right DAC mapping instead
-//       (REG_DAC_DATAPATH = 0xD0) to see whether mono-left routing is causing
-//       muddy headphone playback.
-//
 // Page 0 phase: select a simple DAC processing block and DAC data path.
 static const reg_val_t dac_processing_init[] =
 {
@@ -241,8 +234,8 @@ static const reg_val_t dac_processing_init[] =
     {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
                                 // Previous value duplicated mono speech into
                                 // both outputs from the left I2S slot.
-                                // With TLV320_DIAG_USE_MONO_LEFT_ROUTING left
-                                // at 0, this diagnostic build instead tests
+                                // This build selects the alternative value via
+                                // TLV320_DIAG_USE_MONO_LEFT_ROUTING to test
                                 // whether normal left/right DAC mapping
                                 // sounds cleaner on headphones.
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
