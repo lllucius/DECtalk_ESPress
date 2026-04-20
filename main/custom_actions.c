@@ -78,7 +78,7 @@ static void gpio_execute(void *ctx)
     gpio_action_ctx_t *g = (gpio_action_ctx_t *)ctx;
     LOG_I("GPIO action: pin=%d level=%d", g->pin, g->level);
 #if defined(ESP_PLATFORM) && \
-    (!defined(CONFIG_CUSTOM_CMD_ENABLE) || defined(CONFIG_CUSTOM_CMD_GPIO_ENABLE))
+    (!defined(CONFIG_DECTALK_FW_CMD_ENABLE) || defined(CONFIG_DECTALK_FW_CMD_GPIO_ENABLE))
     gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << g->pin,
         .mode = GPIO_MODE_OUTPUT,
@@ -203,6 +203,9 @@ typedef struct
     const char *cmd;
 } voice_map_entry_t;
 
+// Canonical voice table.  The single source of truth for voice names
+// and inline command codes is voices.json in the repository root.
+// Keep this table in sync with that file.
 static const voice_map_entry_t voice_map[] =
 {
     { "paul",    "[:np]"  },
@@ -586,7 +589,7 @@ static const custom_cmd_entry_t action_table[] =
     { "voice",      custom_action_voice      },
     { "rate",       custom_action_rate       },
 #if !defined(ESP_PLATFORM) || \
-    (defined(CONFIG_CUSTOM_CMD_ENABLE) && defined(CONFIG_CUSTOM_CMD_TONE_ENABLE))
+    (defined(CONFIG_DECTALK_FW_CMD_ENABLE) && defined(CONFIG_DECTALK_FW_CMD_TONE_ENABLE))
     { "tone",       custom_action_tone       },
 #endif
     { "volume",     custom_action_volume     },

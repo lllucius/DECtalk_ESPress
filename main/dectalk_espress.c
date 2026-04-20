@@ -30,21 +30,9 @@
 #include "custom_actions.h"
 
 // Select the serial transport layer based on the target chip.
-#if CONFIG_IDF_TARGET_ESP32C6
-#include "jtag_serial_transport.h"
-#define transport_init              jtag_serial_transport_init
-#define transport_read              jtag_serial_transport_read
-#define transport_write             jtag_serial_transport_write
-#define transport_connected         jtag_serial_transport_connected
-#define transport_check_reconnected jtag_serial_transport_check_reconnected
-#else
-#include "usb_cdc_transport.h"
-#define transport_init              usb_cdc_transport_init
-#define transport_read              usb_cdc_transport_read
-#define transport_write             usb_cdc_transport_write
-#define transport_connected         usb_cdc_transport_connected
-#define transport_check_reconnected usb_cdc_transport_check_reconnected
-#endif
+// The vtable in espress_transport.h decouples this module from the
+// physical link; each transport .c file exposes a single instance.
+#include "espress_transport.h"
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
@@ -122,10 +110,22 @@ static i2s_chan_handle_t audio_handle;
 
 // -- ESPress Protocol State ------------------------------------------
 
+// Single receive-path state enum that replaces the former dle_state int
+// and the pending_bracket_etx local variable.
+typedef enum
+{
+    RX_STATE_NORMAL = 0,   // Default: processing text or control chars
+    RX_STATE_DLE_1,        // Received DLE, awaiting byte 1
+    RX_STATE_DLE_2,        // Awaiting byte 2 of DLE sequence
+    RX_STATE_DLE_3,        // Awaiting byte 3 of DLE sequence
+    RX_STATE_BRACKET_ETX,  // Received ']', watching for ETX
+    RX_STATE_ETX_XON,      // Received ']' + ETX, watching for XON
+} rx_state_t;
+
 typedef struct
 {
-    // DLE state machine
-    int dle_state;      // 0=normal, 1-3=collecting DLE bytes
+    // Protocol receive state (replaces former dle_state + pending_bracket_etx)
+    rx_state_t rx_state;
     uint8_t dle_buf[4]; // DLE sequence accumulator
 
     // Device status
@@ -290,10 +290,13 @@ static void log_rx_dle_command(uint16_t word)
 
 // -- USB CDC I/O Helpers ---------------------------------------------
 
-// Send raw bytes to the host over the USB CDC interface.
+// Transport vtable pointer, initialised in espress_task() before use.
+static const espress_transport_t *s_transport;
+
+// Send raw bytes to the host over the serial transport.
 static void espress_send(const uint8_t *data, int len)
 {
-    transport_write(data, len);
+    s_transport->write(data, (size_t)len);
 }
 
 // Send a single byte to the host.
@@ -661,17 +664,30 @@ static void espress_process_dle(void)
 // ----------------------------------------------------------------
 // Feed a byte into the DLE state machine.
 // Called for bytes 1-3 after the initial DLE (byte 0) was detected.
+// The rx_state enum tracks which byte position we expect next.
 // ----------------------------------------------------------------
 static void espress_dle_byte(uint8_t c)
 {
-    estate.dle_buf[estate.dle_state] = c;
-    estate.dle_state++;
-
-    if (estate.dle_state >= 4)
+    switch (estate.rx_state)
     {
+    case RX_STATE_DLE_1:
+        estate.dle_buf[1] = c;
+        estate.rx_state = RX_STATE_DLE_2;
+        break;
+    case RX_STATE_DLE_2:
+        estate.dle_buf[2] = c;
+        estate.rx_state = RX_STATE_DLE_3;
+        break;
+    case RX_STATE_DLE_3:
+        estate.dle_buf[3] = c;
         // Complete 4-byte sequence received
         espress_process_dle();
-        estate.dle_state = 0;
+        estate.rx_state = RX_STATE_NORMAL;
+        break;
+    default:
+        // Should never happen; reset
+        estate.rx_state = RX_STATE_NORMAL;
+        break;
     }
 }
 
@@ -732,12 +748,9 @@ static void espress_handle_flush_sequence(void)
 
 // -- Audio Callback for ESPress Mode ---------------------------------
 
-// Throttle audio callback logging so it doesn't flood the console.
-// These are updated from whichever task drives the TTS callback and
-// read from the speech task for chunk-summary logs.  Full atomicity
-// is not required because they are logging-only diagnostics.
-static int audio_cb_call_count = 0;
-static int audio_cb_total_samples = 0;
+// audio_cb_call_count / audio_cb_total_samples are static locals inside
+// espress_tts_callback() and reset by the speech task before each chunk.
+// See comment below.
 
 // ----------------------------------------------------------------
 // DtCallbackRoutine for the ttsapi interface.
@@ -749,6 +762,12 @@ static int audio_cb_total_samples = 0;
 static void espress_tts_callback(LONG lParam1, LONG lParam2,
                                   DWORD dwInstanceParam, UINT uiMsg)
 {
+    // Throttle audio callback logging so it doesn't flood the console.
+    // These are updated from whichever task drives the TTS callback and
+    // read from the speech task for chunk-summary logs.  Full atomicity
+    // is not required because they are logging-only diagnostics.
+    static int audio_cb_call_count = 0;
+    static int audio_cb_total_samples = 0;
     if (uiMsg == TTS_MSG_INDEX_MARK)
     {
         espress_send_index((uint16_t)lParam2);
@@ -924,10 +943,6 @@ static void *speech_task(void *arg)
                      (int)uxQueueMessagesWaiting(speech_queue),
                      ESPRESS_QUEUE_SIZE);
 
-            // Reset audio callback counters for this chunk
-            audio_cb_call_count = 0;
-            audio_cb_total_samples = 0;
-
             if (text[0] == '\0')
             {
                 ESP_LOGD(TAG, "Speech task: text empty, skipping synthesis");
@@ -983,10 +998,7 @@ static void *speech_task(void *arg)
             ESP_LOGD(TAG, "Speech task: calling TextToSpeechSpeak()...");
             TextToSpeechSpeak(espress_tts_handle, text, TTS_FORCE);
             TextToSpeechSync(espress_tts_handle);
-            ESP_LOGD(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned, "
-                     "audio_callbacks=%d, total_samples=%d",
-                     audio_cb_call_count,
-                     audio_cb_total_samples);
+            ESP_LOGD(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned");
             free(composed);
             espress_job_free(job);
 
@@ -1006,7 +1018,7 @@ static void *speech_task(void *arg)
 static void espress_process_byte(uint8_t c)
 {
     // If collecting a DLE sequence, feed bytes to state machine
-    if (estate.dle_state > 0)
+    if (estate.rx_state >= RX_STATE_DLE_1 && estate.rx_state <= RX_STATE_DLE_3)
     {
         espress_dle_byte(c);
         return;
@@ -1026,7 +1038,7 @@ static void espress_process_byte(uint8_t c)
         return;
 
     case DLE:
-        estate.dle_state = 1;
+        estate.rx_state = RX_STATE_DLE_1;
         estate.dle_buf[0] = DLE;
         return;
 
@@ -1135,7 +1147,8 @@ static void *espress_task(void *arg)
     // The host sees the device as a USB serial port.
     // Console / ESP_LOG output remains on UART0.
     ESP_LOGI(TAG, "Initializing serial transport...");
-    ESP_ERROR_CHECK(transport_init());
+    s_transport = espress_transport_get();
+    ESP_ERROR_CHECK(s_transport->init());
 
     ESP_LOGI(TAG, "ESPress protocol ready. Waiting for host communication "
              "on USB serial.");
@@ -1150,7 +1163,6 @@ static void *espress_task(void *arg)
 
     // Track time since last character for idle flush
     TickType_t last_char_time = xTaskGetTickCount();
-    int pending_bracket_etx = 0;
     int rx_byte_count = 0;
 
     ESP_LOGI(TAG, "Entering main protocol loop...");
@@ -1167,7 +1179,7 @@ static void *espress_task(void *arg)
         // (e.g. mid-DLE-sequence, XOFF sent, flushing flag set).
         // Reset everything so the new session starts cleanly, and
         // send XON so the host knows the device is ready.
-        if (transport_check_reconnected())
+        if (s_transport->check_reconnected())
         {
             ESP_LOGI(TAG, "Host reconnected -- resetting protocol state");
 
@@ -1175,13 +1187,12 @@ static void *espress_task(void *arg)
             TextToSpeechReset(espress_tts_handle, FALSE);
             espress_send_flush();
 
-            // Reset DLE state machine
-            estate.dle_state = 0;
+            // Reset receive state machine (DLE + bracket flush tracker)
+            estate.rx_state = RX_STATE_NORMAL;
 
-            // Reset text buffer, flush-sequence tracker, and bracket state
+            // Reset text buffer and bracket state
             estate.text_pos = 0;
             estate.in_bracket_cmd = 0;
-            pending_bracket_etx = 0;
 
             // Reset flow control
             estate.host_xoff = 0;
@@ -1194,7 +1205,7 @@ static void *espress_task(void *arg)
             estate.status = STAT_rr_char | STAT_cmd_ready;
 
             // Reset custom command session state if configured
-#if defined(CONFIG_CUSTOM_CMD_ENABLE) && defined(CONFIG_CUSTOM_CMD_RESET_ON_RECONNECT)
+#if defined(CONFIG_DECTALK_FW_CMD_ENABLE) && defined(CONFIG_DECTALK_FW_CMD_RESET_ON_RECONNECT)
             custom_commands_reset_session();
 #endif
 
@@ -1204,7 +1215,7 @@ static void *espress_task(void *arg)
         }
 
         // Read one byte with timeout -- yields to scheduler, preventing WDT
-        cnt = transport_read(&rx_byte, 1, pdMS_TO_TICKS(ESPRESS_RX_TIMEOUT_MS));
+        cnt = s_transport->read(&rx_byte, 1, pdMS_TO_TICKS(ESPRESS_RX_TIMEOUT_MS));
         if (cnt > 0)
         {
             c = (int)rx_byte;
@@ -1216,7 +1227,11 @@ static void *espress_task(void *arg)
             // Suppress idle flush while inside a [: ... ] sequence so
             // that custom or native DECtalk commands are not split
             // across separate queue entries.
-            if (estate.text_pos > 0 || pending_bracket_etx > 0)
+            bool bracket_pending =
+                (estate.rx_state == RX_STATE_BRACKET_ETX ||
+                 estate.rx_state == RX_STATE_ETX_XON);
+
+            if (estate.text_pos > 0 || bracket_pending)
             {
                 TickType_t elapsed = xTaskGetTickCount() - last_char_time;
                 if (elapsed >= pdMS_TO_TICKS(TEXT_IDLE_TIMEOUT_MS) &&
@@ -1229,14 +1244,14 @@ static void *espress_task(void *arg)
                     // and the TTS_FORCE character appended by
                     // TextToSpeechSpeak() would corrupt the string
                     // parameter, causing "command error in string value".
-                    if (pending_bracket_etx > 0)
+                    if (bracket_pending)
                     {
                         espress_add_char(']');
-                        if (pending_bracket_etx == 2)
+                        if (estate.rx_state == RX_STATE_ETX_XON)
                         {
                             espress_process_byte(ETX);
                         }
-                        pending_bracket_etx = 0;
+                        estate.rx_state = RX_STATE_NORMAL;
                     }
 
                     ESP_LOGD(TAG, "Idle timeout: flushing %d buffered text bytes to queue",
@@ -1250,33 +1265,34 @@ static void *espress_task(void *arg)
         last_char_time = xTaskGetTickCount();
 
         // Detect the ']' + ETX + XON flush sequence from TSR FLUSH_TEXT.
-        // State machine: track ']' then ETX then XON.
-        if (pending_bracket_etx == 1 && c == ETX)
+        // State machine via rx_state enum.
+        if (estate.rx_state == RX_STATE_BRACKET_ETX && c == ETX)
         {
-            pending_bracket_etx = 2;
+            estate.rx_state = RX_STATE_ETX_XON;
             continue;
         }
-        else if (pending_bracket_etx == 2 && c == XON)
+        else if (estate.rx_state == RX_STATE_ETX_XON && c == XON)
         {
-            pending_bracket_etx = 0;
+            estate.rx_state = RX_STATE_NORMAL;
             espress_handle_flush_sequence();
             continue;
         }
-        else if (pending_bracket_etx > 0)
+        else if (estate.rx_state == RX_STATE_BRACKET_ETX ||
+                 estate.rx_state == RX_STATE_ETX_XON)
         {
             // Sequence broken: process the ']' as text, then current byte
             espress_add_char(']');
-            if (pending_bracket_etx == 2)
+            if (estate.rx_state == RX_STATE_ETX_XON)
             {
                 espress_process_byte(ETX);
             }
-            pending_bracket_etx = 0;
+            estate.rx_state = RX_STATE_NORMAL;
             // Fall through to process current byte normally
         }
 
         if (c == ']')
         {
-            pending_bracket_etx = 1;
+            estate.rx_state = RX_STATE_BRACKET_ETX;
             continue;
         }
 

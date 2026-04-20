@@ -86,6 +86,7 @@ void tlv320dac3100_poll_headset(void);
  *
  * @param level  Volume level 0–TLV320DAC3100_MAX_VOLUME
  *               (0 = near-mute, TLV320DAC3100_MAX_VOLUME = 0 dB).
+ *               Thin wrapper that maps to the dB-based setter.
  */
 void tlv320dac3100_set_volume(uint8_t level);
 
@@ -95,6 +96,24 @@ void tlv320dac3100_set_volume(uint8_t level);
  * @return Current volume level 0–9.
  */
 uint8_t tlv320dac3100_get_volume(void);
+
+/**
+ * @brief Set the DAC digital volume in decibels.
+ *
+ * Accepts values from -63.5 dB to 0.0 dB.  Out-of-range values are
+ * clamped.  The nearest discrete level (0–9) is stored for
+ * `tlv320dac3100_get_volume()`.
+ *
+ * @param db  Target volume in dB (0 dB = full scale).
+ */
+void tlv320dac3100_set_volume_db(float db);
+
+/**
+ * @brief Get the current volume in decibels.
+ *
+ * @return Current volume setting in dB.
+ */
+float tlv320dac3100_get_volume_db(void);
 
 /**
  * @brief Enable or disable headset auto-switching at runtime.

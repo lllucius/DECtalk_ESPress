@@ -295,7 +295,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "Custom firmware commands"
-        config CUSTOM_CMD_ENABLE
+        config DECTALK_FW_CMD_ENABLE
             bool "Enable [:fw ...] custom commands"
             default y
             help
@@ -303,64 +303,64 @@ menu "DECtalk ESPress Firmware"
                 When disabled, all bracket-colon tokens pass through
                 to DECtalk unchanged.
 
-        config CUSTOM_CMD_NAMESPACE
+        config DECTALK_FW_CMD_NAMESPACE
             string "Custom command namespace"
             default "fw"
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 The keyword that follows [: to identify a firmware
                 custom command (e.g. "fw" matches [:fw ...]).
 
-        config CUSTOM_CMD_MAX_TOKEN_LEN
+        config DECTALK_FW_CMD_MAX_TOKEN_LEN
             int "Max custom command token length"
             default 128
             range 32 512
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Maximum number of characters between [: and ] for a
                 custom command.  Tokens longer than this are consumed
                 and logged as oversized.
 
-        config CUSTOM_CMD_MAX_ARGS
+        config DECTALK_FW_CMD_MAX_ARGS
             int "Max custom command argument count"
             default 8
             range 2 32
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Maximum number of whitespace-delimited arguments in
                 a single custom command (including the sub-command name).
 
-        config CUSTOM_CMD_ALLOW_NATIVE_OVERRIDE
+        config DECTALK_FW_CMD_ALLOW_NATIVE_OVERRIDE
             bool "Allow native DECtalk command override"
             default n
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 When enabled, custom command handlers may intercept
                 tokens that would otherwise be native DECtalk inline
                 commands.  Default is off: only [:fw ...] tokens
                 are intercepted.
 
-        config CUSTOM_CMD_GPIO_ENABLE
+        config DECTALK_FW_CMD_GPIO_ENABLE
             bool "Enable GPIO handler"
             default y
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Enable the [:fw gpio <pin> <on|off|0|1>] handler.
 
-        config CUSTOM_CMD_TONE_ENABLE
+        config DECTALK_FW_CMD_TONE_ENABLE
             bool "Enable tone handler (stub)"
             default n
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Enable the [:fw tone <freq_hz> <duration_ms>] handler.
                 This is currently a stub that logs the request but does
                 not produce audio.  Enable it to reserve the command
                 namespace for future hardware-specific implementation.
 
-        config CUSTOM_CMD_RESET_ON_RECONNECT
+        config DECTALK_FW_CMD_RESET_ON_RECONNECT
             bool "Reset custom command state on reconnect"
             default y
-            depends on CUSTOM_CMD_ENABLE
+            depends on DECTALK_FW_CMD_ENABLE
             help
                 Clear session-level custom command state (e.g. stored
                 voice and rate overrides) when the USB host reconnects.
