@@ -59,6 +59,8 @@ static const char *TAG = "TLV320DAC3100";
 // ---- Page 1 registers -------------------------------------------
 #define REG_HP_DRIVERS      0x1F    // Headphone driver control
 #define REG_SPK_AMP         0x20    // Class-D speaker amplifier
+#define REG_HP_POP          0x21    // HP pop-removal control
+#define REG_PGA_RAMP        0x22    // Output-driver ramp control
 #define REG_OUT_ROUTING     0x23    // DAC output mixer routing
 #define REG_HPL_VOL         0x24    // Analog vol to HPL
 #define REG_HPR_VOL         0x25    // Analog vol to HPR
@@ -66,6 +68,7 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_HPL_DRIVER      0x28    // HPL driver gain / mute
 #define REG_HPR_DRIVER      0x29    // HPR driver gain / mute
 #define REG_SPK_DRIVER      0x2A    // SPK driver gain / mute
+#define REG_HP_DRIVER_CTRL  0x2C    // HP driver mode control
 
 // ---- Headset detection status (bits 6:5 of REG_HEADSET_DETECT) ---
 #define HEADSET_NONE        0x00    // No headset detected
@@ -120,6 +123,9 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
 #define TLV320_HP_DRIVERS_ALT_MODE      0xCC  // HPL/HPR powered, 1.50 V CM
 #define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
+#define TLV320_HP_POP_DIAGNOSTIC_VALUE   0xBE // wait-for-powerdown + 304 ms + 3.9 ms ramp
+#define TLV320_PGA_RAMP_DIAGNOSTIC_VALUE 0x40 // conservative output-driver ramp timing
+#define TLV320_HP_DRIVER_CTRL_HEADPHONE_VALUE 0x00 // normal headphone mode, not line-out
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
 #define TLV320_EVENT_IRQ            TLV320_BIT(0)
@@ -279,6 +285,16 @@ static const reg_val_t analog_driver_init[] =
     {REG_HPL_DRIVER,   0x00},   // HPL: muted (headphones off)
     {REG_HPR_DRIVER,   0x00},   // HPR: muted (headphones off)
     {REG_SPK_DRIVER,   0x04},   // SPK: 6 dB class-D gain, unmuted
+};
+
+// Diagnostic-only headphone control block: mirrors the missing page-1
+// headphone-control writes seen in the Adafruit TLV320 setup so headphone
+// clarity can be evaluated without changing speaker behavior.
+static const reg_val_t headphone_control_diag_cfg[] =
+{
+    {REG_HP_POP,         TLV320_HP_POP_DIAGNOSTIC_VALUE},
+    {REG_PGA_RAMP,       TLV320_PGA_RAMP_DIAGNOSTIC_VALUE},
+    {REG_HP_DRIVER_CTRL, TLV320_HP_DRIVER_CTRL_HEADPHONE_VALUE},
 };
 
 // ---- Module state ------------------------------------------------
@@ -1031,6 +1047,13 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
+static esp_err_t tlv320_apply_headphone_control_diagnostic(void)
+{
+    return write_regs(TLV320_PAGE_ANALOG,
+                      headphone_control_diag_cfg,
+                      sizeof(headphone_control_diag_cfg) / sizeof(headphone_control_diag_cfg[0]));
+}
+
 static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
                                             bool apply_startup_volume)
 {
@@ -1077,6 +1100,9 @@ static void tlv320_log_headphone_profile_registers(void)
 {
     const uint8_t page = TLV320_PAGE_ANALOG;
     uint8_t hp_drivers = 0;
+    uint8_t hp_pop = 0;
+    uint8_t pga_ramp = 0;
+    uint8_t hp_driver_ctrl = 0;
 
     esp_err_t err = read_reg(page, REG_HP_DRIVERS, &hp_drivers);
     if (err != ESP_OK)
@@ -1085,8 +1111,34 @@ static void tlv320_log_headphone_profile_registers(void)
         return;
     }
 
-    ESP_LOGI(TAG, "HP drv mode=%s REG_HP_DRIVERS=0x%02X",
-             TLV320_HP_DRIVER_MODE_LOG, hp_drivers);
+    err = read_reg(page, REG_HP_POP, &hp_pop);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Headphone control readback failed at REG_HP_POP: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = read_reg(page, REG_PGA_RAMP, &pga_ramp);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Headphone control readback failed at REG_PGA_RAMP: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = read_reg(page, REG_HP_DRIVER_CTRL, &hp_driver_ctrl);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "Headphone control readback failed at REG_HP_DRIVER_CTRL: %s", esp_err_to_name(err));
+        return;
+    }
+
+    ESP_LOGI(TAG,
+             "HP drv mode=%s REG_HP_DRIVERS=0x%02X REG_HP_POP=0x%02X REG_PGA_RAMP=0x%02X REG_HP_DRIVER_CTRL=0x%02X",
+             TLV320_HP_DRIVER_MODE_LOG,
+             hp_drivers,
+             hp_pop,
+             pga_ramp,
+             hp_driver_ctrl);
 }
 
 static esp_err_t tlv320_apply_speech_eq(tlv320_profile_t profile)
@@ -1433,6 +1485,15 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     if (err != ESP_OK)
     {
         return err;
+    }
+
+    if (profile == TLV320_PROFILE_HEADPHONE)
+    {
+        err = tlv320_apply_headphone_control_diagnostic();
+        if (err != ESP_OK)
+        {
+            return err;
+        }
     }
 
     err = tlv320_apply_gain_defaults(profile, s_apply_profile_volume_default);
