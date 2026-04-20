@@ -984,13 +984,16 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
         {REG_SPK_DRIVER, 0x04},
     };
 
+    // Diagnostic: HPL/HPR driver gain raised from 0 dB (0x04) to 6 dB
+    // (0x0C) for initial hardware bring-up headphone volume testing.
+    // This may be tuned back once the headphone output level is confirmed.
     static const reg_val_t headphone_output_cfg[] =
     {
         {REG_SPK_DRIVER, 0x00},
         {REG_SPK_AMP,    0x06},
         {REG_HP_DRIVERS, 0xC4},
-        {REG_HPL_DRIVER, 0x04},
-        {REG_HPR_DRIVER, 0x04},
+        {REG_HPL_DRIVER, 0x0C},     // HPL: 6 dB driver gain, unmuted
+        {REG_HPR_DRIVER, 0x0C},     // HPR: 6 dB driver gain, unmuted
     };
 
     const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE)
@@ -1003,18 +1006,35 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     return write_regs(0x01, cfg, count);
 }
 
-static esp_err_t tlv320_apply_gain_defaults(bool apply_startup_volume)
+static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
+                                            bool apply_startup_volume)
 {
-    static const reg_val_t analog_gain_cfg[] =
+    // Speaker profile: existing conservative analog gain defaults.
+    static const reg_val_t speaker_analog_gain_cfg[] =
     {
-        {REG_HPL_VOL, 0x80},
-        {REG_HPR_VOL, 0x80},
-        {REG_SPK_VOL, 0x80},
+        {REG_HPL_VOL, 0x80},   // HPL routed, analog gain = 0 dB
+        {REG_HPR_VOL, 0x80},   // HPR routed, analog gain = 0 dB
+        {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
-    esp_err_t err = write_regs(0x01,
-                               analog_gain_cfg,
-                               sizeof(analog_gain_cfg) / sizeof(analog_gain_cfg[0]));
+    // Headphone profile: analog mixer volume stays at 0 dB (already the
+    // maximum for these registers).  The real diagnostic gain increase is
+    // applied via the HPL/HPR driver gain in configure_profile_outputs().
+    static const reg_val_t headphone_analog_gain_cfg[] =
+    {
+        {REG_HPL_VOL, 0x80},   // HPL routed, analog gain = 0 dB
+        {REG_HPR_VOL, 0x80},   // HPR routed, analog gain = 0 dB
+        {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
+    };
+
+    const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE)
+        ? headphone_analog_gain_cfg
+        : speaker_analog_gain_cfg;
+    size_t count = (profile == TLV320_PROFILE_HEADPHONE)
+        ? sizeof(headphone_analog_gain_cfg) / sizeof(headphone_analog_gain_cfg[0])
+        : sizeof(speaker_analog_gain_cfg) / sizeof(speaker_analog_gain_cfg[0]);
+
+    esp_err_t err = write_regs(0x01, cfg, count);
     if (err != ESP_OK)
     {
         return err;
@@ -1271,6 +1291,14 @@ esp_err_t tlv320dac3100_init(void)
     }
 
     ESP_LOGI(TAG, "TLV320DAC3100 initialized successfully");
+    ESP_LOGI(TAG, "Startup profile: %s",
+             (default_profile == TLV320_PROFILE_HEADPHONE)
+                ? "headphone"
+                : "speaker");
+    ESP_LOGI(TAG, "Startup volume level: %u (%.1f dB)",
+             s_volume, s_volume_db);
+    ESP_LOGI(TAG, "Headset auto-switch: %s",
+             tlv320_headset_events_enabled() ? "enabled" : "disabled");
     return ESP_OK;
 
 init_fail:
@@ -1365,7 +1393,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
         return err;
     }
 
-    err = tlv320_apply_gain_defaults(s_apply_profile_volume_default);
+    err = tlv320_apply_gain_defaults(profile, s_apply_profile_volume_default);
     if (err != ESP_OK)
     {
         return err;
