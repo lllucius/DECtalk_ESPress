@@ -29,8 +29,9 @@ microcontroller.
 
 The host communicates with the ESP32 over USB using the DECtalk ESPress serial
 protocol.  The ESP32 firmware boots directly into ESPress protocol mode on its
-USB CDC-ACM port, which appears as a standard serial (COM / ttyACM) port on the
-host computer.
+host USB port, which appears as a standard serial (COM / ttyACM) port on the
+host computer.  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
+**ESP32-C6** it uses the built-in USB Serial/JTAG interface.
 
 ## Requirements
 
@@ -126,16 +127,19 @@ full accessibility support. Features:
 
 ## DECtalk ESPress Protocol
 
-The ESP32 firmware boots directly into ESPress protocol mode on its USB CDC-ACM
-port.  No handshake or mode-switch command is needed.  Opening the USB serial
-port triggers a DTR assertion that the firmware detects, causing it to reset
-protocol state and send XON to indicate readiness.
+The ESP32 firmware boots directly into ESPress protocol mode on its host USB
+port.  No handshake or mode-switch command is needed.  On **ESP32-S3**, opening
+the USB CDC-ACM port triggers a DTR assertion that the firmware detects, causing
+it to reset protocol state and send XON to indicate readiness.  On **ESP32-C6**,
+connection detection uses the USB Serial/JTAG connected state; the firmware
+disables the RTS-triggered chip reset so opening the port does not reboot the
+device.
 
 ### Key Protocol Elements
 
 | Feature        | Description                                        |
 |----------------|----------------------------------------------------|
-| Transport      | USB CDC-ACM (appears as COM / ttyACM port)         |
+| Transport      | USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6 (both appear as COM / ttyACM) |
 | Text format    | Plain ASCII text + CR                              |
 | Flush/stop     | ETX (0x03)                                         |
 | Status query   | ENQ (0x05) → 4-byte DLE status response            |

@@ -222,7 +222,7 @@ and XON.
 | Index markers | DLE INDEX (`0x50`) followed by DLE STATUS (`0x40`) |
 | Device ready | XON sent on power-up and after each host reconnection |
 
-See `main/espress.h` for the full protocol constant definitions and
+See `main/dtesp.h` for the full protocol constant definitions and
 encoding/decoding helpers.
 
 ## Host Tools
@@ -273,6 +273,8 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
 | *USB CDC transport* / *JTAG serial transport* | Target-specific host transport buffer sizing |
+| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone) |
+| *Onboard RGB LED* | Optionally drive the RGB LED data GPIO low at startup to keep the LED dark |
 | *Diagnostics and logging* | Enable/disable heap and stack diagnostics; choose the DECtalk firmware log level |
 
 ## Troubleshooting
