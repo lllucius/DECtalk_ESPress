@@ -238,7 +238,7 @@
 <li><strong>Native USB host transport</strong> — ESP32-S3 uses TinyUSB CDC-ACM and ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial (COM / ttyACM) ports to the host; no external UART adapter needed</li>
 <li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
 <li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
-<li><strong>Python host tools</strong> — a serial API module (<code>dectalk_serial.py</code>) and GUI applications for controlling the device from a PC</li>
+<li><strong>Python host tools</strong> — a serial API module (<code>dtesp_serial.py</code>) and GUI applications for controlling the device from a PC</li>
 <li><strong>Memory diagnostics</strong> — optional runtime task that logs per-task stack high-water marks and heap fragmentation statistics</li>
 <li><strong>Full DECtalk speech synthesis</strong> — provided by the <a href="components/dectalk/README.html">DECtalk component</a>, supporting six languages and three dictionary storage modes</li>
 </ul>
@@ -397,12 +397,12 @@
 <tr class="even">
 <td><strong>USB CDC-ACM</strong> (TinyUSB, <strong>ESP32-S3</strong>)</td>
 <td>ESPress protocol data — host ↔︎ device text, control chars, DLE sequences</td>
-<td>Connect via the native USB port (<code>/dev/ttyACM0</code> or similar); use <code>host/dectalk_serial.py</code> or any serial terminal</td>
+<td>Connect via the native USB port (<code>/dev/ttyACM0</code> or similar); use <code>host/dtesp_serial.py</code> or any serial terminal</td>
 </tr>
 <tr class="odd">
 <td><strong>USB Serial/JTAG</strong> (<strong>ESP32-C6</strong>)</td>
 <td>ESPress protocol data — host ↔︎ device text, control chars, DLE sequences</td>
-<td>Connect via the native USB Serial/JTAG port exposed by the board; use <code>host/dectalk_serial.py</code> or any serial terminal</td>
+<td>Connect via the native USB Serial/JTAG port exposed by the board; use <code>host/dtesp_serial.py</code> or any serial terminal</td>
 </tr>
 </tbody>
 </table>
@@ -462,14 +462,14 @@
 </tr>
 </tbody>
 </table>
-<p>See <code>main/dectalk_espress.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
+<p>See <code>main/espress.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
 <h2 id="host-tools">Host Tools</h2>
 <p>The <code>host/</code> directory contains Python-based host software. See <strong><a href="host/README.html">host/README.md</a></strong> for full details.</p>
 <ul>
-<li><strong><code>dectalk_serial.py</code></strong> — <code>DECtalkESPressSerial</code> class implementing the ESPress protocol: connect, speak, flush, pause/resume, status query, device detection.</li>
-<li><strong><code>dectalk_espress_gui.py</code></strong> — Tkinter GUI with voice/rate/pitch controls, pause/resume/flush buttons, device status panel, and a communications log.</li>
+<li><strong><code>dtesp_serial.py</code></strong> — <code>DECtalkESPressSerial</code> class implementing the ESPress protocol: connect, speak, flush, pause/resume, status query, device detection.</li>
+<li><strong><code>dtesp_gui_qt.py</code></strong> — Qt GUI with voice/rate/pitch controls, pause/resume/flush buttons, device status panel, and a communications log.</li>
 </ul>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> DECtalkESPressSerial</span>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dtesp_serial <span class="im">import</span> DECtalkESPressSerial</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>dt <span class="op">=</span> DECtalkESPressSerial()</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>dt.<span class="ex">connect</span>(<span class="st">&quot;/dev/ttyACM0&quot;</span>)</span>

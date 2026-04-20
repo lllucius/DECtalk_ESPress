@@ -221,7 +221,7 @@
 <li><a href="#text-editing">Text Editing</a></li>
 <li><a href="#dectalk-inline-commands">DECtalk Inline Commands</a></li>
 </ul></li>
-<li><a href="#espress-gui-dectalk_espress_gui_qtpy">ESPress GUI (<code>dectalk_espress_gui_qt.py</code>)</a></li>
+<li><a href="#espress-gui-dtesp_gui_qtpy">ESPress GUI (<code>dtesp_gui_qt.py</code>)</a></li>
 <li><a href="#dectalk-espress-protocol">DECtalk ESPress Protocol</a>
 <ul>
 <li><a href="#key-protocol-elements">Key Protocol Elements</a></li>
@@ -247,7 +247,7 @@
 <li><p>Install the Python dependencies:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyserial PySide6</span></code></pre></div></li>
 <li><p>Run the ESPress GUI:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dectalk_espress_gui_qt.py</span></code></pre></div></li>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dtesp_gui_qt.py</span></code></pre></div></li>
 <li><p>Select the serial port for your ESP32 and click <strong>Connect</strong>.</p></li>
 <li><p>Type text in the text box and click <strong>Speak</strong>.</p></li>
 </ol>
@@ -313,7 +313,7 @@
 [:dv ap 160 pr 50] This voice has modified pitch.
 [:tone 500,500] A tone before speech.</code></pre>
 <p>See <code>../ref_man.txt</code> for the full DECtalk command reference.</p>
-<h2 id="espress-gui-dectalk_espress_gui_qtpy">ESPress GUI (<code>dectalk_espress_gui_qt.py</code>)</h2>
+<h2 id="espress-gui-dtesp_gui_qtpy">ESPress GUI (<code>dtesp_gui_qt.py</code>)</h2>
 <p>A Qt-based (PySide6/PyQt6) GUI for the DECtalk ESPress serial protocol with full accessibility support. Features:</p>
 <ul>
 <li><strong>Connection</strong> – select serial port and connect with automatic device probe</li>
@@ -369,8 +369,8 @@
 </tbody>
 </table>
 <h2 id="python-api-module">Python API Module</h2>
-<p>The <code>dectalk_serial.py</code> module can be used independently from the GUI:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> DECtalkESPressSerial</span>
+<p>The <code>dtesp_serial.py</code> module can be used independently from the GUI:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dtesp_serial <span class="im">import</span> DECtalkESPressSerial</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>espress <span class="op">=</span> DECtalkESPressSerial()</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -409,14 +409,14 @@
 <span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="co"># Disconnect</span></span>
 <span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>espress.disconnect()</span></code></pre></div>
 <h3 id="available-voices">Available Voices</h3>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> VOICES</span>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dtesp_serial <span class="im">import</span> VOICES</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">list</span>(VOICES.keys()))</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># [&#39;Paul&#39;, &#39;Betty&#39;, &#39;Harry&#39;, &#39;Frank&#39;, &#39;Dennis&#39;, &#39;Kit&#39;, &#39;Ursula&#39;, &#39;Rita&#39;, &#39;Wendy&#39;]</span></span></code></pre></div>
 <h3 id="building-dectalk-command-strings">Building DECtalk Command Strings</h3>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dectalk_serial <span class="im">import</span> build_dectalk_prefix</span>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dtesp_serial <span class="im">import</span> build_dtesp_prefix</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build inline command prefix</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>prefix <span class="op">=</span> build_dectalk_prefix(voice<span class="op">=</span><span class="st">&quot;Harry&quot;</span>, rate<span class="op">=</span><span class="dv">150</span>, pitch<span class="op">=</span><span class="dv">90</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>prefix <span class="op">=</span> build_dtesp_prefix(voice<span class="op">=</span><span class="st">&quot;Harry&quot;</span>, rate<span class="op">=</span><span class="dv">150</span>, pitch<span class="op">=</span><span class="dv">90</span>)</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(prefix)  <span class="co"># &quot;[:nh][:ra 150][:dv ap 90]&quot;</span></span></code></pre></div>
   </main>
 
