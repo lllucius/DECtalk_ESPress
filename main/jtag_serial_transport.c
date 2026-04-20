@@ -31,18 +31,20 @@ static const char *TAG = "JTAG-Serial";
 // ----------------------------------------------------------------
 // Reconnection detection.  Tracked by polling
 // usb_serial_jtag_is_connected() and watching for disconnect ->
-// connect transitions.  Initialized to true so that the very first
-// host connection after boot is treated as a reconnection event,
-// causing the protocol layer to send the initial XON.
+// connect transitions.
+//
+// The counter starts at 1 so the very first call to
+// jtag_serial_transport_check_reconnected() returns true once,
+// causing the protocol layer to send the initial XON.  Every
+// subsequent disconnect -> connect transition bumps the counter.
 //
 // All state here is accessed only from the single ESPress protocol
 // task (via jtag_serial_transport_check_reconnected()), so no
 // locking is needed.  The volatile qualifier prevents the compiler
 // from caching the value across calls.
 // ----------------------------------------------------------------
-static volatile uint32_t jtag_reconnect_seq = 0;
+static volatile uint32_t jtag_reconnect_seq = 1;
 static bool jtag_was_connected = false;
-static bool jtag_had_disconnect = true;
 
 // ------------------------------------------------------------------
 // Public API
@@ -115,23 +117,20 @@ bool jtag_serial_transport_check_reconnected(void)
 
     if (is_connected && !jtag_was_connected)
     {
-        // Transition from disconnected to connected
-        if (jtag_had_disconnect)
-        {
-            jtag_reconnect_seq++;
-            ESP_LOGI(TAG, "Host connected (reconnect seq=%lu)",
-                     (unsigned long)jtag_reconnect_seq);
-        }
+        jtag_reconnect_seq++;
+        ESP_LOGI(TAG, "Host connected (reconnect seq=%lu)",
+                 (unsigned long)jtag_reconnect_seq);
         jtag_was_connected = true;
     }
     else if (!is_connected && jtag_was_connected)
     {
         ESP_LOGI(TAG, "Host disconnected");
         jtag_was_connected = false;
-        jtag_had_disconnect = true;
     }
 
-    // Return true exactly once per reconnection
+    // Return true exactly once per reconnection sequence bump.  The
+    // counter starts at 1 so the first poll after boot always reports
+    // "reconnected" so the protocol layer emits its initial XON.
     static uint32_t last_seen_seq = 0;
     uint32_t current = jtag_reconnect_seq;
     if (current != last_seen_seq)

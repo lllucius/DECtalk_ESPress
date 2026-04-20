@@ -162,11 +162,6 @@ static const custom_cmd_entry_t dispatch_table[] =
     { NULL,    NULL                },
 };
 
-const custom_cmd_entry_t *custom_commands_table(void)
-{
-    return dispatch_table;
-}
-
 // ----------------------------------------------------------------
 // Argument splitter: splits `token` (the content between [: and ])
 // by whitespace into argv[].  Returns argc.

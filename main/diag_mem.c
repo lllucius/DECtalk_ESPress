@@ -38,8 +38,8 @@ void diag_mem_print_tasks(void)
         return;
     }
 
-    uint32_t total_runtime;
-    task_count = uxTaskGetSystemState(task_array, task_count, &total_runtime);
+    // Pass NULL: we don't use the total-runtime counter.
+    task_count = uxTaskGetSystemState(task_array, task_count, NULL);
 
     ESP_LOGI(TAG, "---- Task Stack High Water Marks ----");
 
@@ -97,13 +97,13 @@ void diag_mem_print_all(void)
     diag_mem_print_heap();
 }
 
-// FreeRTOS task that prints all diagnostics every 10 seconds.
+// FreeRTOS task that prints all diagnostics on a configurable interval.
 void diag_mem_task(void *arg)
 {
     while (1)
     {
         diag_mem_print_all();
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(CONFIG_DECTALK_DIAG_MEM_INTERVAL_MS));
     }
 }
 

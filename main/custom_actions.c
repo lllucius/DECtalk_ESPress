@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 
 #include "custom_actions.h"
@@ -54,25 +55,6 @@ void custom_actions_reset_session(void)
     voice_prefix[0] = '\0';
     rate_prefix[0] = '\0';
     LOG_I("session action state reset");
-}
-
-// ----------------------------------------------------------------
-// Helper: case-insensitive string comparison
-// ----------------------------------------------------------------
-static int strcasecmp_local(const char *a, const char *b)
-{
-    while (*a && *b)
-    {
-        int ca = tolower((unsigned char)*a);
-        int cb = tolower((unsigned char)*b);
-        if (ca != cb)
-        {
-            return ca - cb;
-        }
-        a++;
-        b++;
-    }
-    return (unsigned char)*a - (unsigned char)*b;
 }
 
 // ================================================================
@@ -120,11 +102,11 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
     }
 
     int level;
-    if (strcasecmp_local(argv[2], "on") == 0 || strcmp(argv[2], "1") == 0)
+    if (strcasecmp(argv[2], "on") == 0 || strcmp(argv[2], "1") == 0)
     {
         level = 1;
     }
-    else if (strcasecmp_local(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0)
+    else if (strcasecmp(argv[2], "off") == 0 || strcmp(argv[2], "0") == 0)
     {
         level = 0;
     }
@@ -197,7 +179,7 @@ espress_job_t *custom_action_voice(int argc, const char **argv)
     const voice_map_entry_t *entry = voice_map;
     while (entry->name)
     {
-        if (strcasecmp_local(argv[1], entry->name) == 0)
+        if (strcasecmp(argv[1], entry->name) == 0)
         {
             snprintf(voice_prefix, sizeof(voice_prefix), "%s", entry->cmd);
             return espress_job_alloc_action(voice_execute, NULL, NULL);

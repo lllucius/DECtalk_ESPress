@@ -237,47 +237,47 @@ static void log_rx_dle_command(uint16_t word)
     switch (cmd_class)
     {
     case CMD_null:
-        ESP_LOGI(TAG, "RX DLE cmd: NULL (post status) [0x%04X]", word);
+        ESP_LOGD(TAG, "RX DLE cmd: NULL (post status) [0x%04X]", word);
         break;
     case CMD_control:
         switch (cmd_sub & CTRL_CMD_MASK)
         {
         case CTRL_vol_up:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_UP [0x%04X]", word);
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL VOLUME_UP [0x%04X]", word);
             break;
         case CTRL_vol_down:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_DOWN [0x%04X]", word);
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL VOLUME_DOWN [0x%04X]", word);
             break;
         case CTRL_vol_set:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL VOLUME_SET level=%u [0x%04X]",
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL VOLUME_SET level=%u [0x%04X]",
                      cmd_sub & 0xFF,
                      word);
             break;
         case CTRL_pause:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL PAUSE [0x%04X]", word);
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL PAUSE [0x%04X]", word);
             break;
         case CTRL_resume:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL RESUME [0x%04X]", word);
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL RESUME [0x%04X]", word);
             break;
         case CTRL_flush:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL FLUSH [0x%04X]", word);
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL FLUSH [0x%04X]", word);
             break;
         default:
-            ESP_LOGI(TAG, "RX DLE cmd: CONTROL sub=0x%03X [0x%04X]",
+            ESP_LOGD(TAG, "RX DLE cmd: CONTROL sub=0x%03X [0x%04X]",
                      cmd_sub,
                      word);
             break;
         }
         break;
     case CMD_test:
-        ESP_LOGI(TAG, "RX DLE cmd: TEST [0x%04X]", word);
+        ESP_LOGD(TAG, "RX DLE cmd: TEST [0x%04X]", word);
         break;
     case CMD_id:
-        ESP_LOGI(TAG, "RX DLE cmd: ID (request identification) [0x%04X]",
+        ESP_LOGD(TAG, "RX DLE cmd: ID (request identification) [0x%04X]",
                  word);
         break;
     default:
-        ESP_LOGI(TAG, "RX DLE cmd: class=0x%X sub=0x%03X [0x%04X]",
+        ESP_LOGD(TAG, "RX DLE cmd: class=0x%X sub=0x%03X [0x%04X]",
                  cmd_class >> 12,
                  cmd_sub,
                  word);
@@ -314,7 +314,7 @@ static void espress_send_status(void)
     dle_encode_word(DLE_PREFIX_STATUS, estate.status, buf);
     status_bits_to_str(estate.status, flags, sizeof(flags));
 
-    ESP_LOGI(TAG, "TX DLE STATUS 0x%04X [%s]", estate.status, flags);
+    ESP_LOGD(TAG, "TX DLE STATUS 0x%04X [%s]", estate.status, flags);
     espress_send(buf, 4);
 }
 
@@ -333,7 +333,7 @@ static void espress_send_index(uint16_t index_value)
     dle_encode_word(DLE_PREFIX_STATUS, estate.status, buf + 4);
     status_bits_to_str(estate.status, flags, sizeof(flags));
 
-    ESP_LOGI(TAG, "TX DLE INDEX %u + STATUS 0x%04X [%s]",
+    ESP_LOGD(TAG, "TX DLE INDEX %u + STATUS 0x%04X [%s]",
              index_value,
              estate.status,
              flags);
@@ -366,7 +366,7 @@ static void espress_check_flow_control(void)
 
     if (!estate.xoff_sent && need_xoff)
     {
-        ESP_LOGI(TAG, "TX XOFF (pause host, buffer %d/%d, queue %d/%d)",
+        ESP_LOGD(TAG, "TX XOFF (pause host, buffer %d/%d, queue %d/%d)",
                  estate.text_pos,
                  ESPRESS_TEXT_BUFSIZE,
                  q_used,
@@ -376,7 +376,7 @@ static void espress_check_flow_control(void)
     }
     else if (estate.xoff_sent && need_xon)
     {
-        ESP_LOGI(TAG, "TX XON (resume host, buffer %d/%d, queue %d/%d)",
+        ESP_LOGD(TAG, "TX XON (resume host, buffer %d/%d, queue %d/%d)",
                  estate.text_pos,
                  ESPRESS_TEXT_BUFSIZE,
                  q_used,
@@ -392,9 +392,15 @@ static void espress_check_flow_control(void)
 static void espress_send_flush(void)
 {
     espress_job_t *job = espress_job_alloc_flush();
-    if (job)
+    if (!job)
     {
-        xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50));
+        ESP_LOGE(TAG, "Failed to allocate FLUSH job");
+        return;
+    }
+    if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
+    {
+        ESP_LOGW(TAG, "Speech queue full; dropping FLUSH job");
+        espress_job_free(job);
     }
 }
 
@@ -417,10 +423,10 @@ static void espress_flush_text_to_queue(void)
     }
 
     estate.text_buf[estate.text_pos] = '\0';
-    ESP_LOGI(TAG, "RX text queued (%d bytes): %s",
+    ESP_LOGD(TAG, "RX text queued (%d bytes): %s",
              estate.text_pos,
              estate.text_buf);
-    ESP_LOG_BUFFER_HEXDUMP(TAG, estate.text_buf, estate.text_pos, ESP_LOG_INFO);
+    ESP_LOG_BUFFER_HEXDUMP(TAG, estate.text_buf, estate.text_pos, ESP_LOG_DEBUG);
 
     // Tokenise the text into jobs
     espress_job_list_t jobs;
@@ -536,7 +542,7 @@ static void espress_add_char(uint8_t c)
 // ----------------------------------------------------------------
 static void espress_handle_sync_char(const char *source)
 {
-    ESP_LOGI(TAG, "RX sync marker from %s", source);
+    ESP_LOGD(TAG, "RX sync marker from %s", source);
     if (estate.text_pos > 0)
     {
         espress_flush_text_to_queue();
@@ -564,7 +570,7 @@ static void espress_process_dle(void)
         // 0x71 'q': Flush current speech, then speak a single character
         uint8_t ch = ((estate.dle_buf[2] & 0x0F) << 4) |
                       (estate.dle_buf[3] & 0x0F);
-        ESP_LOGI(TAG, "RX DLE FLUSHCH char=0x%02X '%c'",
+        ESP_LOGD(TAG, "RX DLE FLUSHCH char=0x%02X '%c'",
                  ch,
                  (ch >= 0x20 && ch < 0x7F) ? (char)ch : '.');
         // Flush current speech
@@ -573,9 +579,14 @@ static void espress_process_dle(void)
         // Queue the single character for speech
         char single[2] = {(char)ch, '\0'};
         espress_job_t *job = espress_job_alloc_text(single, 1);
-        if (job)
+        if (!job)
         {
-            xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50));
+            ESP_LOGE(TAG, "Failed to allocate text job for FLUSHCH");
+        }
+        else if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
+        {
+            ESP_LOGW(TAG, "Speech queue full; dropping FLUSHCH char 0x%02X", ch);
+            espress_job_free(job);
         }
     }
     else if (type_byte == DLE_PREFIX_SYNC)
@@ -664,7 +675,7 @@ static void espress_process_dle(void)
     {
         // 0x30-0x3F: Data sequence from host (e.g., volume level)
         word = dle_decode_word(estate.dle_buf);
-        ESP_LOGI(TAG, "RX DLE DATA prefix=0x%02X value=0x%04X",
+        ESP_LOGD(TAG, "RX DLE DATA prefix=0x%02X value=0x%04X",
                  type_byte,
                  word);
         // Store for use by subsequent command. Currently not used.
@@ -744,13 +755,16 @@ static void espress_handle_etx(void)
 // ----------------------------------------------------------------
 static void espress_handle_flush_sequence(void)
 {
-    ESP_LOGI(TAG, "RX ] + ETX + XON flush sequence (TSR FLUSH_TEXT)");
+    ESP_LOGD(TAG, "RX ] + ETX + XON flush sequence (TSR FLUSH_TEXT)");
     espress_handle_etx();
 }
 
 // -- Audio Callback for ESPress Mode ---------------------------------
 
-// Throttle audio callback logging so it doesn't flood the console
+// Throttle audio callback logging so it doesn't flood the console.
+// These are updated from whichever task drives the TTS callback and
+// read from the speech task for chunk-summary logs.  Full atomicity
+// is not required because they are logging-only diagnostics.
 static int audio_cb_call_count = 0;
 static int audio_cb_total_samples = 0;
 
@@ -800,7 +814,7 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
                     short s0 = (num_samples > 0) ? samples[0] : 0;
                     short s1 = (num_samples > 1) ? samples[1] : 0;
                     short s2 = (num_samples > 2) ? samples[2] : 0;
-                    ESP_LOGI(TAG, "audio_cb #%d: %ld samples, paused=%d, "
+                    ESP_LOGD(TAG, "audio_cb #%d: %ld samples, paused=%d, "
                              "first3=[%d,%d,%d], total_samples=%d",
                              audio_cb_call_count,
                              num_samples,
@@ -853,20 +867,12 @@ static void *speech_task(void *arg)
 {
     ESP_LOGI(TAG, "Speech task started");
 
-    // Create the speech queue (holds espress_job_t pointers)
-    speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(espress_job_t *));
-
-    // Initialise the custom command subsystem
-    custom_commands_init();
-
     while (1)
     {
         espress_job_t *job;
 
         if (xQueueReceive(speech_queue, &job, portMAX_DELAY))
         {
-            char chunk_count = 0;
-
             if (job->type == ESPRESS_JOB_FLUSH)
             {
                 // Flush: cancel any ongoing synthesis
@@ -892,13 +898,13 @@ static void *speech_task(void *arg)
                     {
                         if (stale->type == ESPRESS_JOB_SPEAK_TEXT)
                         {
-                            ESP_LOGI(TAG, "Speech task: drained stale text: %.30s%s",
+                            ESP_LOGD(TAG, "Speech task: drained stale text: %.30s%s",
                                      stale->text,
                                      strlen(stale->text) > 30 ? "..." : "");
                         }
                         else if (stale->type == ESPRESS_JOB_ACTION)
                         {
-                            ESP_LOGI(TAG, "Speech task: drained stale action");
+                            ESP_LOGD(TAG, "Speech task: drained stale action");
                         }
                         espress_job_free(stale);
                         drained++;
@@ -924,7 +930,7 @@ static void *speech_task(void *arg)
             if (job->type == ESPRESS_JOB_ACTION)
             {
                 // Execute firmware action in order
-                ESP_LOGI(TAG, "Speech task: executing ACTION job");
+                ESP_LOGD(TAG, "Speech task: executing ACTION job");
                 if (job->action.execute)
                 {
                     job->action.execute(job->action.ctx);
@@ -934,18 +940,16 @@ static void *speech_task(void *arg)
             }
 
             // ESPRESS_JOB_SPEAK_TEXT: synthesise text
-            chunk_count++;
             estate.speaking = 1;
             estate.status |= STAT_tr_char;
 
             char *text = job->text;
 
-            ESP_LOGI(TAG, "Speech task: === CHUNK #%d START ===", chunk_count);
-            ESP_LOGI(TAG, "Speech task: text (%d bytes): \"%.60s%s\"",
+            ESP_LOGD(TAG, "Speech task: text (%d bytes): \"%.60s%s\"",
                      (int)strlen(text),
                      text,
                      strlen(text) > 60 ? "..." : "");
-            ESP_LOGI(TAG, "Speech task: queue depth before speak: %d/%d",
+            ESP_LOGD(TAG, "Speech task: queue depth before speak: %d/%d",
                      (int)uxQueueMessagesWaiting(speech_queue),
                      ESPRESS_QUEUE_SIZE);
 
@@ -953,33 +957,14 @@ static void *speech_task(void *arg)
             audio_cb_call_count = 0;
             audio_cb_total_samples = 0;
 
-            // Defense-in-depth: strip any non-ASCII bytes (0x80-0xFF)
-            // that may have slipped through.  The TTS engine only
-            // handles 7-bit ASCII and can hang on high-bit characters.
-            {
-                int rd = 0, wr = 0;
-                while (text[rd])
-                {
-                    if ((unsigned char)text[rd] <= 0x7F)
-                    {
-                        text[wr++] = text[rd];
-                    }
-                    rd++;
-                }
-                text[wr] = '\0';
-            }
-
             if (text[0] == '\0')
             {
-                ESP_LOGW(TAG, "Speech task: text empty after sanitisation, "
-                         "skipping synthesis");
+                ESP_LOGD(TAG, "Speech task: text empty, skipping synthesis");
                 espress_job_free(job);
                 estate.speaking = 0;
                 estate.status &= ~STAT_tr_char;
                 estate.status |= STAT_rr_char | STAT_cmd_ready;
                 espress_check_flow_control();
-                ESP_LOGI(TAG, "Speech task: === CHUNK #%d DONE ===",
-                         chunk_count);
                 continue;
             }
 
@@ -992,10 +977,10 @@ static void *speech_task(void *arg)
             // silence when no new samples arrive, so there is a
             // natural, brief pause between chunks instead of a hard
             // cut-off.
-            ESP_LOGI(TAG, "Speech task: calling TextToSpeechSpeak()...");
+            ESP_LOGD(TAG, "Speech task: calling TextToSpeechSpeak()...");
             TextToSpeechSpeak(espress_tts_handle, text, TTS_FORCE);
             TextToSpeechSync(espress_tts_handle);
-            ESP_LOGI(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned, "
+            ESP_LOGD(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned, "
                      "audio_callbacks=%d, total_samples=%d",
                      audio_cb_call_count,
                      audio_cb_total_samples);
@@ -1005,7 +990,6 @@ static void *speech_task(void *arg)
             estate.status &= ~STAT_tr_char;
             estate.status |= STAT_rr_char | STAT_cmd_ready;
             espress_check_flow_control();
-            ESP_LOGI(TAG, "Speech task: === CHUNK #%d DONE ===", chunk_count);
         }
     }
 
@@ -1028,12 +1012,12 @@ static void espress_process_byte(uint8_t c)
     switch (c)
     {
     case XON:
-        ESP_LOGI(TAG, "RX XON (host resumes device TX)");
+        ESP_LOGD(TAG, "RX XON (host resumes device TX)");
         estate.host_xoff = 0;
         return;
 
     case XOFF:
-        ESP_LOGI(TAG, "RX XOFF (host pauses device TX)");
+        ESP_LOGD(TAG, "RX XOFF (host pauses device TX)");
         estate.host_xoff = 1;
         return;
 
@@ -1043,33 +1027,33 @@ static void espress_process_byte(uint8_t c)
         return;
 
     case ETX:
-        ESP_LOGI(TAG, "RX ETX (flush/cancel all speech)");
+        ESP_LOGD(TAG, "RX ETX (flush/cancel all speech)");
         espress_handle_etx();
         return;
 
     case ENQ:
-        ESP_LOGI(TAG, "RX ENQ (host requests status)");
+        ESP_LOGD(TAG, "RX ENQ (host requests status)");
         espress_send_status();
         return;
 
     case SO:
-        ESP_LOGI(TAG, "RX SO (pause speech output)");
+        ESP_LOGD(TAG, "RX SO (pause speech output)");
         estate.paused = 1;
         return;
 
     case SI:
-        ESP_LOGI(TAG, "RX SI (resume speech output)");
+        ESP_LOGD(TAG, "RX SI (resume speech output)");
         estate.paused = 0;
         return;
 
     case VT:
-        ESP_LOGI(TAG, "RX VT (sync marker)");
+        ESP_LOGD(TAG, "RX VT (sync marker)");
         // Sync marker: pass through as regular character
         break;
 
     case SOH:
         // SOH from host: ignore (this is a device->host byte)
-        ESP_LOGI(TAG, "RX SOH (unexpected from host, ignored)");
+        ESP_LOGD(TAG, "RX SOH (unexpected from host, ignored)");
         return;
 
     default:
@@ -1079,11 +1063,15 @@ static void espress_process_byte(uint8_t c)
             return;
         }
 
-        // Accept non-ASCII bytes (0x80-0xFF) to match the original
-        // DECtalk ESPress hardware, which passes all bytes >= 0x20
-        // through to the input ring without filtering.  The speech
-        // task strips non-ASCII bytes before calling
-        // TextToSpeechSpeak(), so the TTS engine never sees them.
+        // Accept 7-bit ASCII printable and VT/CR/LF/TAB only.  The
+        // DECtalk TTS engine handles only 7-bit input and can hang on
+        // high-bit bytes (0x80-0xFF), so they are dropped at the
+        // protocol boundary.  Control characters below 0x20 that we
+        // do not explicitly handle are also dropped.
+        if (c > 0x7F)
+        {
+            return;
+        }
         if (c < 0x20 && c != '\r' && c != '\n' && c != '\t')
         {
             return;
@@ -1247,7 +1235,7 @@ static void *espress_task(void *arg)
                         pending_bracket_etx = 0;
                     }
 
-                    ESP_LOGI(TAG, "Idle timeout: flushing %d buffered text bytes to queue",
+                    ESP_LOGD(TAG, "Idle timeout: flushing %d buffered text bytes to queue",
                              estate.text_pos);
                     espress_flush_text_to_queue();
                 }
@@ -1382,6 +1370,13 @@ void app_main(void)
     ESP_ERROR_CHECK(tlv320dac3100_init());
 #endif
 
+    // Create the speech queue and initialise the custom-command
+    // subsystem BEFORE spawning the worker threads so both threads see
+    // a fully-initialised queue from their first iteration.
+    speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(espress_job_t *));
+    ESP_ERROR_CHECK(speech_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
+    custom_commands_init();
+
     // Retrieve the default pthread configuration
     esp_pthread_cfg_t default_cfg = esp_pthread_get_default_config();
     esp_pthread_cfg_t thread_cfg;
@@ -1401,7 +1396,12 @@ void app_main(void)
     esp_pthread_set_cfg(&thread_cfg);
 
     // Create the speech thread
-    pthread_create(&tid, NULL, speech_task, NULL);
+    int prc = pthread_create(&tid, NULL, speech_task, NULL);
+    if (prc != 0)
+    {
+        ESP_LOGE(TAG, "pthread_create(speech_task) failed: %d", prc);
+        esp_restart();
+    }
 
     // Define the main thread attributes
     thread_cfg = default_cfg;
@@ -1410,7 +1410,12 @@ void app_main(void)
     esp_pthread_set_cfg(&thread_cfg);
 
     // Create the main thread
-    pthread_create(&tid, NULL, espress_task, NULL);
+    prc = pthread_create(&tid, NULL, espress_task, NULL);
+    if (prc != 0)
+    {
+        ESP_LOGE(TAG, "pthread_create(espress_task) failed: %d", prc);
+        esp_restart();
+    }
 
     // Restore default pthread config so any later threads are unaffected.
     esp_pthread_set_cfg(&default_cfg);
