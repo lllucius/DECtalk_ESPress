@@ -115,9 +115,9 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_PI                   3.14159265358979323846f
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
-#define TLV320_HP_ANALOG_VOL_INCREASED 0x8A
-#define TLV320_HP_DRIVERS_ENABLED   0xC4
-#define TLV320_HP_DRIVER_6DB        0x34
+#define TLV320_HP_ANALOG_VOL_0DB_ROUTED 0x8A  // route enabled + 0 dB
+#define TLV320_HP_DRIVERS_ENABLED   0xC4      // HPL/HPR powered, 1.35 V CM
+#define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
 #define TLV320_EVENT_IRQ            TLV320_BIT(0)
@@ -994,8 +994,8 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
         {REG_SPK_DRIVER, 0x00},
         {REG_SPK_AMP,    0x06},
         {REG_HP_DRIVERS, TLV320_HP_DRIVERS_ENABLED},
-        {REG_HPL_DRIVER, TLV320_HP_DRIVER_6DB},
-        {REG_HPR_DRIVER, TLV320_HP_DRIVER_6DB},
+        {REG_HPL_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
+        {REG_HPR_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
     };
 
     const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE)
@@ -1023,8 +1023,8 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     // later.
     static const reg_val_t headphone_analog_gain_cfg[] =
     {
-        {REG_HPL_VOL, TLV320_HP_ANALOG_VOL_INCREASED},
-        {REG_HPR_VOL, TLV320_HP_ANALOG_VOL_INCREASED},
+        {REG_HPL_VOL, TLV320_HP_ANALOG_VOL_0DB_ROUTED},
+        {REG_HPR_VOL, TLV320_HP_ANALOG_VOL_0DB_ROUTED},
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
