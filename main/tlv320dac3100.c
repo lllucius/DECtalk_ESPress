@@ -35,6 +35,7 @@ static const char *TAG = "TLV320DAC3100";
 
 // ---- Page 0 registers -------------------------------------------
 #define REG_PAGE_SELECT     0x00
+#define TLV320_PAGE_ANALOG  0x01
 #define REG_RESET           0x01
 #define REG_CLOCK_MUX       0x04    // CODEC_CLKIN source
 #define REG_NDAC            0x0B    // NDAC divider
@@ -115,7 +116,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_PI                   3.14159265358979323846f
 #define TLV320_VOLUME_STEPS_PER_DB  2.0f
 #define TLV320_SAMPLE_RATE_HZ  11025.0f
-#define TLV320_HP_ANALOG_VOL_0DB_ROUTED 0x8A  // route enabled + 0 dB
+#define TLV320_HP_VOL_ROUTED_0DB 0x8A         // route enabled + 0 dB
 #define TLV320_HP_DRIVERS_ENABLED   0xC4      // HPL/HPR powered, 1.35 V CM
 #define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
 #define TLV320_EVENT_QUEUE_LEN      8
@@ -1023,8 +1024,8 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     // later.
     static const reg_val_t headphone_analog_gain_cfg[] =
     {
-        {REG_HPL_VOL, TLV320_HP_ANALOG_VOL_0DB_ROUTED},
-        {REG_HPR_VOL, TLV320_HP_ANALOG_VOL_0DB_ROUTED},
+        {REG_HPL_VOL, TLV320_HP_VOL_ROUTED_0DB},
+        {REG_HPR_VOL, TLV320_HP_VOL_ROUTED_0DB},
         {REG_SPK_VOL, 0x80},   // SPK routed, analog gain = 0 dB
     };
 
@@ -1051,7 +1052,7 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
 
 static void tlv320_log_headphone_profile_registers(void)
 {
-    const uint8_t page = 0x01;
+    const uint8_t page = TLV320_PAGE_ANALOG;
     uint8_t hp_drivers = 0;
     uint8_t hpl_vol = 0;
     uint8_t hpr_vol = 0;
