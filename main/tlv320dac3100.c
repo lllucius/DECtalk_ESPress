@@ -1142,7 +1142,7 @@ void tlv320dac3100_set_volume_db(float db)
     // Reverse-map the closest level for get_volume().
     // Find the nearest entry in vol_db_table (linear scan is fine for 10).
     uint8_t best = 0;
-    float best_diff = 999.0f;
+    float best_diff = 100.0f; // larger than any possible table delta
     for (int i = 0; i <= MAX_VOLUME; i++)
     {
         float diff = db - vol_db_table[i];

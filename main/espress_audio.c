@@ -102,7 +102,7 @@ esp_err_t espress_audio_init(void)
     }
 
 #if CONFIG_DECTALK_DAC_TLV320DAC3100
-    // Initialise NVS so fw_settings can persist/restore codec state,
+    // Initialize NVS so fw_settings can persist/restore codec state,
     // then load the stored firmware settings (with Kconfig fallbacks).
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||

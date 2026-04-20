@@ -50,7 +50,7 @@ void espress_job_pool_init(void)
         xQueueSend(s_free_list, &p, 0);
     }
 
-    ESP_LOGI(TAG, "Job pool initialised: %d entries, %d bytes text each",
+    ESP_LOGI(TAG, "Job pool initialized: %d entries, %d bytes text each",
              ESPRESS_JOB_POOL_SIZE, ESPRESS_JOB_POOL_TEXT_SIZE);
 }
 

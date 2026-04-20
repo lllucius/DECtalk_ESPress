@@ -41,7 +41,7 @@ try:
         _voice_data = json.load(_f)["voices"]
     VOICES = {v["name"]: v["code"] for v in _voice_data}
 except (FileNotFoundError, KeyError, json.JSONDecodeError):
-    # Fallback for standalone usage when voices.json is not beside the repo
+    # Fallback for standalone usage when voices.json is not found in the repository root
     VOICES = {
         "Paul": "np", "Betty": "nb", "Harry": "nh", "Frank": "nf",
         "Dennis": "nd", "Kit": "nk", "Ursula": "nu", "Rita": "nr",
