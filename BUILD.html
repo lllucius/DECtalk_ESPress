@@ -338,10 +338,24 @@
 │
 ├── main/                           # Main application component
 │   ├── CMakeLists.txt              # Registers main sources; depends on dectalk, driver, pthread…
-│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC/JTAG transport, diagnostics
+│   ├── Kconfig.projbuild           # menuconfig: audio, tuning, CDC/JTAG transport, fw commands, diagnostics
 │   ├── idf_component.yml           # IDF component manager dep: espressif/esp_tinyusb ≥ 2.0.0
-│   ├── espress.c           # Entry point (app_main), I2S init, threads, ESPress protocol
-│   ├── espress.h           # Protocol constants, DLE encode/decode, public API
+│   ├── dtesp.c                     # Entry point (app_main), I2S init, threads, ESPress protocol
+│   ├── dtesp.h                     # Protocol constants, DLE encode/decode, public API
+│   ├── dtesp_audio.c               # I2S output initialisation + TLV320DAC3100 codec init
+│   ├── dtesp_audio.h               # Audio subsystem public API
+│   ├── dtesp_transport.h           # Transport vtable (dtesp_transport_t) shared by all transports
+│   ├── dtesp_jobs.h                # Job queue types (SPEAK_TEXT, ACTION, FLUSH)
+│   ├── dtesp_job_pool.c            # Pre-allocated job pool allocator
+│   ├── dtesp_job_pool.h            # Job pool public API
+│   ├── custom_commands.c           # [:fw …] tokeniser and job-list builder
+│   ├── custom_commands.h           # Tokeniser public API and job-list types
+│   ├── custom_actions.c            # [:fw …] sub-command handlers (gpio, voice, rate, tone, …)
+│   ├── custom_actions.h            # Action handler public API
+│   ├── fw_settings.c               # NVS-backed codec settings (volume, profile, autoswitch)
+│   ├── fw_settings.h               # Firmware settings public API
+│   ├── tlv320dac3100.c             # TI TLV320DAC3100 codec driver (Adafruit breakout)
+│   ├── tlv320dac3100.h             # Codec driver public API
 │   ├── usb_cdc_transport.c         # ESP32-S3 USB CDC-ACM transport layer (TinyUSB wrapper)
 │   ├── usb_cdc_transport.h         # ESP32-S3 transport API
 │   ├── jtag_serial_transport.c     # ESP32-C6 USB Serial/JTAG transport layer
@@ -349,15 +363,19 @@
 │   ├── diag_mem.c                  # Optional heap/stack diagnostics task
 │   └── diag_mem.h                  # Diagnostics API
 │
-└── host/                           # Python host-side tools
-    ├── README.md                   # Host tools documentation
-    ├── dtesp_serial.py           # DECtalkESPressSerial class (serial protocol API)
-    └── dtesp_gui_qt.py      # Tkinter GUI for voice control, status, pause/resume</code></pre>
+├── host/                           # Python host-side tools
+│   ├── README.md                   # Host tools documentation
+│   ├── dtesp_serial.py             # DECtalkESPressSerial class (serial protocol API)
+│   └── dtesp_gui_qt.py             # Qt (PySide6/PyQt6) GUI for voice control, status, pause/resume
+│
+└── tests/                          # Host-native unit tests (no ESP-IDF required)
+    ├── Makefile                    # Build and run: `make -C tests test`
+    └── test_custom_commands.c      # Tests for the [:fw …] custom command parser</code></pre>
 <hr />
 <h2 id="how-the-build-works">How the Build Works</h2>
 <h3 id="1-project-bootstrapping">1. Project Bootstrapping</h3>
 <p><code>CMakeLists.txt</code> is a minimal ESP-IDF project file:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode cmake"><code class="sourceCode cmake"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">cmake_minimum_required</span>(<span class="ot">VERSION</span> <span class="dt">3.5</span>)</span>
+<div class="sourceCode" id="cb5"><pre class="sourceCode cmake"><code class="sourceCode cmake"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">cmake_minimum_required</span>(<span class="ot">VERSION</span> <span class="dt">3.22</span>)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">include</span>(<span class="fl">$ENV{IDF_PATH}</span>/tools/cmake/project.cmake)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">project</span>(dtesp)</span></code></pre></div>
 <p>ESP-IDF discovers the <code>components/dectalk/</code> and <code>main/</code> components automatically.</p>
@@ -374,8 +392,32 @@
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>espress.c</code></td>
+<td><code>dtesp.c</code></td>
 <td>Entry point (<code>app_main</code>), I2S initialisation, thread creation, ESPress protocol loop, speech task, TTS callback</td>
+</tr>
+<tr class="even">
+<td><code>dtesp_audio.c</code></td>
+<td>I2S output initialisation and, when selected, TLV320DAC3100 codec configuration</td>
+</tr>
+<tr class="odd">
+<td><code>dtesp_job_pool.c</code></td>
+<td>Pre-allocated pool allocator for job objects, with heap fallback</td>
+</tr>
+<tr class="even">
+<td><code>custom_commands.c</code></td>
+<td>Tokenises incoming text for <code>[:fw …]</code> tokens and builds ordered job lists</td>
+</tr>
+<tr class="odd">
+<td><code>custom_actions.c</code></td>
+<td>Sub-command handlers for <code>[:fw gpio]</code>, <code>[:fw voice]</code>, <code>[:fw rate]</code>, <code>[:fw tone]</code>, <code>[:fw volume]</code>, <code>[:fw profile]</code>, <code>[:fw autoswitch]</code>, <code>[:fw save]</code></td>
+</tr>
+<tr class="even">
+<td><code>fw_settings.c</code></td>
+<td>NVS-backed mirror of codec settings (volume, profile, autoswitch); loaded at startup, persisted by <code>[:fw save]</code></td>
+</tr>
+<tr class="odd">
+<td><code>tlv320dac3100.c</code></td>
+<td>Driver for the TI TLV320DAC3100 stereo DAC / headphone amplifier (Adafruit breakout); compiled only when <code>DTESP_DAC_TLV320DAC3100</code> is selected</td>
 </tr>
 <tr class="even">
 <td><code>usb_cdc_transport.c</code></td>
@@ -396,8 +438,12 @@
 <li><code>dectalk</code> — the TTS library component</li>
 <li><code>driver</code> — ESP-IDF I2S driver</li>
 <li><code>pthread</code> — POSIX threading</li>
-<li><code>spiffs</code> — SPIFFS file system (for dictionary-from-filesystem mode)</li>
+<li><code>esp_driver_gpio</code> — GPIO driver (used for RGB LED disable and optional GPIO action)</li>
+<li><code>esp_driver_i2c</code> — I2C driver (used by TLV320DAC3100 codec)</li>
+<li><code>esp_driver_i2s</code> — I2S driver (audio output)</li>
 <li><code>esp_timer</code> — High-resolution timer</li>
+<li><code>esp_driver_ledc</code> — LEDC PWM driver (compiled in only when <code>DTESP_FW_CMD_TONE_ENABLE</code> is set)</li>
+<li><code>nvs_flash</code> — Non-volatile storage (compiled in only when <code>DTESP_DAC_TLV320DAC3100</code> is selected)</li>
 </ul>
 <p>External dependency via <code>idf_component.yml</code>:</p>
 <ul>

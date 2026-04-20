@@ -462,7 +462,7 @@
 </tr>
 </tbody>
 </table>
-<p>See <code>main/espress.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
+<p>See <code>main/dtesp.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
 <h2 id="host-tools">Host Tools</h2>
 <p>The <code>host/</code> directory contains Python-based host software. See <strong><a href="host/README.html">host/README.md</a></strong> for full details.</p>
 <ul>
@@ -530,6 +530,14 @@
 <tr class="odd">
 <td><em>USB CDC transport</em> / <em>JTAG serial transport</em></td>
 <td>Target-specific host transport buffer sizing</td>
+</tr>
+<tr class="even">
+<td><em>Custom firmware commands</em></td>
+<td>Enable/disable <code>[:fw …]</code> command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone)</td>
+</tr>
+<tr class="odd">
+<td><em>Onboard RGB LED</em></td>
+<td>Optionally drive the RGB LED data GPIO low at startup to keep the LED dark</td>
 </tr>
 <tr class="even">
 <td><em>Diagnostics and logging</em></td>
