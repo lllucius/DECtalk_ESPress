@@ -27,7 +27,7 @@
 #include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#if CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
 #include "fw_settings.h"
 #endif
@@ -81,7 +81,7 @@ static void gpio_execute(void *ctx)
     gpio_action_ctx_t *g = (gpio_action_ctx_t *)ctx;
     LOG_I("GPIO action: pin=%d level=%d", g->pin, g->level);
 #if defined(ESP_PLATFORM) && \
-    (!defined(CONFIG_ESPRESS_FW_CMD_ENABLE) || defined(CONFIG_ESPRESS_FW_CMD_GPIO_ENABLE))
+    (!defined(CONFIG_DTESP_FW_CMD_ENABLE) || defined(CONFIG_DTESP_FW_CMD_GPIO_ENABLE))
     gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << g->pin,
         .mode = GPIO_MODE_OUTPUT,
@@ -94,7 +94,7 @@ static void gpio_execute(void *ctx)
 #endif
 }
 
-espress_job_t *custom_action_gpio(int argc, const char **argv)
+dtesp_job_t *custom_action_gpio(int argc, const char **argv)
 {
     // argv[0]="gpio" argv[1]=pin argv[2]=on|off|0|1
     if (argc < 3)
@@ -116,32 +116,32 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
     // accidentally clobber them via [:fw gpio <n> on].
     static const int reserved[] =
     {
-# ifdef CONFIG_ESPRESS_I2S_BCK_GPIO
-        CONFIG_ESPRESS_I2S_BCK_GPIO,
+# ifdef CONFIG_DTESP_I2S_BCK_GPIO
+        CONFIG_DTESP_I2S_BCK_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_I2S_WS_GPIO
-        CONFIG_ESPRESS_I2S_WS_GPIO,
+# ifdef CONFIG_DTESP_I2S_WS_GPIO
+        CONFIG_DTESP_I2S_WS_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_I2S_DO_GPIO
-        CONFIG_ESPRESS_I2S_DO_GPIO,
+# ifdef CONFIG_DTESP_I2S_DO_GPIO
+        CONFIG_DTESP_I2S_DO_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_I2S_MCLK_GPIO
-        CONFIG_ESPRESS_I2S_MCLK_GPIO,
+# ifdef CONFIG_DTESP_I2S_MCLK_GPIO
+        CONFIG_DTESP_I2S_MCLK_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_I2C_SDA_GPIO
-        CONFIG_ESPRESS_I2C_SDA_GPIO,
+# ifdef CONFIG_DTESP_I2C_SDA_GPIO
+        CONFIG_DTESP_I2C_SDA_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_I2C_SCL_GPIO
-        CONFIG_ESPRESS_I2C_SCL_GPIO,
+# ifdef CONFIG_DTESP_I2C_SCL_GPIO
+        CONFIG_DTESP_I2C_SCL_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_CODEC_INT_GPIO
-        CONFIG_ESPRESS_CODEC_INT_GPIO,
+# ifdef CONFIG_DTESP_CODEC_INT_GPIO
+        CONFIG_DTESP_CODEC_INT_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_CODEC_RESET_GPIO
-        CONFIG_ESPRESS_CODEC_RESET_GPIO,
+# ifdef CONFIG_DTESP_CODEC_RESET_GPIO
+        CONFIG_DTESP_CODEC_RESET_GPIO,
 # endif
-# ifdef CONFIG_ESPRESS_RGB_LED_GPIO
-        CONFIG_ESPRESS_RGB_LED_GPIO,
+# ifdef CONFIG_DTESP_RGB_LED_GPIO
+        CONFIG_DTESP_RGB_LED_GPIO,
 # endif
     };
     for (size_t i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++)
@@ -177,7 +177,7 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
     ctx->pin = pin;
     ctx->level = level;
 
-    return espress_job_alloc_action(gpio_execute, ctx, free);
+    return dtesp_job_alloc_action(gpio_execute, ctx, free);
 }
 
 // ================================================================
@@ -233,7 +233,7 @@ static void voice_execute(void *ctx)
     }
 }
 
-espress_job_t *custom_action_voice(int argc, const char **argv)
+dtesp_job_t *custom_action_voice(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -252,7 +252,7 @@ espress_job_t *custom_action_voice(int argc, const char **argv)
                 return NULL;
             }
             ctx->cmd = entry->cmd; // static string, no copy needed
-            return espress_job_alloc_action(voice_execute, ctx, free);
+            return dtesp_job_alloc_action(voice_execute, ctx, free);
         }
         entry++;
     }
@@ -283,7 +283,7 @@ static void rate_execute(void *ctx)
     }
 }
 
-espress_job_t *custom_action_rate(int argc, const char **argv)
+dtesp_job_t *custom_action_rate(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -304,14 +304,14 @@ espress_job_t *custom_action_rate(int argc, const char **argv)
         return NULL;
     }
     ctx->rate = rate;
-    return espress_job_alloc_action(rate_execute, ctx, free);
+    return dtesp_job_alloc_action(rate_execute, ctx, free);
 }
 
 // ================================================================
 // Tone handler: [:fw tone <freq_hz> <duration_ms>]
 //
 // Generates a square-wave tone via the LEDC PWM peripheral.  The
-// tone GPIO is configured via CONFIG_ESPRESS_TONE_GPIO (Kconfig).
+// tone GPIO is configured via CONFIG_DTESP_TONE_GPIO (Kconfig).
 // On non-ESP builds or when the tone GPIO is not configured, falls
 // back to a diagnostic log.
 // ================================================================
@@ -327,8 +327,8 @@ static void tone_execute(void *ctx)
     tone_action_ctx_t *t = (tone_action_ctx_t *)ctx;
     LOG_I("tone action: freq=%d Hz, duration=%d ms", t->freq_hz, t->duration_ms);
 
-#if defined(ESP_PLATFORM) && defined(CONFIG_ESPRESS_TONE_GPIO) && \
-    (CONFIG_ESPRESS_TONE_GPIO >= 0)
+#if defined(ESP_PLATFORM) && defined(CONFIG_DTESP_TONE_GPIO) && \
+    (CONFIG_DTESP_TONE_GPIO >= 0)
     ledc_timer_config_t timer_cfg = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_8_BIT,
@@ -343,7 +343,7 @@ static void tone_execute(void *ctx)
     }
 
     ledc_channel_config_t chan_cfg = {
-        .gpio_num = CONFIG_ESPRESS_TONE_GPIO,
+        .gpio_num = CONFIG_DTESP_TONE_GPIO,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .channel = LEDC_CHANNEL_0,
         .timer_sel = LEDC_TIMER_0,
@@ -362,11 +362,11 @@ static void tone_execute(void *ctx)
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
 #else
     (void)t;
-    LOG_W("tone: no tone GPIO configured (set CONFIG_ESPRESS_TONE_GPIO)");
+    LOG_W("tone: no tone GPIO configured (set CONFIG_DTESP_TONE_GPIO)");
 #endif
 }
 
-espress_job_t *custom_action_tone(int argc, const char **argv)
+dtesp_job_t *custom_action_tone(int argc, const char **argv)
 {
     if (argc < 3)
     {
@@ -396,7 +396,7 @@ espress_job_t *custom_action_tone(int argc, const char **argv)
     ctx->freq_hz = freq;
     ctx->duration_ms = dur;
 
-    return espress_job_alloc_action(tone_execute, ctx, free);
+    return dtesp_job_alloc_action(tone_execute, ctx, free);
 }
 
 // ================================================================
@@ -422,13 +422,13 @@ static void volume_execute(void *ctx)
         return;
     }
     LOG_I("volume action: level=%u", (unsigned)v->level);
-#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
     fw_settings_set_volume(v->level);
     tlv320dac3100_set_volume(v->level);
 #endif
 }
 
-espress_job_t *custom_action_volume(int argc, const char **argv)
+dtesp_job_t *custom_action_volume(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -459,7 +459,7 @@ espress_job_t *custom_action_volume(int argc, const char **argv)
         return NULL;
     }
     ctx->level = (uint8_t)level;
-    return espress_job_alloc_action(volume_execute, ctx, free);
+    return dtesp_job_alloc_action(volume_execute, ctx, free);
 }
 
 // ================================================================
@@ -480,7 +480,7 @@ static void profile_execute(void *ctx)
     }
     LOG_I("profile action: %s",
           p->profile == 0 ? "speaker" : "headphone");
-#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
     tlv320_profile_t tp = (p->profile == 1)
                               ? TLV320_PROFILE_HEADPHONE
                               : TLV320_PROFILE_SPEAKER;
@@ -493,7 +493,7 @@ static void profile_execute(void *ctx)
 #endif
 }
 
-espress_job_t *custom_action_profile(int argc, const char **argv)
+dtesp_job_t *custom_action_profile(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -525,7 +525,7 @@ espress_job_t *custom_action_profile(int argc, const char **argv)
         return NULL;
     }
     ctx->profile = profile;
-    return espress_job_alloc_action(profile_execute, ctx, free);
+    return dtesp_job_alloc_action(profile_execute, ctx, free);
 }
 
 // ================================================================
@@ -545,13 +545,13 @@ static void autoswitch_execute(void *ctx)
         return;
     }
     LOG_I("autoswitch action: %s", a->enable ? "on" : "off");
-#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
     fw_settings_set_autoswitch(a->enable ? 1 : 0);
     tlv320dac3100_set_autoswitch(a->enable ? true : false);
 #endif
 }
 
-espress_job_t *custom_action_autoswitch(int argc, const char **argv)
+dtesp_job_t *custom_action_autoswitch(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -580,7 +580,7 @@ espress_job_t *custom_action_autoswitch(int argc, const char **argv)
         return NULL;
     }
     ctx->enable = enable;
-    return espress_job_alloc_action(autoswitch_execute, ctx, free);
+    return dtesp_job_alloc_action(autoswitch_execute, ctx, free);
 }
 
 // ================================================================
@@ -594,7 +594,7 @@ static void save_execute(void *ctx)
 {
     (void)ctx;
     LOG_I("save action: persisting firmware settings to NVS");
-#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
     esp_err_t err = fw_settings_save();
     if (err != ESP_OK)
     {
@@ -603,11 +603,11 @@ static void save_execute(void *ctx)
 #endif
 }
 
-espress_job_t *custom_action_save(int argc, const char **argv)
+dtesp_job_t *custom_action_save(int argc, const char **argv)
 {
     (void)argc;
     (void)argv;
-    return espress_job_alloc_action(save_execute, NULL, NULL);
+    return dtesp_job_alloc_action(save_execute, NULL, NULL);
 }
 
 // ================================================================
@@ -624,7 +624,7 @@ static const custom_cmd_entry_t action_table[] =
     { "voice",      custom_action_voice      },
     { "rate",       custom_action_rate       },
 #if !defined(ESP_PLATFORM) || \
-    (defined(CONFIG_ESPRESS_FW_CMD_ENABLE) && defined(CONFIG_ESPRESS_FW_CMD_TONE_ENABLE))
+    (defined(CONFIG_DTESP_FW_CMD_ENABLE) && defined(CONFIG_DTESP_FW_CMD_TONE_ENABLE))
     { "tone",       custom_action_tone       },
 #endif
     { "volume",     custom_action_volume     },
@@ -634,7 +634,7 @@ static const custom_cmd_entry_t action_table[] =
     { NULL,         NULL                     },
 };
 
-espress_job_t *custom_actions_dispatch(int argc, const char **argv)
+dtesp_job_t *custom_actions_dispatch(int argc, const char **argv)
 {
     if (argc < 1 || argv == NULL || argv[0] == NULL)
     {

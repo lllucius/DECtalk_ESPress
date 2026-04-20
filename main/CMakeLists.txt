@@ -6,8 +6,8 @@ set(SRCS
     "diag_mem.c"
     "custom_commands.c"
     "custom_actions.c"
-    "espress_job_pool.c"
-    "espress_audio.c"
+    "dtesp_job_pool.c"
+    "dtesp_audio.c"
 )
 
 set(REQUIRES
@@ -22,7 +22,7 @@ set(REQUIRES
 )
 
 # LEDC is needed for the tone handler.
-if(CONFIG_ESPRESS_FW_CMD_TONE_ENABLE)
+if(CONFIG_DTESP_FW_CMD_TONE_ENABLE)
     list(APPEND REQUIRES esp_driver_ledc)
 endif()
 
@@ -38,7 +38,7 @@ else()
     list(APPEND SRCS "usb_cdc_transport.c")
 endif()
 
-if(CONFIG_ESPRESS_DAC_TLV320DAC3100)
+if(CONFIG_DTESP_DAC_TLV320DAC3100)
     list(APPEND SRCS "tlv320dac3100.c" "fw_settings.c")
     list(APPEND REQUIRES esp_driver_i2c nvs_flash)
 endif()

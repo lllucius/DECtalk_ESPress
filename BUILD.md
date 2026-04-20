@@ -139,8 +139,8 @@ DECtalk_ESPress/
 │
 └── host/                           # Python host-side tools
     ├── README.md                   # Host tools documentation
-    ├── espress_serial.py           # DECtalkESPressSerial class (serial protocol API)
-    └── espress_gui_qt.py      # Tkinter GUI for voice control, status, pause/resume
+    ├── dtesp_serial.py           # DECtalkESPressSerial class (serial protocol API)
+    └── dtesp_gui_qt.py      # Tkinter GUI for voice control, status, pause/resume
 ```
 
 ---
@@ -202,7 +202,7 @@ External dependency via `idf_component.yml`:
 Additional partitions can be added for dictionary storage:
 - A `udict` data partition (subtype `0x40`) when using partition-based
   dictionary storage — this can be created automatically via
-  `CONFIG_ESPRESS_AUTOCREATE_PARTITIONS`.
+  `CONFIG_DTESP_AUTOCREATE_PARTITIONS`.
 - A `storage` SPIFFS partition when using file-system-based dictionary
   loading (commented out by default).
 
@@ -242,8 +242,8 @@ explicitly combine them with `sdkconfig.defaults` (see
 | Setting | Value | Rationale |
 |---------|-------|-----------|
 | `CONFIG_COMPILER_STACK_CHECK_MODE_STRONG` | `y` | Strong stack-smashing detection |
-| `CONFIG_ESPRESS_ENABLE_DIAG_MEM` | `y` | Enable heap/stack diagnostics task |
-| `CONFIG_ESPRESS_LOG_LEVEL_VERBOSE` | `y` | Verbose ESP_LOG output |
+| `CONFIG_DTESP_ENABLE_DIAG_MEM` | `y` | Enable heap/stack diagnostics task |
+| `CONFIG_DTESP_LOG_LEVEL_VERBOSE` | `y` | Verbose ESP_LOG output |
 | `CONFIG_ESPTOOLPY_FLASHSIZE_8MB` | `y` | 8 MB flash for firmware + dictionary |
 | `CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE` | `y` | Auto-update flash size in binary header |
 | `CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT` | `y` | Print backtrace and halt on panic |
@@ -322,7 +322,7 @@ though the watchdog is disabled in the defaults, this is defensive).
        │                                │
        │                                │ TTS_MSG_BUFFER callback
        │                                ▼
-       │                         espress_tts_callback()
+       │                         dtesp_tts_callback()
        │                           ├── Audio samples → I2S DMA
        │                           └── Index markers → DLE INDEX
        │                                │
@@ -338,7 +338,7 @@ though the watchdog is disabled in the defaults, this is defensive).
 The firmware uses `TextToSpeechOpenInMemory()` with three rotating audio
 buffers (16 KB each, 8192 16-bit samples per buffer).  Each buffer also
 carries up to 8 index-mark slots.  When a buffer is filled, the
-`espress_tts_callback()` is invoked with `TTS_MSG_BUFFER`:
+`dtesp_tts_callback()` is invoked with `TTS_MSG_BUFFER`:
 
 1. Any embedded index marks are extracted and sent to the host as DLE INDEX
    sequences.
@@ -392,8 +392,8 @@ The `main/` component selects the host transport at build time based on
   host-RTS-triggered chip reset so opening the port does not reboot the
   device.
 - **RX/TX buffering:** ESP-IDF installs application-managed ring buffers
-  sized by `CONFIG_ESPRESS_JTAG_RX_BUF_SIZE` and
-  `CONFIG_ESPRESS_JTAG_TX_BUF_SIZE`.
+  sized by `CONFIG_DTESP_JTAG_RX_BUF_SIZE` and
+  `CONFIG_DTESP_JTAG_TX_BUF_SIZE`.
 - **Connection tracking:** The protocol layer polls
   `usb_serial_jtag_is_connected()` and treats a disconnect→connect transition
   as a host reconnection, resetting protocol state and sending the initial
@@ -419,7 +419,7 @@ rapid oscillation.
 
 ### Idle Flush
 
-If no new characters arrive for `CONFIG_ESPRESS_TEXT_IDLE_TIMEOUT_MS`
+If no new characters arrive for `CONFIG_DTESP_TEXT_IDLE_TIMEOUT_MS`
 (default 200 ms), any buffered text is automatically flushed to the speech
 queue.  This handles the case where the host sends text without a trailing
 CR.

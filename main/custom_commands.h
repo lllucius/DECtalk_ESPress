@@ -24,7 +24,7 @@
 #ifndef CUSTOM_COMMANDS_H
 #define CUSTOM_COMMANDS_H
 
-#include "espress_jobs.h"
+#include "dtesp_jobs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,22 +33,22 @@ extern "C" {
 // ----------------------------------------------------------------
 // Configuration defaults (overridden by Kconfig when available)
 // ----------------------------------------------------------------
-#ifdef CONFIG_ESPRESS_FW_CMD_NAMESPACE
-#define ESPRESS_FW_CMD_NAMESPACE  CONFIG_ESPRESS_FW_CMD_NAMESPACE
+#ifdef CONFIG_DTESP_FW_CMD_NAMESPACE
+#define DTESP_FW_CMD_NAMESPACE  CONFIG_DTESP_FW_CMD_NAMESPACE
 #else
-#define ESPRESS_FW_CMD_NAMESPACE  "fw"
+#define DTESP_FW_CMD_NAMESPACE  "fw"
 #endif
 
-#ifdef CONFIG_ESPRESS_FW_CMD_MAX_TOKEN_LEN
-#define ESPRESS_FW_CMD_MAX_TOKEN_LEN  CONFIG_ESPRESS_FW_CMD_MAX_TOKEN_LEN
+#ifdef CONFIG_DTESP_FW_CMD_MAX_TOKEN_LEN
+#define DTESP_FW_CMD_MAX_TOKEN_LEN  CONFIG_DTESP_FW_CMD_MAX_TOKEN_LEN
 #else
-#define ESPRESS_FW_CMD_MAX_TOKEN_LEN  128
+#define DTESP_FW_CMD_MAX_TOKEN_LEN  128
 #endif
 
-#ifdef CONFIG_ESPRESS_FW_CMD_MAX_ARGS
-#define ESPRESS_FW_CMD_MAX_ARGS  CONFIG_ESPRESS_FW_CMD_MAX_ARGS
+#ifdef CONFIG_DTESP_FW_CMD_MAX_ARGS
+#define DTESP_FW_CMD_MAX_ARGS  CONFIG_DTESP_FW_CMD_MAX_ARGS
 #else
-#define ESPRESS_FW_CMD_MAX_ARGS  8
+#define DTESP_FW_CMD_MAX_ARGS  8
 #endif
 
 // ----------------------------------------------------------------
@@ -57,20 +57,20 @@ extern "C" {
 // ----------------------------------------------------------------
 typedef struct
 {
-    espress_job_t **jobs;
+    dtesp_job_t **jobs;
     int             count;
     int             capacity;
-} espress_job_list_t;
+} dtesp_job_list_t;
 
 // Initialise an empty job list.
-void espress_job_list_init(espress_job_list_t *list);
+void dtesp_job_list_init(dtesp_job_list_t *list);
 
 // Append a job to the list (grows capacity as needed).
 // Returns 0 on success, -1 on allocation failure.
-int espress_job_list_append(espress_job_list_t *list, espress_job_t *job);
+int dtesp_job_list_append(dtesp_job_list_t *list, dtesp_job_t *job);
 
 // Free all jobs in the list and the list storage itself.
-void espress_job_list_free(espress_job_list_t *list);
+void dtesp_job_list_free(dtesp_job_list_t *list);
 
 // ----------------------------------------------------------------
 // Tokenizer / dispatcher
@@ -78,10 +78,10 @@ void espress_job_list_free(espress_job_list_t *list);
 // Scans `text` (NUL-terminated) and populates `out` with an
 // ordered sequence of jobs.  Returns 0 on success.
 //
-// The caller must eventually call espress_job_list_free() on `out`
+// The caller must eventually call dtesp_job_list_free() on `out`
 // if it does not consume all jobs.
 // ----------------------------------------------------------------
-int custom_commands_tokenize(const char *text, espress_job_list_t *out);
+int custom_commands_tokenize(const char *text, dtesp_job_list_t *out);
 
 // ----------------------------------------------------------------
 // Command dispatch table entry
@@ -91,7 +91,7 @@ typedef struct
     const char *name;
     // Handler receives argc/argv (argv[0] is the sub-command name).
     // Returns an ACTION job, or NULL if the command is a no-op.
-    espress_job_t *(*handler)(int argc, const char **argv);
+    dtesp_job_t *(*handler)(int argc, const char **argv);
 } custom_cmd_entry_t;
 
 // ----------------------------------------------------------------

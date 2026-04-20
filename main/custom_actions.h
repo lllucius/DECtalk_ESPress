@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------
 // Custom Action Handlers for [:fw ...] Commands
 //
-// Each handler parses its arguments and returns an espress_job_t
+// Each handler parses its arguments and returns an dtesp_job_t
 // ACTION job that will be executed in order on the speech task.
 //
 // Handlers:
@@ -25,7 +25,7 @@
 #ifndef CUSTOM_ACTIONS_H
 #define CUSTOM_ACTIONS_H
 
-#include "espress_jobs.h"
+#include "dtesp_jobs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,14 +37,14 @@ extern "C" {
 // argv[0] is the sub-command name (e.g. "gpio").
 // ----------------------------------------------------------------
 
-espress_job_t *custom_action_gpio(int argc, const char **argv);
-espress_job_t *custom_action_voice(int argc, const char **argv);
-espress_job_t *custom_action_rate(int argc, const char **argv);
-espress_job_t *custom_action_tone(int argc, const char **argv);
-espress_job_t *custom_action_volume(int argc, const char **argv);
-espress_job_t *custom_action_profile(int argc, const char **argv);
-espress_job_t *custom_action_autoswitch(int argc, const char **argv);
-espress_job_t *custom_action_save(int argc, const char **argv);
+dtesp_job_t *custom_action_gpio(int argc, const char **argv);
+dtesp_job_t *custom_action_voice(int argc, const char **argv);
+dtesp_job_t *custom_action_rate(int argc, const char **argv);
+dtesp_job_t *custom_action_tone(int argc, const char **argv);
+dtesp_job_t *custom_action_volume(int argc, const char **argv);
+dtesp_job_t *custom_action_profile(int argc, const char **argv);
+dtesp_job_t *custom_action_autoswitch(int argc, const char **argv);
+dtesp_job_t *custom_action_save(int argc, const char **argv);
 
 // ----------------------------------------------------------------
 // Single entry point for the tokenizer: look up `argv[0]` in the
@@ -53,7 +53,7 @@ espress_job_t *custom_action_save(int argc, const char **argv);
 //
 // Matching is case-insensitive.
 // ----------------------------------------------------------------
-espress_job_t *custom_actions_dispatch(int argc, const char **argv);
+dtesp_job_t *custom_actions_dispatch(int argc, const char **argv);
 
 // ----------------------------------------------------------------
 // Session state

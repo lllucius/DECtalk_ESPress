@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------
 // Memory and Task Diagnostics - Implementation
 //
-// When CONFIG_ESPRESS_ENABLE_DIAG_MEM is enabled a low-priority
+// When CONFIG_DTESP_ENABLE_DIAG_MEM is enabled a low-priority
 // background task periodically logs per-task stack high-water marks
 // together with heap usage and fragmentation statistics.  This is
 // useful during development to size task stacks and track memory
@@ -22,7 +22,7 @@
 #include "esp_heap_caps.h"
 #include "esp_system.h"
 
-#if CONFIG_ESPRESS_ENABLE_DIAG_MEM
+#if CONFIG_DTESP_ENABLE_DIAG_MEM
 
 static const char *TAG = "DIAG";
 
@@ -103,7 +103,7 @@ void diag_mem_task(void *arg)
     while (1)
     {
         diag_mem_print_all();
-        vTaskDelay(pdMS_TO_TICKS(CONFIG_ESPRESS_DIAG_MEM_INTERVAL_MS));
+        vTaskDelay(pdMS_TO_TICKS(CONFIG_DTESP_DIAG_MEM_INTERVAL_MS));
     }
 }
 

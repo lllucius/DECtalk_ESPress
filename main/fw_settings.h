@@ -3,9 +3,9 @@
 // ----------------------------------------------------------------
 // Firmware Settings — NVS-backed mirror of codec-related Kconfig.
 //
-// The Kconfig values (ESPRESS_TLV320_STARTUP_VOLUME, default profile,
+// The Kconfig values (DTESP_TLV320_STARTUP_VOLUME, default profile,
 // headset autoswitch) act as factory defaults.  At runtime these
-// three settings are loaded from NVS namespace "espress_fw" on boot
+// three settings are loaded from NVS namespace "dtesp_fw" on boot
 // (falling back to Kconfig when the keys are absent), can be mutated
 // in-memory by the [:fw volume|profile|autoswitch ...] commands, and
 // are persisted back to NVS by [:fw save].

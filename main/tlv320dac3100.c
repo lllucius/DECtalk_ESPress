@@ -4,7 +4,7 @@
 // TLV320DAC3100 I2C initialisation for the Adafruit breakout board
 //
 // Configures the TI TLV320DAC3100 stereo DAC as an I2S slave.  When a
-// master clock GPIO is configured (ESPRESS_I2S_MCLK_GPIO >= 0) the
+// master clock GPIO is configured (DTESP_I2S_MCLK_GPIO >= 0) the
 // codec uses CODEC_CLKIN = MCLK directly; otherwise the codec's internal
 // PLL is locked onto BCLK.  Startup profile, startup volume, optional
 // reset GPIO, and optional codec-event handling are controlled by
@@ -28,12 +28,12 @@
 
 static const char *TAG = "TLV320DAC3100";
 
-#define TLV320_I2C_ADDR     CONFIG_ESPRESS_TLV320_I2C_ADDR
-#define I2C_SDA_IO          CONFIG_ESPRESS_I2C_SDA_GPIO
-#define I2C_SCL_IO          CONFIG_ESPRESS_I2C_SCL_GPIO
-#define CODEC_INT_GPIO      CONFIG_ESPRESS_CODEC_INT_GPIO
-#define CODEC_RESET_GPIO    CONFIG_ESPRESS_CODEC_RESET_GPIO
-#define CODEC_MCLK_GPIO     CONFIG_ESPRESS_I2S_MCLK_GPIO
+#define TLV320_I2C_ADDR     CONFIG_DTESP_TLV320_I2C_ADDR
+#define I2C_SDA_IO          CONFIG_DTESP_I2C_SDA_GPIO
+#define I2C_SCL_IO          CONFIG_DTESP_I2C_SCL_GPIO
+#define CODEC_INT_GPIO      CONFIG_DTESP_CODEC_INT_GPIO
+#define CODEC_RESET_GPIO    CONFIG_DTESP_CODEC_RESET_GPIO
+#define CODEC_MCLK_GPIO     CONFIG_DTESP_I2S_MCLK_GPIO
 #define TLV320_I2C_TIMEOUT_MS 50
 
 // ---- Page 0 registers -------------------------------------------
@@ -118,7 +118,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_HEADSET_POLL_US      500000ULL
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
-#define TLV320_STARTUP_VOLUME_LEVEL CONFIG_ESPRESS_TLV320_STARTUP_VOLUME
+#define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DTESP_TLV320_STARTUP_VOLUME
 // Use conservative CM=1.35V and 0 dB HP driver gain by default; the previous
 // 1.50V + 6 dB diagnostic combination risked clipping the headphone output
 // with sensitive / low-impedance phones and contributed to audible distortion.
@@ -170,7 +170,7 @@ typedef struct
 
 // Page 0 phase: configure clocking.
 //
-// Two modes are supported, selected via Kconfig (ESPRESS_I2S_MCLK_GPIO):
+// Two modes are supported, selected via Kconfig (DTESP_I2S_MCLK_GPIO):
 //
 //   * MCLK mode (CODEC_MCLK_GPIO >= 0): the ESP32 drives MCLK at 256xFs.
 //     CODEC_CLKIN = MCLK, NDAC=1, MDAC=1, DOSR=256 gives DAC_MOD_CLK =
@@ -295,7 +295,7 @@ static TaskHandle_t s_event_task = NULL;
 static esp_timer_handle_t s_poll_timer = NULL;
 static bool s_irq_handler_registered = false;
 static int s_irq_gpio = -1;
-#if CONFIG_ESPRESS_TLV320_HEADSET_AUTOSWITCH
+#if CONFIG_DTESP_TLV320_HEADSET_AUTOSWITCH
 static bool s_autoswitch = true;
 #else
 static bool s_autoswitch = false;
@@ -304,7 +304,7 @@ static bool s_autoswitch = false;
 
 static tlv320_profile_t tlv320_get_default_profile(void)
 {
-#if CONFIG_ESPRESS_TLV320_DEFAULT_PROFILE_HEADPHONE
+#if CONFIG_DTESP_TLV320_DEFAULT_PROFILE_HEADPHONE
     return TLV320_PROFILE_HEADPHONE;
 #else
     return TLV320_PROFILE_SPEAKER;
@@ -313,7 +313,7 @@ static tlv320_profile_t tlv320_get_default_profile(void)
 
 static bool tlv320_headset_events_enabled(void)
 {
-#if CONFIG_ESPRESS_TLV320_HEADSET_AUTOSWITCH
+#if CONFIG_DTESP_TLV320_HEADSET_AUTOSWITCH
     return true;
 #else
     return CODEC_INT_GPIO >= 0;
@@ -510,9 +510,9 @@ static void tlv320_reset_state(void)
     invalidate_page_cache();
     s_hp_active = (default_profile == TLV320_PROFILE_HEADPHONE);
     s_headset_present = false;
-    s_volume = CONFIG_ESPRESS_TLV320_STARTUP_VOLUME;
-    s_volume_db = vol_db_table[CONFIG_ESPRESS_TLV320_STARTUP_VOLUME];
-    s_digital_volume_reg = vol_table[CONFIG_ESPRESS_TLV320_STARTUP_VOLUME];
+    s_volume = CONFIG_DTESP_TLV320_STARTUP_VOLUME;
+    s_volume_db = vol_db_table[CONFIG_DTESP_TLV320_STARTUP_VOLUME];
+    s_digital_volume_reg = vol_table[CONFIG_DTESP_TLV320_STARTUP_VOLUME];
     s_muted = true;
     s_profile = default_profile;
     s_apply_profile_volume_default = false;

@@ -8,14 +8,14 @@
 // to keep audio hardware concerns in one place.
 // ----------------------------------------------------------------
 
-#include "espress_audio.h"
+#include "dtesp_audio.h"
 
 #include "sdkconfig.h"
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
-#if CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
 #include "fw_settings.h"
 #include "nvs_flash.h"
@@ -24,21 +24,21 @@
 static const char *TAG = "audio";
 
 #define SAMPLE_RATE              11025
-#define I2S_BCK_IO               CONFIG_ESPRESS_I2S_BCK_GPIO
-#define I2S_WS_IO                CONFIG_ESPRESS_I2S_WS_GPIO
-#define I2S_DO_IO                CONFIG_ESPRESS_I2S_DO_GPIO
-#define I2S_MCLK_IO              CONFIG_ESPRESS_I2S_MCLK_GPIO
-#define I2S_DMA_DESC_NUM         CONFIG_ESPRESS_I2S_DMA_DESC_NUM
-#define I2S_DMA_FRAME_NUM        CONFIG_ESPRESS_I2S_DMA_FRAME_NUM
+#define I2S_BCK_IO               CONFIG_DTESP_I2S_BCK_GPIO
+#define I2S_WS_IO                CONFIG_DTESP_I2S_WS_GPIO
+#define I2S_DO_IO                CONFIG_DTESP_I2S_DO_GPIO
+#define I2S_MCLK_IO              CONFIG_DTESP_I2S_MCLK_GPIO
+#define I2S_DMA_DESC_NUM         CONFIG_DTESP_I2S_DMA_DESC_NUM
+#define I2S_DMA_FRAME_NUM        CONFIG_DTESP_I2S_DMA_FRAME_NUM
 
 static i2s_chan_handle_t s_audio_handle;
 
-i2s_chan_handle_t espress_audio_get_handle(void)
+i2s_chan_handle_t dtesp_audio_get_handle(void)
 {
     return s_audio_handle;
 }
 
-esp_err_t espress_audio_init(void)
+esp_err_t dtesp_audio_init(void)
 {
     ESP_LOGI(TAG, "Initializing I2S audio output...");
 
@@ -101,7 +101,7 @@ esp_err_t espress_audio_init(void)
                  SAMPLE_RATE);
     }
 
-#if CONFIG_ESPRESS_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320DAC3100
     // Initialize NVS so fw_settings can persist/restore codec state,
     // then load the stored firmware settings (with Kconfig fallbacks).
     esp_err_t nvs_err = nvs_flash_init();

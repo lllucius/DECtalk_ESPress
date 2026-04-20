@@ -12,7 +12,7 @@ CDC-ACM port.  From the host's perspective the USB CDC device appears as
 a regular serial (COM / ttyACM) port.
 
 Usage:
-    from espress_serial import DECtalkESPressSerial
+    from dtesp_serial import DECtalkESPressSerial
 
     espress = DECtalkESPressSerial()
     espress.connect("/dev/ttyACM0")
@@ -59,7 +59,7 @@ PITCH_MAX = 400
 PITCH_DEFAULT = 0  # 0 means use voice default
 
 
-def build_espress_prefix(voice=None, rate=None, pitch=None):
+def build_dtesp_prefix(voice=None, rate=None, pitch=None):
     """Build a DECtalk inline command prefix string.
 
     Args:
@@ -102,20 +102,20 @@ _DLE_PREFIX_INDEX  = 0x50
 _DT_FLUSH_BRACKET = ord(']')
 
 # Status bits
-ESPRESS_STAT_INT         = 0x0001
-ESPRESS_STAT_TR_CHAR     = 0x0002
-ESPRESS_STAT_RR_CHAR     = 0x0004
-ESPRESS_STAT_CMD_READY   = 0x0008
-ESPRESS_STAT_DMA_READY   = 0x0010
-ESPRESS_STAT_DIGITIZED   = 0x0020
-ESPRESS_STAT_NEW_INDEX   = 0x0040
-ESPRESS_STAT_NEW_STATUS  = 0x0080
-ESPRESS_STAT_INDEX_VALID = 0x0200
-ESPRESS_STAT_FLUSHING    = 0x0400
+DTESP_STAT_INT         = 0x0001
+DTESP_STAT_TR_CHAR     = 0x0002
+DTESP_STAT_RR_CHAR     = 0x0004
+DTESP_STAT_CMD_READY   = 0x0008
+DTESP_STAT_DMA_READY   = 0x0010
+DTESP_STAT_DIGITIZED   = 0x0020
+DTESP_STAT_NEW_INDEX   = 0x0040
+DTESP_STAT_NEW_STATUS  = 0x0080
+DTESP_STAT_INDEX_VALID = 0x0200
+DTESP_STAT_FLUSHING    = 0x0400
 
-ESPRESS_DEFAULT_BAUD = 115200
-ESPRESS_DEFAULT_TIMEOUT = 1.0
-ESPRESS_CONNECT_TIMEOUT = 5.0
+DTESP_DEFAULT_BAUD = 115200
+DTESP_DEFAULT_TIMEOUT = 1.0
+DTESP_CONNECT_TIMEOUT = 5.0
 
 
 def _dle_encode_byte(val6):
@@ -175,8 +175,8 @@ class DECtalkESPressSerial:
         """Return a list of available serial port names."""
         return [port.device for port in serial.tools.list_ports.comports()]
 
-    def connect(self, port, baud=ESPRESS_DEFAULT_BAUD,
-                timeout=ESPRESS_DEFAULT_TIMEOUT):
+    def connect(self, port, baud=DTESP_DEFAULT_BAUD,
+                timeout=DTESP_DEFAULT_TIMEOUT):
         """Open the serial port and synchronize with the ESP32.
 
         The ESP32 firmware boots directly into ESPress protocol mode.
@@ -231,7 +231,7 @@ class DECtalkESPressSerial:
             # empty read we send an ENQ (status request) to actively
             # probe the device.  The firmware always replies to ENQ with
             # a 4-byte DLE status sequence, confirming the connection.
-            deadline = time.time() + ESPRESS_CONNECT_TIMEOUT
+            deadline = time.time() + DTESP_CONNECT_TIMEOUT
             entered = False
             probed = False
             while time.time() < deadline:
@@ -319,7 +319,7 @@ class DECtalkESPressSerial:
         Raises:
             ConnectionError: If not connected.
         """
-        prefix = build_espress_prefix(voice=voice, rate=rate, pitch=pitch)
+        prefix = build_dtesp_prefix(voice=voice, rate=rate, pitch=pitch)
         self.send_text(prefix + text)
 
     def flush(self):

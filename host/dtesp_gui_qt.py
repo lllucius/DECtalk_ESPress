@@ -21,7 +21,7 @@ DLE sequences instead of the line-based API protocol used by the standard
 GUI.  This makes it compatible with the original DECtalk ESPress hardware.
 
 Usage:
-    python espress_gui_qt.py
+    python dtesp_gui_qt.py
 
 Requirements:
     pip install PySide6 pyserial
@@ -55,7 +55,7 @@ except ImportError:
 # Allow running from the host/ directory or the repo root
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from espress_serial import (
+from dtesp_serial import (
     DECtalkESPressSerial,
     VOICES,
     RATE_MIN,
@@ -64,13 +64,13 @@ from espress_serial import (
     PITCH_MIN,
     PITCH_MAX,
     PITCH_DEFAULT,
-    ESPRESS_DEFAULT_BAUD,
-    ESPRESS_STAT_TR_CHAR,
-    ESPRESS_STAT_RR_CHAR,
-    ESPRESS_STAT_CMD_READY,
-    ESPRESS_STAT_NEW_INDEX,
-    ESPRESS_STAT_FLUSHING,
-    build_espress_prefix,
+    DTESP_DEFAULT_BAUD,
+    DTESP_STAT_TR_CHAR,
+    DTESP_STAT_RR_CHAR,
+    DTESP_STAT_CMD_READY,
+    DTESP_STAT_NEW_INDEX,
+    DTESP_STAT_FLUSHING,
+    build_dtesp_prefix,
 )
 
 
@@ -188,7 +188,7 @@ class DECtalkESPressGUIQt(QMainWindow):
         baud_label = QLabel("&Baud:")
         self.baud_combo = QComboBox()
         self.baud_combo.addItems(["115200", "9600", "19200", "38400", "57600"])
-        self.baud_combo.setCurrentText(str(ESPRESS_DEFAULT_BAUD))
+        self.baud_combo.setCurrentText(str(DTESP_DEFAULT_BAUD))
         self.baud_combo.setAccessibleName("Baud rate")
         self.baud_combo.setAccessibleDescription(
             "Select the baud rate for serial communication"
@@ -696,7 +696,7 @@ class DECtalkESPressGUIQt(QMainWindow):
         self._set_status("Sending text...")
 
         # Build the prefixed text for logging
-        prefix = build_espress_prefix(voice=voice, rate=rate, pitch=pitch)
+        prefix = build_dtesp_prefix(voice=voice, rate=rate, pitch=pitch)
         full_text = prefix + text
         log_text = (
             full_text
@@ -815,12 +815,12 @@ class DECtalkESPressGUIQt(QMainWindow):
         """Update the colored status indicator labels."""
         indicators = {
             "Ready": (
-                ESPRESS_STAT_RR_CHAR | ESPRESS_STAT_CMD_READY,
+                DTESP_STAT_RR_CHAR | DTESP_STAT_CMD_READY,
                 "#006400",  # dark green
             ),
-            "Transmitting": (ESPRESS_STAT_TR_CHAR, "#1E90FF"),  # dodger blue
-            "Flushing": (ESPRESS_STAT_FLUSHING, "#FFA500"),  # orange
-            "Index": (ESPRESS_STAT_NEW_INDEX, "#800080"),  # purple
+            "Transmitting": (DTESP_STAT_TR_CHAR, "#1E90FF"),  # dodger blue
+            "Flushing": (DTESP_STAT_FLUSHING, "#FFA500"),  # orange
+            "Index": (DTESP_STAT_NEW_INDEX, "#800080"),  # purple
         }
         for name, (mask, color) in indicators.items():
             lbl = self._status_indicators[name]

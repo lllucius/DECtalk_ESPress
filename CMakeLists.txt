@@ -12,4 +12,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # attach it at the ESP-IDF build level instead of only on a component archive.
 #idf_build_set_property(LINK_OPTIONS "-Wl,--wrap=load_dictionary" APPEND)
 
-project(espress)
+project(dtesp)

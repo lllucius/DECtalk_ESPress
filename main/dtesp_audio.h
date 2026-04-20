@@ -8,8 +8,8 @@
 // callback to write PCM samples.
 // ----------------------------------------------------------------
 
-#ifndef ESPRESS_AUDIO_H
-#define ESPRESS_AUDIO_H
+#ifndef DTESP_AUDIO_H
+#define DTESP_AUDIO_H
 
 #include "esp_err.h"
 #include "driver/i2s_std.h"
@@ -24,15 +24,15 @@ extern "C" {
  * Must be called before the speech task starts.
  * @return ESP_OK on success.
  */
-esp_err_t espress_audio_init(void);
+esp_err_t dtesp_audio_init(void);
 
 /**
  * @brief Get the I2S TX channel handle for writing audio samples.
  */
-i2s_chan_handle_t espress_audio_get_handle(void);
+i2s_chan_handle_t dtesp_audio_get_handle(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // ESPRESS_AUDIO_H
+#endif // DTESP_AUDIO_H
