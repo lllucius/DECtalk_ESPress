@@ -127,6 +127,19 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
+// Build-time routing-mode selection flag for headphone clarity testing:
+// set to 1 to keep the original mono speech duplication from the left I2S slot
+// on both outputs, or 0 to test normal stereo DAC mapping in this build.
+#define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
+#define TLV320_DAC_DATAPATH_MONO_LEFT     0xD8
+#define TLV320_DAC_DATAPATH_STEREO        0xD0
+#if TLV320_DIAG_USE_MONO_LEFT_ROUTING
+#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_MONO_LEFT
+#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left routing"
+#else
+#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_STEREO
+#define TLV320_DAC_DATAPATH_MODE_LOG      "normal stereo mapping"
+#endif
 #define TLV320_STARTUP_VOLUME_DB    \
     ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
     (TLV320_STARTUP_VOLUME_LEVEL == 1) ? -32.0f : \
@@ -214,16 +227,16 @@ static const reg_val_t audio_interface_init[] =
                                 // (slave mode)
 };
 
-// Page 0 phase: select a simple DAC processing block and mono data path.
+// Page 0 phase: select a simple DAC processing block and DAC data path.
 static const reg_val_t dac_processing_init[] =
 {
     {REG_DAC_PRB,      0x01},   // Processing block PRB_P1
-    {REG_DAC_DATAPATH, 0xD8},   // L DAC on, R DAC on,
-                                // L path = normal (left data),
-                                // R path = swapped (left data)
-                                //   → mono: both outputs play the
-                                //     same audio from the L I2S slot;
-                                // soft-step = 1 step/sample
+    {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
+                                // TLV320_DIAG_USE_MONO_LEFT_ROUTING = 1 keeps
+                                // the previous mono speech duplication from
+                                // the left I2S slot into both outputs.
+                                // Leaving it at 0 selects normal left/right
+                                // DAC mapping for this routing test build.
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
 };
 
@@ -1141,6 +1154,7 @@ esp_err_t tlv320dac3100_init(void)
 
     ESP_LOGI(TAG, "Initializing TLV320DAC3100 (I2C addr 0x%02X)...",
              TLV320_I2C_ADDR);
+    ESP_LOGI(TAG, "DAC path: %s", TLV320_DAC_DATAPATH_MODE_LOG);
 
     // ---- Create I2C master bus ----------------------------------
     i2c_master_bus_config_t bus_cfg =
