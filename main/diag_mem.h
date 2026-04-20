@@ -5,7 +5,7 @@
 //
 // Optional runtime diagnostic helpers that periodically log per-task
 // stack high-water marks, heap usage, and fragmentation statistics.
-// Guarded by CONFIG_DECTALK_ENABLE_DIAG_MEM (Kconfig).  When the
+// Guarded by CONFIG_DTESP_ENABLE_DIAG_MEM (Kconfig).  When the
 // option is disabled the functions are still declared but compile to
 // empty stubs so call sites do not need #ifdefs.
 // ----------------------------------------------------------------

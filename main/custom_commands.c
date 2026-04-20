@@ -36,20 +36,20 @@ static const char *TAG = "custom_cmd";
 // Job list helpers
 // ----------------------------------------------------------------
 
-void espress_job_list_init(espress_job_list_t *list)
+void dtesp_job_list_init(dtesp_job_list_t *list)
 {
     list->jobs = NULL;
     list->count = 0;
     list->capacity = 0;
 }
 
-int espress_job_list_append(espress_job_list_t *list, espress_job_t *job)
+int dtesp_job_list_append(dtesp_job_list_t *list, dtesp_job_t *job)
 {
     if (list->count >= list->capacity)
     {
         int new_cap = (list->capacity == 0) ? 4 : list->capacity * 2;
-        espress_job_t **new_jobs = realloc(list->jobs,
-                                           (size_t)new_cap * sizeof(espress_job_t *));
+        dtesp_job_t **new_jobs = realloc(list->jobs,
+                                           (size_t)new_cap * sizeof(dtesp_job_t *));
         if (!new_jobs)
         {
             return -1;
@@ -61,11 +61,11 @@ int espress_job_list_append(espress_job_list_t *list, espress_job_t *job)
     return 0;
 }
 
-void espress_job_list_free(espress_job_list_t *list)
+void dtesp_job_list_free(dtesp_job_list_t *list)
 {
     for (int i = 0; i < list->count; i++)
     {
-        espress_job_free(list->jobs[i]);
+        dtesp_job_free(list->jobs[i]);
     }
     free(list->jobs);
     list->jobs = NULL;
@@ -74,17 +74,17 @@ void espress_job_list_free(espress_job_list_t *list)
 }
 
 // ----------------------------------------------------------------
-// Job allocation helpers (definition shared with espress_jobs.h)
+// Job allocation helpers (definition shared with dtesp_jobs.h)
 // ----------------------------------------------------------------
 
-espress_job_t *espress_job_alloc_text(const char *text, int len)
+dtesp_job_t *dtesp_job_alloc_text(const char *text, int len)
 {
-    espress_job_t *job = calloc(1, sizeof(espress_job_t));
+    dtesp_job_t *job = calloc(1, sizeof(dtesp_job_t));
     if (!job)
     {
         return NULL;
     }
-    job->type = ESPRESS_JOB_SPEAK_TEXT;
+    job->type = DTESP_JOB_SPEAK_TEXT;
     job->text = malloc((size_t)len + 1);
     if (!job->text)
     {
@@ -96,34 +96,34 @@ espress_job_t *espress_job_alloc_text(const char *text, int len)
     return job;
 }
 
-espress_job_t *espress_job_alloc_action(espress_action_fn execute,
+dtesp_job_t *dtesp_job_alloc_action(dtesp_action_fn execute,
                                         void *ctx,
-                                        espress_action_free_fn free_ctx)
+                                        dtesp_action_free_fn free_ctx)
 {
-    espress_job_t *job = calloc(1, sizeof(espress_job_t));
+    dtesp_job_t *job = calloc(1, sizeof(dtesp_job_t));
     if (!job)
     {
         return NULL;
     }
-    job->type = ESPRESS_JOB_ACTION;
+    job->type = DTESP_JOB_ACTION;
     job->action.execute = execute;
     job->action.ctx = ctx;
     job->action.free_ctx = free_ctx;
     return job;
 }
 
-espress_job_t *espress_job_alloc_flush(void)
+dtesp_job_t *dtesp_job_alloc_flush(void)
 {
-    espress_job_t *job = calloc(1, sizeof(espress_job_t));
+    dtesp_job_t *job = calloc(1, sizeof(dtesp_job_t));
     if (!job)
     {
         return NULL;
     }
-    job->type = ESPRESS_JOB_FLUSH;
+    job->type = DTESP_JOB_FLUSH;
     return job;
 }
 
-void espress_job_free(espress_job_t *job)
+void dtesp_job_free(dtesp_job_t *job)
 {
     if (!job)
     {
@@ -131,16 +131,16 @@ void espress_job_free(espress_job_t *job)
     }
     switch (job->type)
     {
-    case ESPRESS_JOB_SPEAK_TEXT:
+    case DTESP_JOB_SPEAK_TEXT:
         free(job->text);
         break;
-    case ESPRESS_JOB_ACTION:
+    case DTESP_JOB_ACTION:
         if (job->action.free_ctx && job->action.ctx)
         {
             job->action.free_ctx(job->action.ctx);
         }
         break;
-    case ESPRESS_JOB_FLUSH:
+    case DTESP_JOB_FLUSH:
         break;
     }
     free(job);
@@ -196,14 +196,14 @@ static int split_args(const char *token, int token_len,
 // ----------------------------------------------------------------
 static int is_custom_namespace(const char *token, int token_len)
 {
-    int ns_len = (int)strlen(DECTALK_FW_CMD_NAMESPACE);
+    int ns_len = (int)strlen(DTESP_FW_CMD_NAMESPACE);
 
     if (token_len < ns_len)
     {
         return 0;
     }
 
-    if (strncmp(token, DECTALK_FW_CMD_NAMESPACE, (size_t)ns_len) != 0)
+    if (strncmp(token, DTESP_FW_CMD_NAMESPACE, (size_t)ns_len) != 0)
     {
         return 0;
     }
@@ -224,7 +224,7 @@ static int is_custom_namespace(const char *token, int token_len)
 // argv[2..] = arguments
 // Returns an ACTION job, or NULL if unknown/invalid.
 // ----------------------------------------------------------------
-static espress_job_t *dispatch_custom_command(int argc, const char **argv)
+static dtesp_job_t *dispatch_custom_command(int argc, const char **argv)
 {
     if (argc < 2)
     {
@@ -233,7 +233,7 @@ static espress_job_t *dispatch_custom_command(int argc, const char **argv)
     }
 
     // Pass argc-1, argv+1 so handlers see their own name as argv[0].
-    espress_job_t *job = custom_actions_dispatch(argc - 1, argv + 1);
+    dtesp_job_t *job = custom_actions_dispatch(argc - 1, argv + 1);
     if (!job)
     {
         LOG_W("unknown or invalid custom command: [:%.16s ...]", argv[1]);
@@ -252,23 +252,23 @@ static espress_job_t *dispatch_custom_command(int argc, const char **argv)
 // voice, rate, phoneme, and all other features work exactly as
 // they always have.
 // ----------------------------------------------------------------
-int custom_commands_tokenize(const char *text, espress_job_list_t *out)
+int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
 {
-    espress_job_list_init(out);
+    dtesp_job_list_init(out);
 
     // If custom commands are compiled out, just produce a single
     // text job.
-#if defined(ESP_PLATFORM) && !defined(CONFIG_DECTALK_FW_CMD_ENABLE)
+#if defined(ESP_PLATFORM) && !defined(CONFIG_DTESP_FW_CMD_ENABLE)
     {
         int len = (int)strlen(text);
         if (len > 0)
         {
-            espress_job_t *job = espress_job_alloc_text(text, len);
+            dtesp_job_t *job = dtesp_job_alloc_text(text, len);
             if (!job)
             {
                 return -1;
             }
-            espress_job_list_append(out, job);
+            dtesp_job_list_append(out, job);
         }
         return 0;
     }
@@ -312,18 +312,18 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
                 is_custom_namespace(&text[content_start], token_len))
             {
                 // Enforce max token length
-                if (token_len > DECTALK_FW_CMD_MAX_TOKEN_LEN)
+                if (token_len > DTESP_FW_CMD_MAX_TOKEN_LEN)
                 {
                     LOG_W("custom command token too long (%d > %d), skipping",
-                          token_len, DECTALK_FW_CMD_MAX_TOKEN_LEN);
+                          token_len, DTESP_FW_CMD_MAX_TOKEN_LEN);
                     // Consume the token (don't pass to DECtalk)
                     if (bracket_start > seg_start)
                     {
-                        espress_job_t *tj = espress_job_alloc_text(
+                        dtesp_job_t *tj = dtesp_job_alloc_text(
                             &text[seg_start], bracket_start - seg_start);
                         if (tj)
                         {
-                            espress_job_list_append(out, tj);
+                            dtesp_job_list_append(out, tj);
                         }
                     }
                     pos = close + 1;
@@ -334,25 +334,25 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
                 // Emit any plain text accumulated before this command
                 if (bracket_start > seg_start)
                 {
-                    espress_job_t *tj = espress_job_alloc_text(
+                    dtesp_job_t *tj = dtesp_job_alloc_text(
                         &text[seg_start], bracket_start - seg_start);
                     if (tj)
                     {
-                        espress_job_list_append(out, tj);
+                        dtesp_job_list_append(out, tj);
                     }
                 }
 
                 // Parse and dispatch the custom command
-                const char *argv[DECTALK_FW_CMD_MAX_ARGS];
-                char arg_buf[DECTALK_FW_CMD_MAX_TOKEN_LEN + 1];
+                const char *argv[DTESP_FW_CMD_MAX_ARGS];
+                char arg_buf[DTESP_FW_CMD_MAX_TOKEN_LEN + 1];
                 int argc = split_args(&text[content_start], token_len,
-                                      argv, DECTALK_FW_CMD_MAX_ARGS,
+                                      argv, DTESP_FW_CMD_MAX_ARGS,
                                       arg_buf, (int)sizeof(arg_buf));
 
-                espress_job_t *action = dispatch_custom_command(argc, argv);
+                dtesp_job_t *action = dispatch_custom_command(argc, argv);
                 if (action)
                 {
-                    espress_job_list_append(out, action);
+                    dtesp_job_list_append(out, action);
                 }
                 // If dispatch returned NULL (unknown cmd), the token
                 // is silently consumed — it never reaches DECtalk.
@@ -375,11 +375,11 @@ int custom_commands_tokenize(const char *text, espress_job_list_t *out)
     // Emit any remaining plain text
     if (seg_start < text_len)
     {
-        espress_job_t *tj = espress_job_alloc_text(
+        dtesp_job_t *tj = dtesp_job_alloc_text(
             &text[seg_start], text_len - seg_start);
         if (tj)
         {
-            espress_job_list_append(out, tj);
+            dtesp_job_list_append(out, tj);
         }
     }
 
@@ -394,9 +394,9 @@ void custom_commands_init(void)
 {
     LOG_I("custom commands initialised (namespace=\"%s\", "
           "max_token=%d, max_args=%d)",
-          DECTALK_FW_CMD_NAMESPACE,
-          DECTALK_FW_CMD_MAX_TOKEN_LEN,
-          DECTALK_FW_CMD_MAX_ARGS);
+          DTESP_FW_CMD_NAMESPACE,
+          DTESP_FW_CMD_MAX_TOKEN_LEN,
+          DTESP_FW_CMD_MAX_ARGS);
 }
 
 void custom_commands_reset_session(void)

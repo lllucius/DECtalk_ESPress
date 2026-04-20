@@ -64,8 +64,8 @@ esp_err_t jtag_serial_transport_init(void)
     // Install the USB Serial/JTAG driver with application-level
     // RX and TX ring buffers.
     usb_serial_jtag_driver_config_t cfg = {
-        .rx_buffer_size = CONFIG_DECTALK_JTAG_RX_BUF_SIZE,
-        .tx_buffer_size = CONFIG_DECTALK_JTAG_TX_BUF_SIZE,
+        .rx_buffer_size = CONFIG_DTESP_JTAG_RX_BUF_SIZE,
+        .tx_buffer_size = CONFIG_DTESP_JTAG_TX_BUF_SIZE,
     };
 
     esp_err_t err = usb_serial_jtag_driver_install(&cfg);
@@ -146,9 +146,9 @@ bool jtag_serial_transport_check_reconnected(void)
 // ----------------------------------------------------------------
 // Transport vtable instance for USB Serial/JTAG
 // ----------------------------------------------------------------
-#include "espress_transport.h"
+#include "dtesp_transport.h"
 
-static const espress_transport_t s_jtag_serial_transport = {
+static const dtesp_transport_t s_jtag_serial_transport = {
     .init              = jtag_serial_transport_init,
     .read              = jtag_serial_transport_read,
     .write             = jtag_serial_transport_write,
@@ -156,7 +156,7 @@ static const espress_transport_t s_jtag_serial_transport = {
     .check_reconnected = jtag_serial_transport_check_reconnected,
 };
 
-const espress_transport_t *espress_transport_get(void)
+const dtesp_transport_t *dtesp_transport_get(void)
 {
     return &s_jtag_serial_transport;
 }

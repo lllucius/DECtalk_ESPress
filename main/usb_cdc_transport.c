@@ -26,7 +26,7 @@
 static const char *TAG = "USB-CDC";
 
 // Stream buffer bridging the TinyUSB task and the application task
-#define CDC_RX_STREAM_SIZE   CONFIG_DECTALK_CDC_RX_STREAM_SIZE
+#define CDC_RX_STREAM_SIZE   CONFIG_DTESP_CDC_RX_STREAM_SIZE
 #define CDC_RX_TRIGGER_LEVEL 1
 
 static StreamBufferHandle_t rx_stream;
@@ -241,9 +241,9 @@ bool usb_cdc_transport_check_reconnected(void)
 // ----------------------------------------------------------------
 // Transport vtable instance for USB CDC-ACM
 // ----------------------------------------------------------------
-#include "espress_transport.h"
+#include "dtesp_transport.h"
 
-static const espress_transport_t s_usb_cdc_transport = {
+static const dtesp_transport_t s_usb_cdc_transport = {
     .init              = usb_cdc_transport_init,
     .read              = usb_cdc_transport_read,
     .write             = usb_cdc_transport_write,
@@ -251,7 +251,7 @@ static const espress_transport_t s_usb_cdc_transport = {
     .check_reconnected = usb_cdc_transport_check_reconnected,
 };
 
-const espress_transport_t *espress_transport_get(void)
+const dtesp_transport_t *dtesp_transport_get(void)
 {
     return &s_usb_cdc_transport;
 }

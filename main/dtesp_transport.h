@@ -9,8 +9,8 @@
 // provides a static const instance of this struct.
 // ----------------------------------------------------------------
 
-#ifndef ESPRESS_TRANSPORT_H
-#define ESPRESS_TRANSPORT_H
+#ifndef DTESP_TRANSPORT_H
+#define DTESP_TRANSPORT_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-typedef struct espress_transport
+typedef struct dtesp_transport
 {
     /**
      * @brief One-time hardware / driver initialization.
@@ -55,7 +55,7 @@ typedef struct espress_transport
      * Returns true exactly once per disconnect→reconnect cycle.
      */
     bool (*check_reconnected)(void);
-} espress_transport_t;
+} dtesp_transport_t;
 
 /**
  * @brief Get the transport instance for the current target.
@@ -63,10 +63,10 @@ typedef struct espress_transport
  * Returns a pointer to the static const transport vtable selected at
  * build time (USB CDC-ACM on ESP32-S3, USB Serial/JTAG on ESP32-C6).
  */
-const espress_transport_t *espress_transport_get(void);
+const dtesp_transport_t *dtesp_transport_get(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // ESPRESS_TRANSPORT_H
+#endif // DTESP_TRANSPORT_H

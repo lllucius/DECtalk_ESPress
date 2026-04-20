@@ -4,7 +4,7 @@
 // DECtalk ESPress Serial Protocol Emulation - Implementation
 //
 // Emulates the DECtalk ESPress serial host <-> device protocol on ESP32.
-// See dectalk_espress.h for protocol documentation.
+// See espress.h for protocol documentation.
 // ----------------------------------------------------------------
 
 #include <pthread.h>
@@ -19,34 +19,34 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "esp_pthread.h"
-#if CONFIG_DECTALK_DISABLE_RGB_LED
+#if CONFIG_DTESP_DISABLE_RGB_LED
 #include "driver/gpio.h"
 #endif
 #include "ttsapi.h"
-#include "dectalk_espress.h"
+#include "espress.h"
 #include "diag_mem.h"
-#include "espress_jobs.h"
-#include "espress_job_pool.h"
+#include "dtesp_jobs.h"
+#include "dtesp_job_pool.h"
 #include "custom_commands.h"
 #include "custom_actions.h"
 
 // Select the serial transport layer based on the target chip.
-// The vtable in espress_transport.h decouples this module from the
+// The vtable in dtesp_transport.h decouples this module from the
 // physical link; each transport .c file exposes a single instance.
-#include "espress_transport.h"
-#include "espress_audio.h"
+#include "dtesp_transport.h"
+#include "dtesp_audio.h"
 
 static const char *TAG = "DECtalk ESPress";
 
-static esp_log_level_t dectalk_log_level(void)
+static esp_log_level_t dtesp_log_level(void)
 {
-#if CONFIG_DECTALK_LOG_LEVEL_ERROR
+#if CONFIG_DTESP_LOG_LEVEL_ERROR
     return ESP_LOG_ERROR;
-#elif CONFIG_DECTALK_LOG_LEVEL_WARN
+#elif CONFIG_DTESP_LOG_LEVEL_WARN
     return ESP_LOG_WARN;
-#elif CONFIG_DECTALK_LOG_LEVEL_INFO
+#elif CONFIG_DTESP_LOG_LEVEL_INFO
     return ESP_LOG_INFO;
-#elif CONFIG_DECTALK_LOG_LEVEL_DEBUG
+#elif CONFIG_DTESP_LOG_LEVEL_DEBUG
     return ESP_LOG_DEBUG;
 #else
     return ESP_LOG_VERBOSE;
@@ -55,7 +55,7 @@ static esp_log_level_t dectalk_log_level(void)
 
 static void configure_logging(void)
 {
-    esp_log_level_t log_level = dectalk_log_level();
+    esp_log_level_t log_level = dtesp_log_level();
 
     esp_log_level_set(TAG, log_level);
 #if CONFIG_IDF_TARGET_ESP32C6
@@ -66,15 +66,15 @@ static void configure_logging(void)
     esp_log_level_set("DIAG", log_level);
 }
 
-#define ESPRESS_SPEECH_TASK_CORE CONFIG_DECTALK_SPEECH_TASK_CORE
-#define ESPRESS_MAIN_STACK_SIZE  CONFIG_DECTALK_MAIN_TASK_STACK_SIZE
+#define DTESP_SPEECH_TASK_CORE CONFIG_DTESP_SPEECH_TASK_CORE
+#define DTESP_MAIN_STACK_SIZE  CONFIG_DTESP_MAIN_TASK_STACK_SIZE
 
 
 // -- Configuration ---------------------------------------------------
 
-#define ESPRESS_TEXT_BUFSIZE  CONFIG_DECTALK_TEXT_BUFFER_SIZE   // Text accumulation buffer size
-#define ESPRESS_QUEUE_SIZE    CONFIG_DECTALK_SPEECH_QUEUE_SIZE  // Speech queue depth
-#define ESPRESS_RX_TIMEOUT_MS CONFIG_DECTALK_RX_TIMEOUT_MS      // CDC read timeout in ms
+#define DTESP_TEXT_BUFSIZE  CONFIG_DTESP_TEXT_BUFFER_SIZE   // Text accumulation buffer size
+#define DTESP_QUEUE_SIZE    CONFIG_DTESP_SPEECH_QUEUE_SIZE  // Speech queue depth
+#define DTESP_RX_TIMEOUT_MS CONFIG_DTESP_RX_TIMEOUT_MS      // CDC read timeout in ms
 
 // Flow control thresholds (fraction of text buffer size)
 #define HIWATER_NUM 2   // Send XOFF at 2/3 full
@@ -89,7 +89,7 @@ static void configure_logging(void)
 #define QUEUE_LOWATER_DEN   4
 
 // Text flush timeout: if no new chars arrive for this many ms, flush
-#define TEXT_IDLE_TIMEOUT_MS CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS
+#define TEXT_IDLE_TIMEOUT_MS CONFIG_DTESP_TEXT_IDLE_TIMEOUT_MS
 
 // Mask to extract the control sub-command class from cmd_sub,
 // ignoring any data payload in the lower bits (e.g. volume level).
@@ -124,7 +124,7 @@ typedef struct
     int xoff_sent; // We sent XOFF to host
 
     // Text accumulation
-    char text_buf[ESPRESS_TEXT_BUFSIZE];
+    char text_buf[DTESP_TEXT_BUFSIZE];
     int text_pos;
 
     // Bracket-colon state: tracks whether the text buffer currently
@@ -137,22 +137,22 @@ typedef struct
     volatile int paused;   // Speech output is paused (SO/SI)
     volatile int speaking; // Synthesis task is active
     volatile int flushing; // Flush in progress
-} espress_state_t;
+} dtesp_state_t;
 
-static espress_state_t estate;
+static dtesp_state_t estate;
 static QueueHandle_t speech_queue;
 
 // TTS handle for the ttsapi interface
-static LPTTS_HANDLE_T espress_tts_handle;
+static LPTTS_HANDLE_T dtesp_tts_handle;
 
 // In-memory buffer management
-#define ESPRESS_TTS_NUM_BUFFERS 3
-#define ESPRESS_TTS_BUFFER_SIZE 16384 // bytes (8192 16-bit samples)
-#define ESPRESS_TTS_MAX_INDEXES 8     // max index marks per buffer
+#define DTESP_TTS_NUM_BUFFERS 3
+#define DTESP_TTS_BUFFER_SIZE 16384 // bytes (8192 16-bit samples)
+#define DTESP_TTS_MAX_INDEXES 8     // max index marks per buffer
 
-static TTS_BUFFER_T espress_tts_bufs[ESPRESS_TTS_NUM_BUFFERS] = {};
-static char         espress_tts_audio[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_BUFFER_SIZE];
-static TTS_INDEX_T  espress_tts_indexes[ESPRESS_TTS_NUM_BUFFERS][ESPRESS_TTS_MAX_INDEXES];
+static TTS_BUFFER_T dtesp_tts_bufs[DTESP_TTS_NUM_BUFFERS] = {};
+static char         dtesp_tts_audio[DTESP_TTS_NUM_BUFFERS][DTESP_TTS_BUFFER_SIZE];
+static TTS_INDEX_T  dtesp_tts_indexes[DTESP_TTS_NUM_BUFFERS][DTESP_TTS_MAX_INDEXES];
 
 // -- Protocol Decode Logging -----------------------------------------
 
@@ -277,19 +277,19 @@ static void log_rx_dle_command(uint16_t word)
 
 // -- USB CDC I/O Helpers ---------------------------------------------
 
-// Transport vtable pointer, initialised in espress_task() before use.
-static const espress_transport_t *s_transport;
+// Transport vtable pointer, initialised in dtesp_task() before use.
+static const dtesp_transport_t *s_transport;
 
 // Send raw bytes to the host over the serial transport.
-static void espress_send(const uint8_t *data, int len)
+static void dtesp_send(const uint8_t *data, int len)
 {
     s_transport->write(data, (size_t)len);
 }
 
 // Send a single byte to the host.
-static void espress_send_byte(uint8_t c)
+static void dtesp_send_byte(uint8_t c)
 {
-    espress_send(&c, 1);
+    dtesp_send(&c, 1);
 }
 
 // -- DLE Status / Index Transmission ---------------------------------
@@ -298,7 +298,7 @@ static void espress_send_byte(uint8_t c)
 // Send a 4-byte DLE status sequence to the host.
 // Called in response to ENQ or when status changes.
 // ----------------------------------------------------------------
-static void espress_send_status(void)
+static void dtesp_send_status(void)
 {
     uint8_t buf[4];
     char flags[128];
@@ -307,14 +307,14 @@ static void espress_send_status(void)
     status_bits_to_str(estate.status, flags, sizeof(flags));
 
     ESP_LOGD(TAG, "TX DLE STATUS 0x%04X [%s]", estate.status, flags);
-    espress_send(buf, 4);
+    dtesp_send(buf, 4);
 }
 
 // ----------------------------------------------------------------
 // Send a DLE index marker sequence followed by a status update.
 // Index: DLE 5X YY ZZ, then Status: DLE 4X YY ZZ
 // ----------------------------------------------------------------
-static void espress_send_index(uint16_t index_value)
+static void dtesp_send_index(uint16_t index_value)
 {
     uint8_t buf[8];
     char flags[128];
@@ -330,7 +330,7 @@ static void espress_send_index(uint16_t index_value)
              estate.status,
              flags);
 
-    espress_send(buf, 8);
+    dtesp_send(buf, 8);
     estate.last_index = index_value;
 }
 
@@ -341,14 +341,14 @@ static void espress_send_index(uint16_t index_value)
 // Considers both the text accumulation buffer level and the speech queue
 // depth so the host is throttled before the queue overflows.
 // ----------------------------------------------------------------
-static void espress_check_flow_control(void)
+static void dtesp_check_flow_control(void)
 {
-    int hiwater = (ESPRESS_TEXT_BUFSIZE * HIWATER_NUM) / HIWATER_DEN;
-    int lowater = (ESPRESS_TEXT_BUFSIZE * LOWATER_NUM) / LOWATER_DEN;
+    int hiwater = (DTESP_TEXT_BUFSIZE * HIWATER_NUM) / HIWATER_DEN;
+    int lowater = (DTESP_TEXT_BUFSIZE * LOWATER_NUM) / LOWATER_DEN;
 
     int q_used = (int)uxQueueMessagesWaiting(speech_queue);
-    int q_hi   = (ESPRESS_QUEUE_SIZE * QUEUE_HIWATER_NUM) / QUEUE_HIWATER_DEN;
-    int q_lo   = (ESPRESS_QUEUE_SIZE * QUEUE_LOWATER_NUM) / QUEUE_LOWATER_DEN;
+    int q_hi   = (DTESP_QUEUE_SIZE * QUEUE_HIWATER_NUM) / QUEUE_HIWATER_DEN;
+    int q_lo   = (DTESP_QUEUE_SIZE * QUEUE_LOWATER_NUM) / QUEUE_LOWATER_DEN;
 
     // XOFF triggers when *either* threshold is exceeded (aggressive),
     // XON requires *both* to be below limits (conservative) to avoid
@@ -360,20 +360,20 @@ static void espress_check_flow_control(void)
     {
         ESP_LOGD(TAG, "TX XOFF (pause host, buffer %d/%d, queue %d/%d)",
                  estate.text_pos,
-                 ESPRESS_TEXT_BUFSIZE,
+                 DTESP_TEXT_BUFSIZE,
                  q_used,
-                 ESPRESS_QUEUE_SIZE);
-        espress_send_byte(XOFF);
+                 DTESP_QUEUE_SIZE);
+        dtesp_send_byte(XOFF);
         estate.xoff_sent = 1;
     }
     else if (estate.xoff_sent && need_xon)
     {
         ESP_LOGD(TAG, "TX XON (resume host, buffer %d/%d, queue %d/%d)",
                  estate.text_pos,
-                 ESPRESS_TEXT_BUFSIZE,
+                 DTESP_TEXT_BUFSIZE,
                  q_used,
-                 ESPRESS_QUEUE_SIZE);
-        espress_send_byte(XON);
+                 DTESP_QUEUE_SIZE);
+        dtesp_send_byte(XON);
         estate.xoff_sent = 0;
     }
 }
@@ -381,9 +381,9 @@ static void espress_check_flow_control(void)
 // -- Text Buffer Management ------------------------------------------
 
 // Send a flush signal to the speech task.
-static void espress_send_flush(void)
+static void dtesp_send_flush(void)
 {
-    espress_job_t *job = espress_job_pool_alloc_flush();
+    dtesp_job_t *job = dtesp_job_pool_alloc_flush();
     if (!job)
     {
         ESP_LOGE(TAG, "Failed to allocate FLUSH job");
@@ -392,7 +392,7 @@ static void espress_send_flush(void)
     if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
     {
         ESP_LOGW(TAG, "Speech queue full; dropping FLUSH job");
-        espress_job_pool_free(job);
+        dtesp_job_pool_free(job);
     }
 }
 
@@ -407,7 +407,7 @@ static void espress_send_flush(void)
 // If custom commands are disabled at build time, the entire buffer
 // is queued as a single SPEAK_TEXT job (no scanning overhead).
 // ----------------------------------------------------------------
-static void espress_flush_text_to_queue(void)
+static void dtesp_flush_text_to_queue(void)
 {
     if (estate.text_pos == 0)
     {
@@ -423,16 +423,16 @@ static void espress_flush_text_to_queue(void)
     // Tokenise the text into jobs.  Voice/rate prefix application is
     // deferred to the speech task so that actions and text are applied
     // in strict submission order; the tokenizer simply produces jobs.
-    espress_job_list_t jobs;
+    dtesp_job_list_t jobs;
     custom_commands_tokenize(estate.text_buf, &jobs);
 
     for (int i = 0; i < jobs.count; i++)
     {
-        espress_job_t *job = jobs.jobs[i];
+        dtesp_job_t *job = jobs.jobs[i];
 
         if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(500)) != pdTRUE)
         {
-            if (job->type == ESPRESS_JOB_SPEAK_TEXT)
+            if (job->type == DTESP_JOB_SPEAK_TEXT)
             {
                 ESP_LOGW(TAG, "Speech queue full, dropped: %.30s%s",
                          job->text,
@@ -443,7 +443,7 @@ static void espress_flush_text_to_queue(void)
                 ESP_LOGW(TAG, "Speech queue full, dropped job type %d",
                          job->type);
             }
-            espress_job_pool_free(job);
+            dtesp_job_pool_free(job);
         }
     }
 
@@ -454,7 +454,7 @@ static void espress_flush_text_to_queue(void)
 
     estate.text_pos = 0;
     estate.in_bracket_cmd = 0;
-    espress_check_flow_control();
+    dtesp_check_flow_control();
 }
 
 // ----------------------------------------------------------------
@@ -463,11 +463,11 @@ static void espress_flush_text_to_queue(void)
 // Tracks [: ... ] sequences so the idle flush timer does not split
 // a custom or native DECtalk command across separate queue entries.
 // ----------------------------------------------------------------
-static void espress_add_char(uint8_t c)
+static void dtesp_add_char(uint8_t c)
 {
-    if (estate.text_pos >= ESPRESS_TEXT_BUFSIZE - 1)
+    if (estate.text_pos >= DTESP_TEXT_BUFSIZE - 1)
     {
-        espress_flush_text_to_queue();
+        dtesp_flush_text_to_queue();
     }
 
     estate.text_buf[estate.text_pos++] = (char)c;
@@ -485,14 +485,14 @@ static void espress_add_char(uint8_t c)
         estate.in_bracket_cmd = 1;
     }
 
-    espress_check_flow_control();
+    dtesp_check_flow_control();
 
     // Flush on clause boundaries, but not while inside a bracket
     // command — that would split the command across queue entries
     // and break parsing.
     if ((c == '\r' || c == '\n') && !estate.in_bracket_cmd)
     {
-        espress_flush_text_to_queue();
+        dtesp_flush_text_to_queue();
     }
 }
 
@@ -501,20 +501,20 @@ static void espress_add_char(uint8_t c)
 // The original ESPress parser treats raw 0xFF as CMD_sync_char, which is not
 // spoken text.  Use it to advance buffered text through the pipeline.
 // ----------------------------------------------------------------
-static void espress_handle_sync_char(const char *source)
+static void dtesp_handle_sync_char(const char *source)
 {
     ESP_LOGD(TAG, "RX sync marker from %s", source);
     if (estate.text_pos > 0)
     {
-        espress_flush_text_to_queue();
-        espress_send_byte(XON);
+        dtesp_flush_text_to_queue();
+        dtesp_send_byte(XON);
     }
 }
 
 // -- DLE Command Processing ------------------------------------------
 
 // Process a completed 4-byte DLE sequence received from the host.
-static void espress_process_dle(void)
+static void dtesp_process_dle(void)
 {
     uint8_t type_byte = estate.dle_buf[1];
     uint16_t word;
@@ -535,11 +535,11 @@ static void espress_process_dle(void)
                  ch,
                  (ch >= 0x20 && ch < 0x7F) ? (char)ch : '.');
         // Flush current speech
-        espress_send_flush();
+        dtesp_send_flush();
         estate.text_pos = 0;
         // Queue the single character for speech
         char single[2] = {(char)ch, '\0'};
-        espress_job_t *job = espress_job_pool_alloc_text(single, 1);
+        dtesp_job_t *job = dtesp_job_pool_alloc_text(single, 1);
         if (!job)
         {
             ESP_LOGE(TAG, "Failed to allocate text job for FLUSHCH");
@@ -547,13 +547,13 @@ static void espress_process_dle(void)
         else if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
         {
             ESP_LOGW(TAG, "Speech queue full; dropping FLUSHCH char 0x%02X", ch);
-            espress_job_pool_free(job);
+            dtesp_job_pool_free(job);
         }
     }
     else if (type_byte == DLE_PREFIX_SYNC)
     {
         // 0x70 'p': DMA sync - equivalent to internal CMD_sync_char (0xFF)
-        espress_handle_sync_char("DLE SYNC");
+        dtesp_handle_sync_char("DLE SYNC");
     }
     else if (type_byte <= DLE_PREFIX_CMD_HI)
     {
@@ -583,16 +583,16 @@ static void espress_process_dle(void)
 
             case CTRL_flush:
                 estate.text_pos = 0;
-                TextToSpeechReset(espress_tts_handle, FALSE);
-                espress_send_flush();
+                TextToSpeechReset(dtesp_tts_handle, FALSE);
+                dtesp_send_flush();
                 estate.status |= STAT_flushing;
                 // Match real DECtalk: XON + SOH, no DLE STATUS
-                espress_send_byte(XON);
+                dtesp_send_byte(XON);
                 estate.xoff_sent = 0;
-                espress_send_byte(SOH);
+                dtesp_send_byte(SOH);
                 break;
 
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320DAC3100
             case CTRL_vol_up:
             {
                 uint8_t vol = tlv320dac3100_get_volume();
@@ -629,7 +629,7 @@ static void espress_process_dle(void)
         else if (cmd_class == CMD_null)
         {
             // CMD_null: post current status
-            espress_send_status();
+            dtesp_send_status();
         }
     }
     else if (type_byte <= DLE_PREFIX_DATA_HI)
@@ -653,7 +653,7 @@ static void espress_process_dle(void)
 // Called for bytes 1-3 after the initial DLE (byte 0) was detected.
 // The rx_state enum tracks which byte position we expect next.
 // ----------------------------------------------------------------
-static void espress_dle_byte(uint8_t c)
+static void dtesp_dle_byte(uint8_t c)
 {
     switch (estate.rx_state)
     {
@@ -668,7 +668,7 @@ static void espress_dle_byte(uint8_t c)
     case RX_STATE_DLE_3:
         estate.dle_buf[3] = c;
         // Complete 4-byte sequence received
-        espress_process_dle();
+        dtesp_process_dle();
         estate.rx_state = RX_STATE_NORMAL;
         break;
     default:
@@ -692,7 +692,7 @@ static void espress_dle_byte(uint8_t c)
 // to halt the speech pipeline.  The in-progress TextToSpeechSpeak()/
 // Sync() on the speech task will return promptly.
 // ----------------------------------------------------------------
-static void espress_handle_etx(void)
+static void dtesp_handle_etx(void)
 {
     // Discard any buffered text and reset bracket tracking
     estate.text_pos = 0;
@@ -704,10 +704,10 @@ static void espress_handle_etx(void)
     // on the speech task.  The original DECtalk ESPress hardware
     // uses the same pattern (ISR sets halting while the ISA task is
     // running).
-    TextToSpeechReset(espress_tts_handle, FALSE);
+    TextToSpeechReset(dtesp_tts_handle, FALSE);
 
     // Signal flush to speech task so it drains stale queue entries
-    espress_send_flush();
+    dtesp_send_flush();
 
     estate.status |= STAT_flushing;
 
@@ -716,27 +716,27 @@ static void espress_handle_etx(void)
     // input ring was emptied by start_flush) followed by SOH (flush
     // acknowledge from the ISA task via p_putc('\001')).  No DLE
     // STATUS is sent -- only ENQ triggers status output.
-    espress_send_byte(XON);
+    dtesp_send_byte(XON);
     estate.xoff_sent = 0;
-    espress_send_byte(SOH);
+    dtesp_send_byte(SOH);
 }
 
 // ----------------------------------------------------------------
 // Handle the ']' + ETX + XON flush sequence.
 // This is the TSR FLUSH_TEXT sequence.
-// espress_handle_etx() already sends XON + SOH, matching the real
+// dtesp_handle_etx() already sends XON + SOH, matching the real
 // DECtalk ESPress behavior.
 // ----------------------------------------------------------------
-static void espress_handle_flush_sequence(void)
+static void dtesp_handle_flush_sequence(void)
 {
     ESP_LOGD(TAG, "RX ] + ETX + XON flush sequence (TSR FLUSH_TEXT)");
-    espress_handle_etx();
+    dtesp_handle_etx();
 }
 
 // -- Audio Callback for ESPress Mode ---------------------------------
 
 // audio_cb_call_count / audio_cb_total_samples are static locals inside
-// espress_tts_callback() and reset by the speech task before each chunk.
+// dtesp_tts_callback() and reset by the speech task before each chunk.
 // See comment below.
 
 // ----------------------------------------------------------------
@@ -746,7 +746,7 @@ static void espress_handle_flush_sequence(void)
 //   TTS_MSG_INDEX_MARK - index markers -> DLE INDEX sequence to host
 // Respects the pause state by silencing audio output while paused.
 // ----------------------------------------------------------------
-static void espress_tts_callback(LONG lParam1, LONG lParam2,
+static void dtesp_tts_callback(LONG lParam1, LONG lParam2,
                                   DWORD dwInstanceParam, UINT uiMsg)
 {
     // Throttle audio callback logging so it doesn't flood the console.
@@ -757,7 +757,7 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
     static int audio_cb_total_samples = 0;
     if (uiMsg == TTS_MSG_INDEX_MARK)
     {
-        espress_send_index((uint16_t)lParam2);
+        dtesp_send_index((uint16_t)lParam2);
         return;
     }
 
@@ -771,7 +771,7 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
             {
                 for (DWORD i = 0; i < pBuf->dwNumberOfIndexMarks; i++)
                 {
-                    espress_send_index(
+                    dtesp_send_index(
                         (uint16_t)pBuf->lpIndexArray[i].dwIndexValue);
                 }
             }
@@ -808,7 +808,7 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
                 }
 
                 // Write audio to I2S
-                i2s_chan_handle_t tx = espress_audio_get_handle();
+                i2s_chan_handle_t tx = dtesp_audio_get_handle();
                 if (tx)
                 {
                     size_t bytes_written;
@@ -824,7 +824,7 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
             pBuf->dwBufferLength = 0;
             pBuf->dwNumberOfPhonemeChanges = 0;
             pBuf->dwNumberOfIndexMarks = 0;
-            TextToSpeechAddBuffer(espress_tts_handle, pBuf);
+            TextToSpeechAddBuffer(dtesp_tts_handle, pBuf);
         }
     }
 }
@@ -837,9 +837,9 @@ static void espress_tts_callback(LONG lParam1, LONG lParam2,
 // protocol handler responsive.
 //
 // Job types:
-//   ESPRESS_JOB_SPEAK_TEXT – pass text to TextToSpeechSpeak()
-//   ESPRESS_JOB_ACTION     – execute firmware action callback
-//   ESPRESS_JOB_FLUSH      – cancel speech, drain queue
+//   DTESP_JOB_SPEAK_TEXT – pass text to TextToSpeechSpeak()
+//   DTESP_JOB_ACTION     – execute firmware action callback
+//   DTESP_JOB_FLUSH      – cancel speech, drain queue
 // ----------------------------------------------------------------
 static void *speech_task(void *arg)
 {
@@ -847,44 +847,44 @@ static void *speech_task(void *arg)
 
     while (1)
     {
-        espress_job_t *job;
+        dtesp_job_t *job;
 
         if (xQueueReceive(speech_queue, &job, portMAX_DELAY))
         {
-            if (job->type == ESPRESS_JOB_FLUSH)
+            if (job->type == DTESP_JOB_FLUSH)
             {
                 // Flush: cancel any ongoing synthesis
                 ESP_LOGI(TAG, "Speech task: FLUSH job received, "
                          "resetting TTS and clearing I2S DMA");
-                espress_job_pool_free(job);
-                TextToSpeechReset(espress_tts_handle, FALSE);
+                dtesp_job_pool_free(job);
+                TextToSpeechReset(dtesp_tts_handle, FALSE);
 
                 // Clear the I2S DMA buffer so that any audio already
                 // queued for playback is silenced immediately.  This
                 // matches the real DECtalk ESPress behaviour where ETX
                 // stops speech output at once.
-                i2s_channel_disable(espress_audio_get_handle());
-                i2s_channel_enable(espress_audio_get_handle());
+                i2s_channel_disable(dtesp_audio_get_handle());
+                i2s_channel_enable(dtesp_audio_get_handle());
 
                 // Drain any remaining jobs that were queued before the
                 // flush.  Without this, stale text or actions would
                 // execute after the flush completes.
                 {
-                    espress_job_t *stale;
+                    dtesp_job_t *stale;
                     int drained = 0;
                     while (xQueueReceive(speech_queue, &stale, 0) == pdTRUE)
                     {
-                        if (stale->type == ESPRESS_JOB_SPEAK_TEXT)
+                        if (stale->type == DTESP_JOB_SPEAK_TEXT)
                         {
                             ESP_LOGD(TAG, "Speech task: drained stale text: %.30s%s",
                                      stale->text,
                                      strlen(stale->text) > 30 ? "..." : "");
                         }
-                        else if (stale->type == ESPRESS_JOB_ACTION)
+                        else if (stale->type == DTESP_JOB_ACTION)
                         {
                             ESP_LOGD(TAG, "Speech task: drained stale action");
                         }
-                        espress_job_pool_free(stale);
+                        dtesp_job_pool_free(stale);
                         drained++;
                     }
                     if (drained > 0)
@@ -900,12 +900,12 @@ static void *speech_task(void *arg)
                 // No unsolicited DLE STATUS -- the real DECtalk ESPress
                 // only sends status in response to ENQ from the host.
                 // XON + SOH were already sent by the ETX handler.
-                espress_check_flow_control();
+                dtesp_check_flow_control();
                 ESP_LOGI(TAG, "Speech task: flush complete, ready for new jobs");
                 continue;
             }
 
-            if (job->type == ESPRESS_JOB_ACTION)
+            if (job->type == DTESP_JOB_ACTION)
             {
                 // Execute firmware action in order
                 ESP_LOGD(TAG, "Speech task: executing ACTION job");
@@ -913,11 +913,11 @@ static void *speech_task(void *arg)
                 {
                     job->action.execute(job->action.ctx);
                 }
-                espress_job_pool_free(job);
+                dtesp_job_pool_free(job);
                 continue;
             }
 
-            // ESPRESS_JOB_SPEAK_TEXT: synthesise text
+            // DTESP_JOB_SPEAK_TEXT: synthesise text
             estate.speaking = 1;
             estate.status |= STAT_tr_char;
 
@@ -929,16 +929,16 @@ static void *speech_task(void *arg)
                      strlen(text) > 60 ? "..." : "");
             ESP_LOGD(TAG, "Speech task: queue depth before speak: %d/%d",
                      (int)uxQueueMessagesWaiting(speech_queue),
-                     ESPRESS_QUEUE_SIZE);
+                     DTESP_QUEUE_SIZE);
 
             if (text[0] == '\0')
             {
                 ESP_LOGD(TAG, "Speech task: text empty, skipping synthesis");
-                espress_job_pool_free(job);
+                dtesp_job_pool_free(job);
                 estate.speaking = 0;
                 estate.status &= ~STAT_tr_char;
                 estate.status |= STAT_rr_char | STAT_cmd_ready;
-                espress_check_flow_control();
+                dtesp_check_flow_control();
                 continue;
             }
 
@@ -984,16 +984,16 @@ static void *speech_task(void *arg)
             // natural, brief pause between chunks instead of a hard
             // cut-off.
             ESP_LOGD(TAG, "Speech task: calling TextToSpeechSpeak()...");
-            TextToSpeechSpeak(espress_tts_handle, text, TTS_FORCE);
-            TextToSpeechSync(espress_tts_handle);
+            TextToSpeechSpeak(dtesp_tts_handle, text, TTS_FORCE);
+            TextToSpeechSync(dtesp_tts_handle);
             ESP_LOGD(TAG, "Speech task: TextToSpeechSpeak()+Sync() returned");
             free(composed);
-            espress_job_pool_free(job);
+            dtesp_job_pool_free(job);
 
             estate.speaking = 0;
             estate.status &= ~STAT_tr_char;
             estate.status |= STAT_rr_char | STAT_cmd_ready;
-            espress_check_flow_control();
+            dtesp_check_flow_control();
         }
     }
 
@@ -1003,12 +1003,12 @@ static void *speech_task(void *arg)
 // -- Main Protocol Loop ----------------------------------------------
 
 // Process a single byte received from the host.
-static void espress_process_byte(uint8_t c)
+static void dtesp_process_byte(uint8_t c)
 {
     // If collecting a DLE sequence, feed bytes to state machine
     if (estate.rx_state >= RX_STATE_DLE_1 && estate.rx_state <= RX_STATE_DLE_3)
     {
-        espress_dle_byte(c);
+        dtesp_dle_byte(c);
         return;
     }
 
@@ -1032,12 +1032,12 @@ static void espress_process_byte(uint8_t c)
 
     case ETX:
         ESP_LOGD(TAG, "RX ETX (flush/cancel all speech)");
-        espress_handle_etx();
+        dtesp_handle_etx();
         return;
 
     case ENQ:
         ESP_LOGD(TAG, "RX ENQ (host requests status)");
-        espress_send_status();
+        dtesp_send_status();
         return;
 
     case SO:
@@ -1061,9 +1061,9 @@ static void espress_process_byte(uint8_t c)
         return;
 
     default:
-        if (dectalk_is_sync_char(c))
+        if (dtesp_is_sync_char(c))
         {
-            espress_handle_sync_char("raw 0xFF");
+            dtesp_handle_sync_char("raw 0xFF");
             return;
         }
 
@@ -1084,7 +1084,7 @@ static void espress_process_byte(uint8_t c)
     }
 
     // Regular text character (or VT/CR/LF/TAB): add to buffer
-    espress_add_char(c);
+    dtesp_add_char(c);
 }
 
 // ----------------------------------------------------------------
@@ -1093,7 +1093,7 @@ static void espress_process_byte(uint8_t c)
 // the main protocol loop that reads host bytes, decodes DLE commands,
 // and dispatches text to the speech queue.  Does not return.
 // ----------------------------------------------------------------
-static void *espress_task(void *arg)
+static void *dtesp_task(void *arg)
 {
     (void)arg;
 
@@ -1102,10 +1102,10 @@ static void *espress_task(void *arg)
 
     // Initialize DECtalk engine with the ttsapi interface
     ESP_LOGI(TAG, "Initializing DECtalk TTS engine (ttsapi)...");
-    MMRESULT tts_status = TextToSpeechStartup(&espress_tts_handle,
+    MMRESULT tts_status = TextToSpeechStartup(&dtesp_tts_handle,
                                               WAVE_MAPPER,
                                               DO_NOT_USE_AUDIO_DEVICE,
-                                              espress_tts_callback,
+                                              dtesp_tts_callback,
                                               0);
     if (tts_status != MMSYSERR_NOERROR)
     {
@@ -1116,26 +1116,26 @@ static void *espress_task(void *arg)
 
     // Switch TTS to in-memory mode: synthesised PCM is delivered via
     // the audio callback rather than played through a system device.
-    TextToSpeechOpenInMemory(espress_tts_handle, WAVE_FORMAT_1M16);
+    TextToSpeechOpenInMemory(dtesp_tts_handle, WAVE_FORMAT_1M16);
 
     // Initialise the pre-allocated buffer pool and hand each buffer
     // to the TTS engine so it can begin filling them with audio data.
-    for (int i = 0; i < ESPRESS_TTS_NUM_BUFFERS; i++)
+    for (int i = 0; i < DTESP_TTS_NUM_BUFFERS; i++)
     {
-        memset(&espress_tts_bufs[i], 0, sizeof(TTS_BUFFER_T));
-        espress_tts_bufs[i].lpData = espress_tts_audio[i];
-        espress_tts_bufs[i].dwMaximumBufferLength = ESPRESS_TTS_BUFFER_SIZE;
-        espress_tts_bufs[i].lpIndexArray = espress_tts_indexes[i];
-        espress_tts_bufs[i].dwMaximumNumberOfIndexMarks = ESPRESS_TTS_MAX_INDEXES;
-        TextToSpeechAddBuffer(espress_tts_handle, &espress_tts_bufs[i]);
+        memset(&dtesp_tts_bufs[i], 0, sizeof(TTS_BUFFER_T));
+        dtesp_tts_bufs[i].lpData = dtesp_tts_audio[i];
+        dtesp_tts_bufs[i].dwMaximumBufferLength = DTESP_TTS_BUFFER_SIZE;
+        dtesp_tts_bufs[i].lpIndexArray = dtesp_tts_indexes[i];
+        dtesp_tts_bufs[i].dwMaximumNumberOfIndexMarks = DTESP_TTS_MAX_INDEXES;
+        TextToSpeechAddBuffer(dtesp_tts_handle, &dtesp_tts_bufs[i]);
     }
-    ESP_LOGI(TAG, "DECtalk TTS engine initialized (handle=%p)", (void *)espress_tts_handle);
+    ESP_LOGI(TAG, "DECtalk TTS engine initialized (handle=%p)", (void *)dtesp_tts_handle);
 
     // Install the serial transport for ESPress protocol communication.
     // The host sees the device as a USB serial port.
     // Console / ESP_LOG output remains on UART0.
     ESP_LOGI(TAG, "Initializing serial transport...");
-    s_transport = espress_transport_get();
+    s_transport = dtesp_transport_get();
     ESP_ERROR_CHECK(s_transport->init());
 
     ESP_LOGI(TAG, "ESPress protocol ready. Waiting for host communication "
@@ -1147,7 +1147,7 @@ static void *espress_task(void *arg)
     // behaviour so the host driver (e.g. JAWS) does not interpret the
     // extra 4-byte DLE sequence as unexpected/bogus data.
     ESP_LOGI(TAG, "TX XON (device ready)");
-    espress_send_byte(XON);
+    dtesp_send_byte(XON);
 
     // Track time since last character for idle flush
     TickType_t last_char_time = xTaskGetTickCount();
@@ -1172,8 +1172,8 @@ static void *espress_task(void *arg)
             ESP_LOGI(TAG, "Host reconnected -- resetting protocol state");
 
             // Cancel any in-progress synthesis first
-            TextToSpeechReset(espress_tts_handle, FALSE);
-            espress_send_flush();
+            TextToSpeechReset(dtesp_tts_handle, FALSE);
+            dtesp_send_flush();
 
             // Reset receive state machine (DLE + bracket flush tracker)
             estate.rx_state = RX_STATE_NORMAL;
@@ -1193,17 +1193,17 @@ static void *espress_task(void *arg)
             estate.status = STAT_rr_char | STAT_cmd_ready;
 
             // Reset custom command session state if configured
-#if defined(CONFIG_DECTALK_FW_CMD_ENABLE) && defined(CONFIG_DECTALK_FW_CMD_RESET_ON_RECONNECT)
+#if defined(CONFIG_DTESP_FW_CMD_ENABLE) && defined(CONFIG_DTESP_FW_CMD_RESET_ON_RECONNECT)
             custom_commands_reset_session();
 #endif
 
             // Signal readiness to the new host
             ESP_LOGI(TAG, "TX XON (device ready after reconnect)");
-            espress_send_byte(XON);
+            dtesp_send_byte(XON);
         }
 
         // Read one byte with timeout -- yields to scheduler, preventing WDT
-        cnt = s_transport->read(&rx_byte, 1, pdMS_TO_TICKS(ESPRESS_RX_TIMEOUT_MS));
+        cnt = s_transport->read(&rx_byte, 1, pdMS_TO_TICKS(DTESP_RX_TIMEOUT_MS));
         if (cnt > 0)
         {
             c = (int)rx_byte;
@@ -1234,17 +1234,17 @@ static void *espress_task(void *arg)
                     // parameter, causing "command error in string value".
                     if (bracket_pending)
                     {
-                        espress_add_char(']');
+                        dtesp_add_char(']');
                         if (estate.rx_state == RX_STATE_ETX_XON)
                         {
-                            espress_process_byte(ETX);
+                            dtesp_process_byte(ETX);
                         }
                         estate.rx_state = RX_STATE_NORMAL;
                     }
 
                     ESP_LOGD(TAG, "Idle timeout: flushing %d buffered text bytes to queue",
                              estate.text_pos);
-                    espress_flush_text_to_queue();
+                    dtesp_flush_text_to_queue();
                 }
             }
             continue;
@@ -1262,17 +1262,17 @@ static void *espress_task(void *arg)
         else if (estate.rx_state == RX_STATE_ETX_XON && c == XON)
         {
             estate.rx_state = RX_STATE_NORMAL;
-            espress_handle_flush_sequence();
+            dtesp_handle_flush_sequence();
             continue;
         }
         else if (estate.rx_state == RX_STATE_BRACKET_ETX ||
                  estate.rx_state == RX_STATE_ETX_XON)
         {
             // Sequence broken: process the ']' as text, then current byte
-            espress_add_char(']');
+            dtesp_add_char(']');
             if (estate.rx_state == RX_STATE_ETX_XON)
             {
-                espress_process_byte(ETX);
+                dtesp_process_byte(ETX);
             }
             estate.rx_state = RX_STATE_NORMAL;
             // Fall through to process current byte normally
@@ -1284,7 +1284,7 @@ static void *espress_task(void *arg)
             continue;
         }
 
-        espress_process_byte((uint8_t)c);
+        dtesp_process_byte((uint8_t)c);
     }
 }
 
@@ -1299,32 +1299,32 @@ void app_main(void)
 {
     configure_logging();
 
-#if CONFIG_DECTALK_ENABLE_DIAG_MEM
+#if CONFIG_DTESP_ENABLE_DIAG_MEM
     diag_mem_start();
 #endif
 
-#if CONFIG_DECTALK_DISABLE_RGB_LED
+#if CONFIG_DTESP_DISABLE_RGB_LED
     // Drive the onboard RGB LED data line low to keep the LED dark.
     gpio_config_t led_cfg = {
-        .pin_bit_mask = 1ULL << CONFIG_DECTALK_RGB_LED_GPIO,
+        .pin_bit_mask = 1ULL << CONFIG_DTESP_RGB_LED_GPIO,
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&led_cfg));
-    ESP_ERROR_CHECK(gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0));
+    ESP_ERROR_CHECK(gpio_set_level(CONFIG_DTESP_RGB_LED_GPIO, 0));
 #endif
 
     // Initialize audio subsystem (I2S + codec if configured)
-    ESP_ERROR_CHECK(espress_audio_init());
+    ESP_ERROR_CHECK(dtesp_audio_init());
 
     // Create the speech queue and initialise the custom-command
     // subsystem BEFORE spawning the worker threads so both threads see
     // a fully-initialised queue from their first iteration.
-    speech_queue = xQueueCreate(ESPRESS_QUEUE_SIZE, sizeof(espress_job_t *));
+    speech_queue = xQueueCreate(DTESP_QUEUE_SIZE, sizeof(dtesp_job_t *));
     ESP_ERROR_CHECK(speech_queue != NULL ? ESP_OK : ESP_ERR_NO_MEM);
-    espress_job_pool_init();
+    dtesp_job_pool_init();
     custom_commands_init();
 
     // Retrieve the default pthread configuration
@@ -1341,7 +1341,7 @@ void app_main(void)
     // (e.g. ESP32-C6) the watchdog is disabled instead (see
     // sdkconfig.defaults).
     thread_cfg = default_cfg;
-    thread_cfg.pin_to_core = ESPRESS_SPEECH_TASK_CORE;
+    thread_cfg.pin_to_core = DTESP_SPEECH_TASK_CORE;
     thread_cfg.thread_name = "speech_thread";
     esp_pthread_set_cfg(&thread_cfg);
 
@@ -1355,15 +1355,15 @@ void app_main(void)
 
     // Define the main thread attributes
     thread_cfg = default_cfg;
-    thread_cfg.stack_size = ESPRESS_MAIN_STACK_SIZE;
+    thread_cfg.stack_size = DTESP_MAIN_STACK_SIZE;
     thread_cfg.thread_name = "main_thread";
     esp_pthread_set_cfg(&thread_cfg);
 
     // Create the main thread
-    prc = pthread_create(&tid, NULL, espress_task, NULL);
+    prc = pthread_create(&tid, NULL, dtesp_task, NULL);
     if (prc != 0)
     {
-        ESP_LOGE(TAG, "pthread_create(espress_task) failed: %d", prc);
+        ESP_LOGE(TAG, "pthread_create(dtesp_task) failed: %d", prc);
         esp_restart();
     }
 

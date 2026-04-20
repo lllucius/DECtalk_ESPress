@@ -18,7 +18,7 @@ microcontroller.
   - [Pitch Control](#pitch-control)
   - [Text Editing](#text-editing)
   - [DECtalk Inline Commands](#dectalk-inline-commands)
-- [ESPress GUI (`dectalk_espress_gui_qt.py`)](#espress-gui-dectalk_espress_gui_qtpy)
+- [ESPress GUI (`dtesp_gui_qt.py`)](#espress-gui-dtesp_gui_qtpy)
 - [DECtalk ESPress Protocol](#dectalk-espress-protocol)
   - [Key Protocol Elements](#key-protocol-elements)
 - [Python API Module](#python-api-module)
@@ -51,7 +51,7 @@ host computer.
 
 3. Run the ESPress GUI:
    ```bash
-   python dectalk_espress_gui_qt.py
+   python dtesp_gui_qt.py
    ```
 
 4. Select the serial port for your ESP32 and click **Connect**.
@@ -105,7 +105,7 @@ are processed by the DECtalk engine on the ESP32. For example:
 
 See `../ref_man.txt` for the full DECtalk command reference.
 
-## ESPress GUI (`dectalk_espress_gui_qt.py`)
+## ESPress GUI (`dtesp_gui_qt.py`)
 
 A Qt-based (PySide6/PyQt6) GUI for the DECtalk ESPress serial protocol with
 full accessibility support. Features:
@@ -145,10 +145,10 @@ protocol state and send XON to indicate readiness.
 
 ## Python API Module
 
-The `dectalk_serial.py` module can be used independently from the GUI:
+The `dtesp_serial.py` module can be used independently from the GUI:
 
 ```python
-from dectalk_serial import DECtalkESPressSerial
+from dtesp_serial import DECtalkESPressSerial
 
 espress = DECtalkESPressSerial()
 
@@ -191,7 +191,7 @@ espress.disconnect()
 ### Available Voices
 
 ```python
-from dectalk_serial import VOICES
+from dtesp_serial import VOICES
 print(list(VOICES.keys()))
 # ['Paul', 'Betty', 'Harry', 'Frank', 'Dennis', 'Kit', 'Ursula', 'Rita', 'Wendy']
 ```
@@ -199,9 +199,9 @@ print(list(VOICES.keys()))
 ### Building DECtalk Command Strings
 
 ```python
-from dectalk_serial import build_dectalk_prefix
+from dtesp_serial import build_dtesp_prefix
 
 # Build inline command prefix
-prefix = build_dectalk_prefix(voice="Harry", rate=150, pitch=90)
+prefix = build_dtesp_prefix(voice="Harry", rate=150, pitch=90)
 print(prefix)  # "[:nh][:ra 150][:dv ap 90]"
 ```
