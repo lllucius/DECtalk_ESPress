@@ -40,10 +40,6 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_PAGE_SELECT     0x00
 #define REG_RESET           0x01
 #define REG_CLOCK_MUX       0x04    // CODEC_CLKIN / PLL_CLKIN source
-#define REG_PLL_P_R         0x05    // PLL power / P / R dividers
-#define REG_PLL_J           0x06    // PLL J multiplier
-#define REG_PLL_D_MSB       0x07    // PLL D fractional (MSB)
-#define REG_PLL_D_LSB       0x08    // PLL D fractional (LSB)
 #define REG_NDAC            0x0B    // NDAC divider
 #define REG_MDAC            0x0C    // MDAC divider
 #define REG_DOSR_MSB        0x0D    // DOSR upper byte
@@ -177,13 +173,16 @@ typedef struct
 //     MCLK = 2.8224 MHz and DAC_FS = Fs = 11025 Hz.  This keeps
 //     DAC_MOD_CLK inside the codec's ~2.8-6.758 MHz valid range.
 //
-//   * BCLK-only mode (CODEC_MCLK_GPIO < 0): BCLK alone at 32xFs =
-//     352.8 kHz is far below the minimum DAC modulator clock, so we must
-//     enable the codec's internal PLL.  PLL_CLKIN = BCLK, and the PLL
-//     multiplies BCLK up to ~88.2 MHz (P=1, R=4, J=62, D=5000,
-//     PLL_CLK = 352.8 kHz * 4 * 62.5 = 88.2 MHz).  CODEC_CLKIN = PLL_CLK,
-//     NDAC=2, MDAC=8, DOSR=500 gives DAC_MOD_CLK = 88.2/16 = 5.5125 MHz
-//     (in spec) and DAC_FS = 88.2 MHz / (2*8*500) = 11025 Hz.
+//   * BCLK-only mode (CODEC_MCLK_GPIO < 0): CODEC_CLKIN = BCLK directly.
+//     With Fs=11025, 16-bit stereo I2S frame, BCLK = 2*16*Fs = 352.8 kHz.
+//     NDAC=1, MDAC=1, DOSR=32 gives DAC_MOD_CLK = BCLK/32 = 11025 Hz and
+//     DAC_FS = Fs.  The resulting DAC_MOD_CLK is below the datasheet's
+//     nominal ~2.8 MHz minimum, but in practice the TLV320DAC3100 runs
+//     the DAC at this rate with processing block PRB_P1 and produces
+//     audible output; attempts to route CODEC_CLKIN through the codec's
+//     internal PLL (multiplying BCLK up to ~88 MHz) resulted in the DAC
+//     producing no analog output on this hardware, so the direct path
+//     is used instead.
 #if CODEC_MCLK_GPIO >= 0
 static const reg_val_t clocking_init[] =
 {
@@ -197,27 +196,13 @@ static const reg_val_t clocking_init[] =
 #else
 static const reg_val_t clocking_init[] =
 {
-    // Route PLL_CLKIN from BCLK, CODEC_CLKIN from PLL_CLK.
-    // Bits 5:4 = 01 (PLL_CLKIN = BCLK), bits 3:2 = 11 (CODEC_CLKIN = PLL).
-    {REG_CLOCK_MUX,    0x1C},
-    // PLL: power on, P = 1, R = 4.
-    //   Bit 7    = 1  (PLL enable)
-    //   Bits 6:4 = P, literal 1..7 with 000 meaning 8; here 001 = 1
-    //   Bits 3:0 = R, literal 1..4; here 0100 = 4
-    {REG_PLL_P_R,      0x94},   // 0b1_001_0100
-    {REG_PLL_J,        62},     // J = 62 (range 4..63)
-    // D is a 14-bit fractional (0..9999) split across two registers.
-    // For J.D = 62.5000, D = 5000 = 0x1388.
-    //   REG_PLL_D_MSB holds D[13:8] in bits 5:0  -> 0x13
-    //   REG_PLL_D_LSB holds D[7:0]               -> 0x88
-    {REG_PLL_D_MSB,    0x13},
-    {REG_PLL_D_LSB,    0x88},
-    {REG_NDAC,         0x82},   // NDAC = 2, powered up
-    {REG_MDAC,         0x88},   // MDAC = 8, powered up
-    {REG_DOSR_MSB,     0x01},   // DOSR = 500 (0x01F4)
-    {REG_DOSR_LSB,     0xF4},
+    {REG_CLOCK_MUX,    0x01},   // CODEC_CLKIN = BCLK, PLL off
+    {REG_NDAC,         0x81},   // NDAC = 1, powered up
+    {REG_MDAC,         0x81},   // MDAC = 1, powered up
+    {REG_DOSR_MSB,     0x00},   // DOSR = 32 (0x0020)
+    {REG_DOSR_LSB,     0x20},
 };
-#define TLV320_CLOCK_MODE_LOG "PLL from BCLK (~88.2 MHz CODEC_CLKIN)"
+#define TLV320_CLOCK_MODE_LOG "BCLK direct (no PLL, no MCLK)"
 #endif
 
 // Page 0 phase: configure the I2S data interface.
@@ -895,7 +880,7 @@ esp_err_t tlv320dac3100_init(void)
     // the cached page before continuing with normal register programming.
     s_current_page = TLV320_INVALID_PAGE;
 
-    // ---- Phase 2: configure clocks / PLL path -------------------
+    // ---- Phase 2: configure clocks -------------------------------
     err = write_regs(0x00,
                      clocking_init,
                      sizeof(clocking_init) / sizeof(clocking_init[0]));
@@ -903,13 +888,6 @@ esp_err_t tlv320dac3100_init(void)
     {
         goto init_fail;
     }
-
-#if CODEC_MCLK_GPIO < 0
-    // Give the internal PLL time to lock onto BCLK before we start
-    // programming the DAC datapath.  Datasheet typical lock time is a few
-    // ms; 15 ms is a comfortable margin.
-    vTaskDelay(pdMS_TO_TICKS(15));
-#endif
 
     // ---- Phase 3: configure the audio interface -----------------
     err = write_regs(0x00,
