@@ -38,6 +38,7 @@ advancing DECtalk for everyone.
 - [Serial Interfaces](#serial-interfaces)
 - [ESPress Protocol Summary](#espress-protocol-summary)
 - [Host Tools](#host-tools)
+- [Custom `[:fw …]` Commands](#custom-fw--commands)
 - [Configuration (`menuconfig`)](#configuration-menuconfig)
   - [DECtalk (component settings)](#dectalk-component-settings)
   - [DECtalk ESPress Firmware (application settings)](#dectalk-espress-firmware-application-settings)
@@ -245,6 +246,72 @@ dt.speak("Hello from DECtalk on ESP32.", voice="Betty", rate=180)
 dt.disconnect()
 ```
 
+## Custom `[:fw …]` Commands
+
+Text passed through the ESPress protocol may contain custom
+`[:fw <sub-command> <args…>]` directives.  These are intercepted
+before DECtalk sees them and run as firmware-side actions.
+
+Session / GPIO / Tone commands:
+
+| Command                                  | Action                                              |
+| ---------------------------------------- | --------------------------------------------------- |
+| `[:fw gpio <pin> <on\|off\|0\|1>]`       | Set a GPIO pin level                                |
+| `[:fw voice <name>]`                     | Change DECtalk voice (session-scoped)               |
+| `[:fw rate <75..600>]`                   | Change DECtalk speaking rate (session-scoped)       |
+| `[:fw tone <freq_hz> <duration_ms>]`     | Play a tone on the configured LEDC GPIO             |
+
+Codec / output commands (TLV320DAC3100):
+
+| Command                                  | Action                                              |
+| ---------------------------------------- | --------------------------------------------------- |
+| `[:fw volume <0..9>]`                    | Codec digital volume                                |
+| `[:fw profile <speaker\|headphone>]`     | Output profile                                      |
+| `[:fw autoswitch <on\|off>]`             | Headset-jack auto-switch                            |
+| `[:fw mute <on\|off>]`                   | Soft-mute the codec                                 |
+| `[:fw save]`                             | Persist current codec + DSP state to NVS            |
+
+On-chip DSP tone controls — these exploit the TLV320DAC3100's
+built-in biquad/IIR engine and have *no* CPU cost:
+
+| Command                                  | Action                                              |
+| ---------------------------------------- | --------------------------------------------------- |
+| `[:fw bass <-12..+12>]`                  | Low-shelf at ≈200 Hz, gain in dB                    |
+| `[:fw treble <-12..+12>]`                | High-shelf at ≈4.5 kHz, gain in dB                  |
+| `[:fw eq <1..5> <-12..+12>]`             | Set a peaking-EQ band gain (160/500/1.5k/3k/5k Hz)  |
+| `[:fw eq reset]`                         | Flatten every peaking band (bass/treble unchanged)  |
+| `[:fw eq show]`                          | Log the current DSP state                           |
+| `[:fw eq preset <flat\|speech\|crisp\|warm>]` | Load a named preset                            |
+| `[:fw drc <on\|off>]`                    | Dynamic Range Compression on/off                    |
+| `[:fw drc preset <soft\|speech\|loud>]`  | DRC tuning preset                                   |
+| `[:fw spkgain <6\|12\|18\|24>]`          | Class-D speaker-amp analog gain (dB)                |
+
+### Why EQ helps DECtalk TTS
+
+DECtalk speech at 11 kHz has most of its energy in 200 Hz–4 kHz.
+Perceived **muddiness** usually comes from excess 150–400 Hz output
+plus weak 2–5 kHz; perceived **crispness** lives in the 2–4 kHz
+"presence" band plus 4–5 kHz "sibilance".  Good default tunings
+therefore cut the bass mud and boost presence — which is exactly
+what the built-in presets do:
+
+- `speech` — gentle bass cut, 500 Hz cut, 3 kHz boost, 4.5 kHz
+  treble boost, mild DRC.  Recommended starting point for TTS.
+- `crisp` — more aggressive 3 kHz + 5 kHz boost for extra
+  intelligibility.
+- `warm` — gentle bass lift, no treble boost.
+
+All tone-control values are clamped to ±12 dB.  Each biquad
+coefficient is stored as Q1.23 two's-complement and applied live
+via a brief soft-mute so transitions are silent.  The complete
+state (EQ + DRC + speaker gain) is persisted to NVS by `[:fw save]`.
+
+Example:
+
+```
+[:fw eq preset speech] [:fw save] The quick brown fox.
+```
+
 ## Configuration (`menuconfig`)
 
 Settings are split across two menus in `idf.py menuconfig`:
@@ -273,7 +340,7 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
 | *USB CDC transport* / *JTAG serial transport* | Target-specific host transport buffer sizing |
-| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone) |
+| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone, DSP/EQ/DRC) |
 | *Onboard RGB LED* | Optionally drive the RGB LED data GPIO low at startup to keep the LED dark |
 | *Diagnostics and logging* | Enable/disable heap and stack diagnostics; choose the DECtalk firmware log level |
 

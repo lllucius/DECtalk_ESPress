@@ -168,7 +168,7 @@ esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state);
  * @brief Set the class-D speaker driver analog gain.
  *
  * Only affects the speaker output path.  No-op when the codec is
- * currently routed to headphones.  Valid values: 0, 6, 12, 18, 24.
+ * currently routed to headphones.  Valid values: 6, 12, 18, 24.
  * Other values are rejected with ESP_ERR_INVALID_ARG.
  */
 esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db);

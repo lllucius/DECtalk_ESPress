@@ -121,7 +121,7 @@ menu "DECtalk ESPress Firmware"
         menu "TLV320DAC3100 defaults"
             depends on DTESP_DAC_TLV320DAC3100
 
-            comment "Additional EQ and gain options may be added later after hardware tuning is validated."
+            comment "Tone-shaping / DSP defaults."
 
             choice DTESP_TLV320_DEFAULT_PROFILE
                 prompt "Default output profile"
@@ -131,9 +131,6 @@ menu "DECtalk ESPress Firmware"
                     not yet contain a saved value.  The runtime profile can
                     be changed with [:fw profile speaker|headphone] and
                     persisted with [:fw save].
-
-                    Low-level DSP and register tuning are intentionally not
-                    exposed here yet.
 
                 config DTESP_TLV320_DEFAULT_PROFILE_SPEAKER
                     bool "Speaker"
@@ -152,7 +149,6 @@ menu "DECtalk ESPress Firmware"
 
                     The runtime value can be changed with
                     [:fw autoswitch on|off] and persisted with [:fw save].
-                    Jack-detect tuning is intentionally not exposed yet.
 
             config DTESP_TLV320_STARTUP_VOLUME
                 int "Startup digital volume"
@@ -164,8 +160,99 @@ menu "DECtalk ESPress Firmware"
                     volume.  Change the runtime value with
                     [:fw volume <0..9>] and persist with [:fw save].
 
-                    Fine-grained dB, analog gain, EQ, DSP, and register-level
-                    tuning are intentionally not exposed yet.
+            config DTESP_TLV320_DSP_ENABLE
+                bool "Enable on-chip DSP / EQ support"
+                default y
+                help
+                    Compile in the TLV320 DSP module and the associated
+                    [:fw bass], [:fw treble], [:fw eq ...], [:fw drc ...]
+                    and [:fw spkgain ...] commands.  With the module off
+                    the codec is configured in PRB_P1 (basic processing
+                    block, no EQ, no DRC) and the commands are stubs that
+                    only log.  Leaving this on at default settings has no
+                    audible effect — tone controls are applied lazily when
+                    the user invokes a command.
+
+            choice DTESP_TLV320_DEFAULT_PRESET
+                prompt "Default DSP preset at first boot"
+                depends on DTESP_TLV320_DSP_ENABLE
+                default DTESP_TLV320_DEFAULT_PRESET_FLAT
+                help
+                    Preset loaded into the DSP state when no NVS blob
+                    exists yet.  "flat" matches the pre-DSP-feature
+                    behaviour (no EQ, no DRC) and is the recommended
+                    first-boot default.
+
+                    Quick glossary for the non-flat presets:
+
+                    * speech — gentle low-shelf cut at ~200 Hz (fixes
+                      "muddy" boxy sound on small speakers), a small
+                      peaking cut around 500 Hz, and a presence boost
+                      around 3 kHz with a slight treble lift at 4.5 kHz
+                      plus mild DRC.  This is the recommended starting
+                      point for DECtalk TTS.
+
+                    * crisp — more aggressive 3 kHz + 5 kHz boost for
+                      users who need extra intelligibility.
+
+                    * warm — gentle bass lift, no treble boost for users
+                      who find crisp too sibilant.
+
+                config DTESP_TLV320_DEFAULT_PRESET_FLAT
+                    bool "flat (no EQ, no DRC)"
+
+                config DTESP_TLV320_DEFAULT_PRESET_SPEECH
+                    bool "speech (default TTS tuning)"
+
+                config DTESP_TLV320_DEFAULT_PRESET_CRISP
+                    bool "crisp"
+
+                config DTESP_TLV320_DEFAULT_PRESET_WARM
+                    bool "warm"
+            endchoice
+
+            config DTESP_TLV320_DRC_DEFAULT
+                bool "Enable DRC at first boot"
+                depends on DTESP_TLV320_DSP_ENABLE
+                default n
+                help
+                    Factory-default for the DRC enable flag.  DRC
+                    (Dynamic Range Compression) makes TTS sound
+                    consistently louder without clipping, at the cost
+                    of some dynamic range.  The runtime value is
+                    changed with [:fw drc on|off].
+
+            choice DTESP_TLV320_DEFAULT_SPK_GAIN
+                prompt "Default class-D speaker gain (dB)"
+                default DTESP_TLV320_DEFAULT_SPK_GAIN_6
+                help
+                    Analog gain applied at the class-D speaker
+                    amplifier stage.  6 dB matches the pre-feature
+                    firmware default.  Higher values drive small 8 Ω
+                    speakers louder without pushing digital volume
+                    into clip, at the cost of noise floor.  The
+                    runtime value is changed with [:fw spkgain
+                    6|12|18|24] and persisted with [:fw save].
+
+                config DTESP_TLV320_DEFAULT_SPK_GAIN_6
+                    bool "6 dB (default)"
+
+                config DTESP_TLV320_DEFAULT_SPK_GAIN_12
+                    bool "12 dB"
+
+                config DTESP_TLV320_DEFAULT_SPK_GAIN_18
+                    bool "18 dB"
+
+                config DTESP_TLV320_DEFAULT_SPK_GAIN_24
+                    bool "24 dB"
+            endchoice
+
+            config DTESP_TLV320_DEFAULT_SPK_GAIN_DB
+                int
+                default 6 if DTESP_TLV320_DEFAULT_SPK_GAIN_6
+                default 12 if DTESP_TLV320_DEFAULT_SPK_GAIN_12
+                default 18 if DTESP_TLV320_DEFAULT_SPK_GAIN_18
+                default 24 if DTESP_TLV320_DEFAULT_SPK_GAIN_24
         endmenu
 
         menu "Advanced audio tuning"
@@ -365,6 +452,20 @@ menu "DECtalk ESPress Firmware"
                 GPIO connected to a piezo buzzer or small speaker for tone
                 generation via LEDC PWM.  Set to -1 to disable hardware
                 tone output (the handler will only log the request).
+
+        config DTESP_FW_CMD_DSP_ENABLE
+            bool "Enable DSP / EQ / DRC / tone / mute commands"
+            default y
+            depends on DTESP_FW_CMD_ENABLE
+            depends on DTESP_DAC_TLV320DAC3100
+            help
+                Enable the on-chip-DSP-backed [:fw ...] sub-commands:
+                bass, treble, eq, drc, spkgain and mute.  Requires the
+                TLV320DAC3100 driver; on other DACs the commands are
+                stripped out at compile time.
+
+                Leave enabled unless you need to shave a few hundred
+                bytes of flash on a minimal build.
 
         config DTESP_FW_CMD_RESET_ON_RECONNECT
             bool "Reset custom command state on reconnect"
