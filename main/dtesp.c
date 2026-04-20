@@ -4,7 +4,7 @@
 // DECtalk ESPress Serial Protocol Emulation - Implementation
 //
 // Emulates the DECtalk ESPress serial host <-> device protocol on ESP32.
-// See espress.h for protocol documentation.
+// See dtesp.h for protocol documentation.
 // ----------------------------------------------------------------
 
 #include <pthread.h>
@@ -23,7 +23,7 @@
 #include "driver/gpio.h"
 #endif
 #include "ttsapi.h"
-#include "espress.h"
+#include "dtesp.h"
 #include "diag_mem.h"
 #include "dtesp_jobs.h"
 #include "dtesp_job_pool.h"

@@ -95,7 +95,7 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.setMinimumSize(700, 650)
         self.resize(1097, 650)
 
-        self.espress = DECtalkESPressSerial()
+        self.dtesp = DECtalkESPressSerial()
         self._paused = False
         self._polling = False
 
@@ -590,7 +590,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _toggle_connection(self):
         """Connect or disconnect based on current state."""
-        if self.espress.connected:
+        if self.dtesp.connected:
             self._disconnect()
         else:
             self._connect()
@@ -611,7 +611,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
         def do_connect():
             try:
-                self.espress.connect(port, baud)
+                self.dtesp.connect(port, baud)
                 self._signals.connected.emit()
             except Exception as exc:
                 self._signals.connect_error.emit(str(exc))
@@ -654,7 +654,7 @@ class DECtalkESPressGUIQt(QMainWindow):
     def _disconnect(self):
         """Close the serial connection."""
         self._polling = False
-        self.espress.disconnect()
+        self.dtesp.disconnect()
         self._log("--", "Disconnected")
         self._set_status("Disconnected")
         self.device_status_label.setText("--")
@@ -682,7 +682,7 @@ class DECtalkESPressGUIQt(QMainWindow):
             )
             return
 
-        if not self.espress.connected:
+        if not self.dtesp.connected:
             QMessageBox.warning(
                 self, "Not Connected",
                 "Please connect to the device first.",
@@ -707,7 +707,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
         def do_speak():
             try:
-                self.espress.speak(text, voice=voice, rate=rate, pitch=pitch)
+                self.dtesp.speak(text, voice=voice, rate=rate, pitch=pitch)
                 port = self.port_combo.currentText()
                 self._set_status_from_thread(
                     "Text sent -- Connected to %s (ESPress)" % port
@@ -722,10 +722,10 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _on_pause(self):
         """Pause speech output (send SO control character)."""
-        if not self.espress.connected:
+        if not self.dtesp.connected:
             return
         try:
-            self.espress.pause()
+            self.dtesp.pause()
             self._paused = True
             self._set_status("Paused")
             self._log("TX", "SO (Pause)")
@@ -734,10 +734,10 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _on_resume(self):
         """Resume speech output (send SI control character)."""
-        if not self.espress.connected:
+        if not self.dtesp.connected:
             return
         try:
-            self.espress.resume()
+            self.dtesp.resume()
             self._paused = False
             self._set_status(
                 "Resumed -- Connected to %s (ESPress)"
@@ -749,7 +749,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _on_flush(self):
         """Flush (cancel) all pending speech."""
-        if not self.espress.connected:
+        if not self.dtesp.connected:
             return
 
         self._set_status("Flushing...")
@@ -757,7 +757,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
         def do_flush():
             try:
-                ack = self.espress.flush_with_ack()
+                ack = self.dtesp.flush_with_ack()
                 if ack:
                     msg = "Flush acknowledged"
                     log_msg = "SOH (Flush acknowledged)"
@@ -777,14 +777,14 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _on_query_status(self):
         """Query device status via ENQ and display the result."""
-        if not self.espress.connected:
+        if not self.dtesp.connected:
             return
 
         self._log("TX", "ENQ (Query Status)")
 
         def do_query():
             try:
-                status = self.espress.request_status()
+                status = self.dtesp.request_status()
                 self._signals.device_status.emit(status, False)
             except Exception as exc:
                 self._set_status_from_thread("Error: %s" % str(exc))
@@ -838,9 +838,9 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _poll_status_loop(self):
         """Background thread that periodically polls device status."""
-        while self._polling and self.espress.connected:
+        while self._polling and self.dtesp.connected:
             try:
-                status = self.espress.request_status()
+                status = self.dtesp.request_status()
                 if status >= 0:
                     self._signals.device_status.emit(status, True)
             except Exception:
@@ -871,8 +871,8 @@ class DECtalkESPressGUIQt(QMainWindow):
     def closeEvent(self, event):
         """Clean up on window close."""
         self._polling = False
-        if self.espress.connected:
-            self.espress.disconnect()
+        if self.dtesp.connected:
+            self.dtesp.disconnect()
         event.accept()
 
 

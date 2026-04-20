@@ -14,12 +14,12 @@ a regular serial (COM / ttyACM) port.
 Usage:
     from dtesp_serial import DECtalkESPressSerial
 
-    espress = DECtalkESPressSerial()
-    espress.connect("/dev/ttyACM0")
-    espress.speak("Hello world")
-    status = espress.request_status()
-    espress.flush()
-    espress.disconnect()
+    dtesp = DECtalkESPressSerial()
+    dtesp.connect("/dev/ttyACM0")
+    dtesp.speak("Hello world")
+    status = dtesp.request_status()
+    dtesp.flush()
+    dtesp.disconnect()
 """
 
 import serial

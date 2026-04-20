@@ -18,7 +18,7 @@ microcontroller.
   - [Pitch Control](#pitch-control)
   - [Text Editing](#text-editing)
   - [DECtalk Inline Commands](#dectalk-inline-commands)
-- [ESPress GUI (`dtesp_gui_qt.py`)](#espress-gui-dtesp_gui_qtpy)
+- [ESPress GUI (`dtesp_gui_qt.py`)](#dtesp-gui-dtesp_gui_qtpy)
 - [DECtalk ESPress Protocol](#dectalk-espress-protocol)
   - [Key Protocol Elements](#key-protocol-elements)
 - [Python API Module](#python-api-module)
@@ -154,42 +154,42 @@ The `dtesp_serial.py` module can be used independently from the GUI:
 ```python
 from dtesp_serial import DECtalkESPressSerial
 
-espress = DECtalkESPressSerial()
+dtesp = DECtalkESPressSerial()
 
 # List available serial ports
 print(DECtalkESPressSerial.list_ports())
 
 # Connect to the ESP32
-espress.connect("/dev/ttyACM0")
+dtesp.connect("/dev/ttyACM0")
 
 # Detect device (same probe as the original comchk utility)
-if espress.detect_device():
+if dtesp.detect_device():
     print("DECtalk device detected!")
 
 # Send text (device speaks it immediately)
-espress.send_text("Hello world.")
+dtesp.send_text("Hello world.")
 
 # Speak with voice and rate (uses inline commands)
-espress.speak("Now I am Betty.", voice="Betty", rate=250)
+dtesp.speak("Now I am Betty.", voice="Betty", rate=250)
 
 # Request device status
-status = espress.request_status()
+status = dtesp.request_status()
 if status >= 0:
     print("Device status: 0x%04X" % status)
 
 # Pause and resume speech
-espress.pause()
-espress.resume()
+dtesp.pause()
+dtesp.resume()
 
 # Flush (cancel) all speech
-espress.flush()
+dtesp.flush()
 
 # Flush with acknowledgment (TSR FLUSH_TEXT sequence)
-if espress.flush_with_ack():
+if dtesp.flush_with_ack():
     print("Flush acknowledged")
 
 # Disconnect
-espress.disconnect()
+dtesp.disconnect()
 ```
 
 ### Available Voices
