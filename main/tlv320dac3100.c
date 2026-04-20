@@ -123,7 +123,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
 #define TLV320_HP_DRIVERS_ALT_MODE      0xCC  // HPL/HPR powered, 1.50 V CM
 #define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
-#define TLV320_HP_POP_DIAGNOSTIC_VALUE   0xBE // wait-for-powerdown + 304 ms + 3.9 ms ramp
+#define TLV320_HP_POP_DIAGNOSTIC_VALUE   0xBE // b7 wait-for-powerdown, b6:3=0x7 (304 ms), b2:1=0x3 (3.9 ms ramp)
 #define TLV320_PGA_RAMP_DIAGNOSTIC_VALUE 0x40 // conservative output-driver ramp timing
 #define TLV320_HP_DRIVER_CTRL_HEADPHONE_VALUE 0x00 // normal headphone mode, not line-out
 #define TLV320_EVENT_QUEUE_LEN      8
@@ -287,9 +287,10 @@ static const reg_val_t analog_driver_init[] =
     {REG_SPK_DRIVER,   0x04},   // SPK: 6 dB class-D gain, unmuted
 };
 
-// Diagnostic-only headphone control block: mirrors the missing page-1
-// headphone-control writes seen in the Adafruit TLV320 setup so headphone
-// clarity can be evaluated without changing speaker behavior.
+// Diagnostic-only headphone control block: mirrors the page-1 headphone
+// controls exposed by Adafruit_TLV320DAC3100::configureHeadphonePop(),
+// setSpeakerWaitTime(), and headphoneLineout() so headphone clarity can be
+// evaluated without changing speaker behavior.
 static const reg_val_t headphone_control_diag_cfg[] =
 {
     {REG_HP_POP,         TLV320_HP_POP_DIAGNOSTIC_VALUE},
