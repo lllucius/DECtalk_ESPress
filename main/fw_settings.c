@@ -12,26 +12,26 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_ESPRESS_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
 #endif
 
 static const char *TAG = "fw_settings";
 
-#define FW_SETTINGS_NS          "dectalk_fw"
+#define FW_SETTINGS_NS          "espress_fw"
 #define FW_SETTINGS_KEY_VOL     "vol"
 #define FW_SETTINGS_KEY_PROFILE "profile"
 #define FW_SETTINGS_KEY_AUTOSW  "autoswitch"
 
 // Compile-time factory defaults pulled from Kconfig.
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
-#define FW_DEFAULT_VOLUME ((uint8_t)CONFIG_DECTALK_TLV320_STARTUP_VOLUME)
-#if CONFIG_DECTALK_TLV320_DEFAULT_PROFILE_HEADPHONE
+#if CONFIG_ESPRESS_DAC_TLV320DAC3100
+#define FW_DEFAULT_VOLUME ((uint8_t)CONFIG_ESPRESS_TLV320_STARTUP_VOLUME)
+#if CONFIG_ESPRESS_TLV320_DEFAULT_PROFILE_HEADPHONE
 #define FW_DEFAULT_PROFILE ((uint8_t)1)
 #else
 #define FW_DEFAULT_PROFILE ((uint8_t)0)
 #endif
-#if CONFIG_DECTALK_TLV320_HEADSET_AUTOSWITCH
+#if CONFIG_ESPRESS_TLV320_HEADSET_AUTOSWITCH
 #define FW_DEFAULT_AUTOSW ((uint8_t)1)
 #else
 #define FW_DEFAULT_AUTOSW ((uint8_t)0)
@@ -123,7 +123,7 @@ esp_err_t fw_settings_init(void)
 
 void fw_settings_apply(void)
 {
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_ESPRESS_DAC_TLV320DAC3100
     tlv320dac3100_set_autoswitch(s_autoswitch != 0);
 
     tlv320_profile_t tp = (s_profile == 1)

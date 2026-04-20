@@ -4,7 +4,7 @@
 // DECtalk ESPress Serial Protocol Emulation - Implementation
 //
 // Emulates the DECtalk ESPress serial host <-> device protocol on ESP32.
-// See dectalk_espress.h for protocol documentation.
+// See espress.h for protocol documentation.
 // ----------------------------------------------------------------
 
 #include <pthread.h>
@@ -19,11 +19,11 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "esp_pthread.h"
-#if CONFIG_DECTALK_DISABLE_RGB_LED
+#if CONFIG_ESPRESS_DISABLE_RGB_LED
 #include "driver/gpio.h"
 #endif
 #include "ttsapi.h"
-#include "dectalk_espress.h"
+#include "espress.h"
 #include "diag_mem.h"
 #include "espress_jobs.h"
 #include "espress_job_pool.h"
@@ -38,15 +38,15 @@
 
 static const char *TAG = "DECtalk ESPress";
 
-static esp_log_level_t dectalk_log_level(void)
+static esp_log_level_t espress_log_level(void)
 {
-#if CONFIG_DECTALK_LOG_LEVEL_ERROR
+#if CONFIG_ESPRESS_LOG_LEVEL_ERROR
     return ESP_LOG_ERROR;
-#elif CONFIG_DECTALK_LOG_LEVEL_WARN
+#elif CONFIG_ESPRESS_LOG_LEVEL_WARN
     return ESP_LOG_WARN;
-#elif CONFIG_DECTALK_LOG_LEVEL_INFO
+#elif CONFIG_ESPRESS_LOG_LEVEL_INFO
     return ESP_LOG_INFO;
-#elif CONFIG_DECTALK_LOG_LEVEL_DEBUG
+#elif CONFIG_ESPRESS_LOG_LEVEL_DEBUG
     return ESP_LOG_DEBUG;
 #else
     return ESP_LOG_VERBOSE;
@@ -55,7 +55,7 @@ static esp_log_level_t dectalk_log_level(void)
 
 static void configure_logging(void)
 {
-    esp_log_level_t log_level = dectalk_log_level();
+    esp_log_level_t log_level = espress_log_level();
 
     esp_log_level_set(TAG, log_level);
 #if CONFIG_IDF_TARGET_ESP32C6
@@ -66,15 +66,15 @@ static void configure_logging(void)
     esp_log_level_set("DIAG", log_level);
 }
 
-#define ESPRESS_SPEECH_TASK_CORE CONFIG_DECTALK_SPEECH_TASK_CORE
-#define ESPRESS_MAIN_STACK_SIZE  CONFIG_DECTALK_MAIN_TASK_STACK_SIZE
+#define ESPRESS_SPEECH_TASK_CORE CONFIG_ESPRESS_SPEECH_TASK_CORE
+#define ESPRESS_MAIN_STACK_SIZE  CONFIG_ESPRESS_MAIN_TASK_STACK_SIZE
 
 
 // -- Configuration ---------------------------------------------------
 
-#define ESPRESS_TEXT_BUFSIZE  CONFIG_DECTALK_TEXT_BUFFER_SIZE   // Text accumulation buffer size
-#define ESPRESS_QUEUE_SIZE    CONFIG_DECTALK_SPEECH_QUEUE_SIZE  // Speech queue depth
-#define ESPRESS_RX_TIMEOUT_MS CONFIG_DECTALK_RX_TIMEOUT_MS      // CDC read timeout in ms
+#define ESPRESS_TEXT_BUFSIZE  CONFIG_ESPRESS_TEXT_BUFFER_SIZE   // Text accumulation buffer size
+#define ESPRESS_QUEUE_SIZE    CONFIG_ESPRESS_SPEECH_QUEUE_SIZE  // Speech queue depth
+#define ESPRESS_RX_TIMEOUT_MS CONFIG_ESPRESS_RX_TIMEOUT_MS      // CDC read timeout in ms
 
 // Flow control thresholds (fraction of text buffer size)
 #define HIWATER_NUM 2   // Send XOFF at 2/3 full
@@ -89,7 +89,7 @@ static void configure_logging(void)
 #define QUEUE_LOWATER_DEN   4
 
 // Text flush timeout: if no new chars arrive for this many ms, flush
-#define TEXT_IDLE_TIMEOUT_MS CONFIG_DECTALK_TEXT_IDLE_TIMEOUT_MS
+#define TEXT_IDLE_TIMEOUT_MS CONFIG_ESPRESS_TEXT_IDLE_TIMEOUT_MS
 
 // Mask to extract the control sub-command class from cmd_sub,
 // ignoring any data payload in the lower bits (e.g. volume level).
@@ -592,7 +592,7 @@ static void espress_process_dle(void)
                 espress_send_byte(SOH);
                 break;
 
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_ESPRESS_DAC_TLV320DAC3100
             case CTRL_vol_up:
             {
                 uint8_t vol = tlv320dac3100_get_volume();
@@ -1061,7 +1061,7 @@ static void espress_process_byte(uint8_t c)
         return;
 
     default:
-        if (dectalk_is_sync_char(c))
+        if (espress_is_sync_char(c))
         {
             espress_handle_sync_char("raw 0xFF");
             return;
@@ -1193,7 +1193,7 @@ static void *espress_task(void *arg)
             estate.status = STAT_rr_char | STAT_cmd_ready;
 
             // Reset custom command session state if configured
-#if defined(CONFIG_DECTALK_FW_CMD_ENABLE) && defined(CONFIG_DECTALK_FW_CMD_RESET_ON_RECONNECT)
+#if defined(CONFIG_ESPRESS_FW_CMD_ENABLE) && defined(CONFIG_ESPRESS_FW_CMD_RESET_ON_RECONNECT)
             custom_commands_reset_session();
 #endif
 
@@ -1299,21 +1299,21 @@ void app_main(void)
 {
     configure_logging();
 
-#if CONFIG_DECTALK_ENABLE_DIAG_MEM
+#if CONFIG_ESPRESS_ENABLE_DIAG_MEM
     diag_mem_start();
 #endif
 
-#if CONFIG_DECTALK_DISABLE_RGB_LED
+#if CONFIG_ESPRESS_DISABLE_RGB_LED
     // Drive the onboard RGB LED data line low to keep the LED dark.
     gpio_config_t led_cfg = {
-        .pin_bit_mask = 1ULL << CONFIG_DECTALK_RGB_LED_GPIO,
+        .pin_bit_mask = 1ULL << CONFIG_ESPRESS_RGB_LED_GPIO,
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&led_cfg));
-    ESP_ERROR_CHECK(gpio_set_level(CONFIG_DECTALK_RGB_LED_GPIO, 0));
+    ESP_ERROR_CHECK(gpio_set_level(CONFIG_ESPRESS_RGB_LED_GPIO, 0));
 #endif
 
     // Initialize audio subsystem (I2S + codec if configured)

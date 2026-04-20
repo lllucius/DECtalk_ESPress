@@ -27,7 +27,7 @@
 #include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#if CONFIG_DECTALK_DAC_TLV320DAC3100
+#if CONFIG_ESPRESS_DAC_TLV320DAC3100
 #include "tlv320dac3100.h"
 #include "fw_settings.h"
 #endif
@@ -81,7 +81,7 @@ static void gpio_execute(void *ctx)
     gpio_action_ctx_t *g = (gpio_action_ctx_t *)ctx;
     LOG_I("GPIO action: pin=%d level=%d", g->pin, g->level);
 #if defined(ESP_PLATFORM) && \
-    (!defined(CONFIG_DECTALK_FW_CMD_ENABLE) || defined(CONFIG_DECTALK_FW_CMD_GPIO_ENABLE))
+    (!defined(CONFIG_ESPRESS_FW_CMD_ENABLE) || defined(CONFIG_ESPRESS_FW_CMD_GPIO_ENABLE))
     gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << g->pin,
         .mode = GPIO_MODE_OUTPUT,
@@ -116,32 +116,32 @@ espress_job_t *custom_action_gpio(int argc, const char **argv)
     // accidentally clobber them via [:fw gpio <n> on].
     static const int reserved[] =
     {
-# ifdef CONFIG_DECTALK_I2S_BCK_GPIO
-        CONFIG_DECTALK_I2S_BCK_GPIO,
+# ifdef CONFIG_ESPRESS_I2S_BCK_GPIO
+        CONFIG_ESPRESS_I2S_BCK_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_I2S_WS_GPIO
-        CONFIG_DECTALK_I2S_WS_GPIO,
+# ifdef CONFIG_ESPRESS_I2S_WS_GPIO
+        CONFIG_ESPRESS_I2S_WS_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_I2S_DO_GPIO
-        CONFIG_DECTALK_I2S_DO_GPIO,
+# ifdef CONFIG_ESPRESS_I2S_DO_GPIO
+        CONFIG_ESPRESS_I2S_DO_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_I2S_MCLK_GPIO
-        CONFIG_DECTALK_I2S_MCLK_GPIO,
+# ifdef CONFIG_ESPRESS_I2S_MCLK_GPIO
+        CONFIG_ESPRESS_I2S_MCLK_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_I2C_SDA_GPIO
-        CONFIG_DECTALK_I2C_SDA_GPIO,
+# ifdef CONFIG_ESPRESS_I2C_SDA_GPIO
+        CONFIG_ESPRESS_I2C_SDA_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_I2C_SCL_GPIO
-        CONFIG_DECTALK_I2C_SCL_GPIO,
+# ifdef CONFIG_ESPRESS_I2C_SCL_GPIO
+        CONFIG_ESPRESS_I2C_SCL_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_CODEC_INT_GPIO
-        CONFIG_DECTALK_CODEC_INT_GPIO,
+# ifdef CONFIG_ESPRESS_CODEC_INT_GPIO
+        CONFIG_ESPRESS_CODEC_INT_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_CODEC_RESET_GPIO
-        CONFIG_DECTALK_CODEC_RESET_GPIO,
+# ifdef CONFIG_ESPRESS_CODEC_RESET_GPIO
+        CONFIG_ESPRESS_CODEC_RESET_GPIO,
 # endif
-# ifdef CONFIG_DECTALK_RGB_LED_GPIO
-        CONFIG_DECTALK_RGB_LED_GPIO,
+# ifdef CONFIG_ESPRESS_RGB_LED_GPIO
+        CONFIG_ESPRESS_RGB_LED_GPIO,
 # endif
     };
     for (size_t i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++)
@@ -311,7 +311,7 @@ espress_job_t *custom_action_rate(int argc, const char **argv)
 // Tone handler: [:fw tone <freq_hz> <duration_ms>]
 //
 // Generates a square-wave tone via the LEDC PWM peripheral.  The
-// tone GPIO is configured via CONFIG_DECTALK_TONE_GPIO (Kconfig).
+// tone GPIO is configured via CONFIG_ESPRESS_TONE_GPIO (Kconfig).
 // On non-ESP builds or when the tone GPIO is not configured, falls
 // back to a diagnostic log.
 // ================================================================
@@ -327,8 +327,8 @@ static void tone_execute(void *ctx)
     tone_action_ctx_t *t = (tone_action_ctx_t *)ctx;
     LOG_I("tone action: freq=%d Hz, duration=%d ms", t->freq_hz, t->duration_ms);
 
-#if defined(ESP_PLATFORM) && defined(CONFIG_DECTALK_TONE_GPIO) && \
-    (CONFIG_DECTALK_TONE_GPIO >= 0)
+#if defined(ESP_PLATFORM) && defined(CONFIG_ESPRESS_TONE_GPIO) && \
+    (CONFIG_ESPRESS_TONE_GPIO >= 0)
     ledc_timer_config_t timer_cfg = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_8_BIT,
@@ -343,7 +343,7 @@ static void tone_execute(void *ctx)
     }
 
     ledc_channel_config_t chan_cfg = {
-        .gpio_num = CONFIG_DECTALK_TONE_GPIO,
+        .gpio_num = CONFIG_ESPRESS_TONE_GPIO,
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .channel = LEDC_CHANNEL_0,
         .timer_sel = LEDC_TIMER_0,
@@ -362,7 +362,7 @@ static void tone_execute(void *ctx)
     ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
 #else
     (void)t;
-    LOG_W("tone: no tone GPIO configured (set CONFIG_DECTALK_TONE_GPIO)");
+    LOG_W("tone: no tone GPIO configured (set CONFIG_ESPRESS_TONE_GPIO)");
 #endif
 }
 
@@ -422,7 +422,7 @@ static void volume_execute(void *ctx)
         return;
     }
     LOG_I("volume action: level=%u", (unsigned)v->level);
-#if defined(ESP_PLATFORM) && CONFIG_DECTALK_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
     fw_settings_set_volume(v->level);
     tlv320dac3100_set_volume(v->level);
 #endif
@@ -480,7 +480,7 @@ static void profile_execute(void *ctx)
     }
     LOG_I("profile action: %s",
           p->profile == 0 ? "speaker" : "headphone");
-#if defined(ESP_PLATFORM) && CONFIG_DECTALK_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
     tlv320_profile_t tp = (p->profile == 1)
                               ? TLV320_PROFILE_HEADPHONE
                               : TLV320_PROFILE_SPEAKER;
@@ -545,7 +545,7 @@ static void autoswitch_execute(void *ctx)
         return;
     }
     LOG_I("autoswitch action: %s", a->enable ? "on" : "off");
-#if defined(ESP_PLATFORM) && CONFIG_DECTALK_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
     fw_settings_set_autoswitch(a->enable ? 1 : 0);
     tlv320dac3100_set_autoswitch(a->enable ? true : false);
 #endif
@@ -594,7 +594,7 @@ static void save_execute(void *ctx)
 {
     (void)ctx;
     LOG_I("save action: persisting firmware settings to NVS");
-#if defined(ESP_PLATFORM) && CONFIG_DECTALK_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_ESPRESS_DAC_TLV320DAC3100
     esp_err_t err = fw_settings_save();
     if (err != ESP_OK)
     {
@@ -624,7 +624,7 @@ static const custom_cmd_entry_t action_table[] =
     { "voice",      custom_action_voice      },
     { "rate",       custom_action_rate       },
 #if !defined(ESP_PLATFORM) || \
-    (defined(CONFIG_DECTALK_FW_CMD_ENABLE) && defined(CONFIG_DECTALK_FW_CMD_TONE_ENABLE))
+    (defined(CONFIG_ESPRESS_FW_CMD_ENABLE) && defined(CONFIG_ESPRESS_FW_CMD_TONE_ENABLE))
     { "tone",       custom_action_tone       },
 #endif
     { "volume",     custom_action_volume     },

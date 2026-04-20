@@ -12,7 +12,7 @@ CDC-ACM port.  From the host's perspective the USB CDC device appears as
 a regular serial (COM / ttyACM) port.
 
 Usage:
-    from dectalk_serial import DECtalkESPressSerial
+    from espress_serial import DECtalkESPressSerial
 
     espress = DECtalkESPressSerial()
     espress.connect("/dev/ttyACM0")
@@ -59,7 +59,7 @@ PITCH_MAX = 400
 PITCH_DEFAULT = 0  # 0 means use voice default
 
 
-def build_dectalk_prefix(voice=None, rate=None, pitch=None):
+def build_espress_prefix(voice=None, rate=None, pitch=None):
     """Build a DECtalk inline command prefix string.
 
     Args:
@@ -319,7 +319,7 @@ class DECtalkESPressSerial:
         Raises:
             ConnectionError: If not connected.
         """
-        prefix = build_dectalk_prefix(voice=voice, rate=rate, pitch=pitch)
+        prefix = build_espress_prefix(voice=voice, rate=rate, pitch=pitch)
         self.send_text(prefix + text)
 
     def flush(self):

@@ -21,7 +21,7 @@ DLE sequences instead of the line-based API protocol used by the standard
 GUI.  This makes it compatible with the original DECtalk ESPress hardware.
 
 Usage:
-    python dectalk_espress_gui_qt.py
+    python espress_gui_qt.py
 
 Requirements:
     pip install PySide6 pyserial
@@ -55,7 +55,7 @@ except ImportError:
 # Allow running from the host/ directory or the repo root
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from dectalk_serial import (
+from espress_serial import (
     DECtalkESPressSerial,
     VOICES,
     RATE_MIN,
@@ -70,7 +70,7 @@ from dectalk_serial import (
     ESPRESS_STAT_CMD_READY,
     ESPRESS_STAT_NEW_INDEX,
     ESPRESS_STAT_FLUSHING,
-    build_dectalk_prefix,
+    build_espress_prefix,
 )
 
 
@@ -696,7 +696,7 @@ class DECtalkESPressGUIQt(QMainWindow):
         self._set_status("Sending text...")
 
         # Build the prefixed text for logging
-        prefix = build_dectalk_prefix(voice=voice, rate=rate, pitch=pitch)
+        prefix = build_espress_prefix(voice=voice, rate=rate, pitch=pitch)
         full_text = prefix + text
         log_text = (
             full_text

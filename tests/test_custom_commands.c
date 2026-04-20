@@ -102,7 +102,7 @@ TEST(plain_text_passthrough)
 // ----------------------------------------------------------------
 // 2. Native DECtalk command pass-through
 // ----------------------------------------------------------------
-TEST(native_dectalk_passthrough)
+TEST(native_espress_passthrough)
 {
     espress_job_list_t jobs;
     int rc = custom_commands_tokenize("Hello [:nb] world", &jobs);
@@ -118,7 +118,7 @@ TEST(native_dectalk_passthrough)
 // ----------------------------------------------------------------
 // 3. Native DECtalk command with arguments
 // ----------------------------------------------------------------
-TEST(native_dectalk_with_args)
+TEST(native_espress_with_args)
 {
     espress_job_list_t jobs;
     int rc = custom_commands_tokenize("[:ra 200] Testing [:dv ap 120]", &jobs);
@@ -570,8 +570,8 @@ int main(void)
     printf("=== Custom Command Parser Tests ===\n\n");
 
     run_test_plain_text_passthrough();
-    run_test_native_dectalk_passthrough();
-    run_test_native_dectalk_with_args();
+    run_test_native_espress_passthrough();
+    run_test_native_espress_with_args();
     run_test_single_fw_command();
     run_test_mixed_ordering();
     run_test_multiple_fw_commands();

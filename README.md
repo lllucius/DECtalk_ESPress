@@ -57,7 +57,7 @@ advancing DECtalk for everyone.
   (PCM5102, MAX98357A, etc.)
 - **Configurable via `menuconfig`** — I2S pins, DMA tuning,
   flow-control thresholds, task pinning, and more; no source edits needed
-- **Python host tools** — a serial API module (`dectalk_serial.py`) and
+- **Python host tools** — a serial API module (`espress_serial.py`) and
   GUI applications for controlling the device from a PC
 - **Memory diagnostics** — optional runtime task that logs per-task stack
   high-water marks and heap fragmentation statistics
@@ -189,8 +189,8 @@ The firmware's host transport depends on the target:
 | Interface | Purpose | How to access |
 |-----------|---------|---------------|
 | **UART0** (`CONFIG_ESP_CONSOLE_UART_DEFAULT`) | ESP-IDF console, `ESP_LOG` output, boot messages | Connect via the board's UART USB bridge (`/dev/ttyUSB0` or similar); use `idf.py monitor` |
-| **USB CDC-ACM** (TinyUSB, **ESP32-S3**) | ESPress protocol data — host ↔ device text, control chars, DLE sequences | Connect via the native USB port (`/dev/ttyACM0` or similar); use `host/dectalk_serial.py` or any serial terminal |
-| **USB Serial/JTAG** (**ESP32-C6**) | ESPress protocol data — host ↔ device text, control chars, DLE sequences | Connect via the native USB Serial/JTAG port exposed by the board; use `host/dectalk_serial.py` or any serial terminal |
+| **USB CDC-ACM** (TinyUSB, **ESP32-S3**) | ESPress protocol data — host ↔ device text, control chars, DLE sequences | Connect via the native USB port (`/dev/ttyACM0` or similar); use `host/espress_serial.py` or any serial terminal |
+| **USB Serial/JTAG** (**ESP32-C6**) | ESPress protocol data — host ↔ device text, control chars, DLE sequences | Connect via the native USB Serial/JTAG port exposed by the board; use `host/espress_serial.py` or any serial terminal |
 
 On **ESP32-S3**, this separation means log output never corrupts the ESPress
 byte stream and protocol debugging is straightforward.  On **ESP32-C6**, the
@@ -222,7 +222,7 @@ and XON.
 | Index markers | DLE INDEX (`0x50`) followed by DLE STATUS (`0x40`) |
 | Device ready | XON sent on power-up and after each host reconnection |
 
-See `main/dectalk_espress.h` for the full protocol constant definitions and
+See `main/espress.h` for the full protocol constant definitions and
 encoding/decoding helpers.
 
 ## Host Tools
@@ -230,14 +230,14 @@ encoding/decoding helpers.
 The `host/` directory contains Python-based host software.  See
 **[host/README.md](host/README.md)** for full details.
 
-- **`dectalk_serial.py`** — `DECtalkESPressSerial` class implementing the
+- **`espress_serial.py`** — `DECtalkESPressSerial` class implementing the
   ESPress protocol: connect, speak, flush, pause/resume, status query,
   device detection.
-- **`dectalk_espress_gui.py`** — Tkinter GUI with voice/rate/pitch controls,
+- **`espress_gui_qt.py`** — Tkinter GUI with voice/rate/pitch controls,
   pause/resume/flush buttons, device status panel, and a communications log.
 
 ```python
-from dectalk_serial import DECtalkESPressSerial
+from espress_serial import DECtalkESPressSerial
 
 dt = DECtalkESPressSerial()
 dt.connect("/dev/ttyACM0")

@@ -33,22 +33,22 @@ extern "C" {
 // ----------------------------------------------------------------
 // Configuration defaults (overridden by Kconfig when available)
 // ----------------------------------------------------------------
-#ifdef CONFIG_DECTALK_FW_CMD_NAMESPACE
-#define DECTALK_FW_CMD_NAMESPACE  CONFIG_DECTALK_FW_CMD_NAMESPACE
+#ifdef CONFIG_ESPRESS_FW_CMD_NAMESPACE
+#define ESPRESS_FW_CMD_NAMESPACE  CONFIG_ESPRESS_FW_CMD_NAMESPACE
 #else
-#define DECTALK_FW_CMD_NAMESPACE  "fw"
+#define ESPRESS_FW_CMD_NAMESPACE  "fw"
 #endif
 
-#ifdef CONFIG_DECTALK_FW_CMD_MAX_TOKEN_LEN
-#define DECTALK_FW_CMD_MAX_TOKEN_LEN  CONFIG_DECTALK_FW_CMD_MAX_TOKEN_LEN
+#ifdef CONFIG_ESPRESS_FW_CMD_MAX_TOKEN_LEN
+#define ESPRESS_FW_CMD_MAX_TOKEN_LEN  CONFIG_ESPRESS_FW_CMD_MAX_TOKEN_LEN
 #else
-#define DECTALK_FW_CMD_MAX_TOKEN_LEN  128
+#define ESPRESS_FW_CMD_MAX_TOKEN_LEN  128
 #endif
 
-#ifdef CONFIG_DECTALK_FW_CMD_MAX_ARGS
-#define DECTALK_FW_CMD_MAX_ARGS  CONFIG_DECTALK_FW_CMD_MAX_ARGS
+#ifdef CONFIG_ESPRESS_FW_CMD_MAX_ARGS
+#define ESPRESS_FW_CMD_MAX_ARGS  CONFIG_ESPRESS_FW_CMD_MAX_ARGS
 #else
-#define DECTALK_FW_CMD_MAX_ARGS  8
+#define ESPRESS_FW_CMD_MAX_ARGS  8
 #endif
 
 // ----------------------------------------------------------------

@@ -26,7 +26,7 @@
 static const char *TAG = "USB-CDC";
 
 // Stream buffer bridging the TinyUSB task and the application task
-#define CDC_RX_STREAM_SIZE   CONFIG_DECTALK_CDC_RX_STREAM_SIZE
+#define CDC_RX_STREAM_SIZE   CONFIG_ESPRESS_CDC_RX_STREAM_SIZE
 #define CDC_RX_TRIGGER_LEVEL 1
 
 static StreamBufferHandle_t rx_stream;

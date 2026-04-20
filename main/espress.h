@@ -15,8 +15,8 @@
 //   - Device -> Host: DLE status sequences + XON/XOFF flow control
 // ----------------------------------------------------------------
 
-#ifndef DECTALK_ESPRESS_H
-#define DECTALK_ESPRESS_H
+#ifndef ESPRESS_H
+#define ESPRESS_H
 
 #include <stdint.h>
 #include "port.h"
@@ -145,8 +145,8 @@ static inline uint16_t dle_decode_word(const uint8_t *buf)
 // into the command parser as CMD_sync_char.  It is a synchronisation marker,
 // not spoken text.
 // ----------------------------------------------------------------
-static inline int dectalk_is_sync_char(uint8_t c)
+static inline int espress_is_sync_char(uint8_t c)
 {
     return c == RDEL;
 }
-#endif // DECTALK_ESPRESS_H
+#endif // ESPRESS_H

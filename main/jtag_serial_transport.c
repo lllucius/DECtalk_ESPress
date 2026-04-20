@@ -64,8 +64,8 @@ esp_err_t jtag_serial_transport_init(void)
     // Install the USB Serial/JTAG driver with application-level
     // RX and TX ring buffers.
     usb_serial_jtag_driver_config_t cfg = {
-        .rx_buffer_size = CONFIG_DECTALK_JTAG_RX_BUF_SIZE,
-        .tx_buffer_size = CONFIG_DECTALK_JTAG_TX_BUF_SIZE,
+        .rx_buffer_size = CONFIG_ESPRESS_JTAG_RX_BUF_SIZE,
+        .tx_buffer_size = CONFIG_ESPRESS_JTAG_TX_BUF_SIZE,
     };
 
     esp_err_t err = usb_serial_jtag_driver_install(&cfg);

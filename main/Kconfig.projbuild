@@ -4,14 +4,14 @@
 menu "DECtalk ESPress Firmware"
 
     menu "Audio output"
-        choice DECTALK_DAC_TYPE
+        choice ESPRESS_DAC_TYPE
             prompt "Audio DAC"
-            default DECTALK_DAC_GENERIC
+            default ESPRESS_DAC_GENERIC
             help
                 Select the audio DAC or amplifier board connected to the
                 I2S output.
 
-            config DECTALK_DAC_GENERIC
+            config ESPRESS_DAC_GENERIC
                 bool "Generic I2S DAC (MAX98357A, PCM5102, etc.)"
                 help
                     Simple I2S DAC or amplifier that requires no I2C
@@ -19,7 +19,7 @@ menu "DECtalk ESPress Firmware"
                     and similar boards that derive their clocks from
                     BCLK and WS alone.
 
-            config DECTALK_DAC_TLV320DAC3100
+            config ESPRESS_DAC_TLV320DAC3100
                 bool "Adafruit TLV320DAC3100 breakout"
                 help
                     TI TLV320DAC3100 stereo DAC with headphone amplifier
@@ -28,28 +28,28 @@ menu "DECtalk ESPress Firmware"
                     needed; the codec derives its clock from BCLK.
         endchoice
 
-        config DECTALK_I2S_BCK_GPIO
+        config ESPRESS_I2S_BCK_GPIO
             int "I2S BCK GPIO"
             default 21
             range 0 48
             help
                 GPIO used for the I2S bit clock output.
 
-        config DECTALK_I2S_WS_GPIO
+        config ESPRESS_I2S_WS_GPIO
             int "I2S WS GPIO"
             default 20
             range 0 48
             help
                 GPIO used for the I2S word select / LRCK output.
 
-        config DECTALK_I2S_DO_GPIO
+        config ESPRESS_I2S_DO_GPIO
             int "I2S data out GPIO"
             default 19
             range 0 48
             help
                 GPIO used for the I2S serial data output.
 
-        config DECTALK_I2S_MCLK_GPIO
+        config ESPRESS_I2S_MCLK_GPIO
             int "I2S MCLK GPIO (-1 to disable)"
             default -1
             range -1 48
@@ -66,38 +66,38 @@ menu "DECtalk ESPress Firmware"
                 11025 Hz where BCLK alone is far below the codec's
                 minimum DAC_MOD_CLK of ~2.8 MHz.
 
-                Only has an effect when DECTALK_DAC_TLV320DAC3100 is
+                Only has an effect when ESPRESS_DAC_TLV320DAC3100 is
                 selected; the generic DAC path does not require MCLK.
 
-        config DECTALK_I2C_SDA_GPIO
+        config ESPRESS_I2C_SDA_GPIO
             int "I2C SDA GPIO"
             default 18
             range 0 48
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
             help
                 GPIO used for the I2C data line to the TLV320DAC3100.
 
-        config DECTALK_I2C_SCL_GPIO
+        config ESPRESS_I2C_SCL_GPIO
             int "I2C SCL GPIO"
             default 9
             range 0 48
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
             help
                 GPIO used for the I2C clock line to the TLV320DAC3100.
 
-        config DECTALK_TLV320_I2C_ADDR
+        config ESPRESS_TLV320_I2C_ADDR
             hex "TLV320DAC3100 I2C address"
             default 0x18
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
             help
                 7-bit I2C address of the TLV320DAC3100.  The Adafruit
                 breakout board defaults to 0x18.
 
-        config DECTALK_CODEC_INT_GPIO
+        config ESPRESS_CODEC_INT_GPIO
             int "TLV320DAC3100 interrupt GPIO"
             default 15
             range -1 48
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
             help
                 MCU GPIO connected to the TLV320DAC3100 interrupt output.
 
@@ -106,11 +106,11 @@ menu "DECtalk ESPress Firmware"
                 interrupt-capable input and defers codec register reads to a
                 task context.
 
-        config DECTALK_CODEC_RESET_GPIO
+        config ESPRESS_CODEC_RESET_GPIO
             int "TLV320DAC3100 reset GPIO"
             default 22
             range -1 48
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
             help
                 MCU GPIO connected to the TLV320DAC3100 active-low reset pin.
 
@@ -119,13 +119,13 @@ menu "DECtalk ESPress Firmware"
                 a hardware reset pulse before codec register configuration.
 
         menu "TLV320DAC3100 defaults"
-            depends on DECTALK_DAC_TLV320DAC3100
+            depends on ESPRESS_DAC_TLV320DAC3100
 
             comment "Additional EQ and gain options may be added later after hardware tuning is validated."
 
-            choice DECTALK_TLV320_DEFAULT_PROFILE
+            choice ESPRESS_TLV320_DEFAULT_PROFILE
                 prompt "Default output profile"
-                default DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
+                default ESPRESS_TLV320_DEFAULT_PROFILE_SPEAKER
                 help
                     Factory-default startup output profile used when NVS does
                     not yet contain a saved value.  The runtime profile can
@@ -135,14 +135,14 @@ menu "DECtalk ESPress Firmware"
                     Low-level DSP and register tuning are intentionally not
                     exposed here yet.
 
-                config DECTALK_TLV320_DEFAULT_PROFILE_SPEAKER
+                config ESPRESS_TLV320_DEFAULT_PROFILE_SPEAKER
                     bool "Speaker"
 
-                config DECTALK_TLV320_DEFAULT_PROFILE_HEADPHONE
+                config ESPRESS_TLV320_DEFAULT_PROFILE_HEADPHONE
                     bool "Headphone"
             endchoice
 
-            config DECTALK_TLV320_HEADSET_AUTOSWITCH
+            config ESPRESS_TLV320_HEADSET_AUTOSWITCH
                 bool "Enable headset auto-switching"
                 default y
                 help
@@ -154,7 +154,7 @@ menu "DECtalk ESPress Firmware"
                     [:fw autoswitch on|off] and persisted with [:fw save].
                     Jack-detect tuning is intentionally not exposed yet.
 
-            config DECTALK_TLV320_STARTUP_VOLUME
+            config ESPRESS_TLV320_STARTUP_VOLUME
                 int "Startup digital volume"
                 range 0 9
                 default 5
@@ -169,14 +169,14 @@ menu "DECtalk ESPress Firmware"
         endmenu
 
         menu "Advanced audio tuning"
-            config DECTALK_I2S_DMA_DESC_NUM
+            config ESPRESS_I2S_DMA_DESC_NUM
                 int "I2S DMA descriptor count"
                 default 8
                 range 2 32
                 help
                     Number of DMA descriptors allocated for I2S playback.
 
-            config DECTALK_I2S_DMA_FRAME_NUM
+            config ESPRESS_I2S_DMA_FRAME_NUM
                 int "I2S DMA frame count"
                 default 256
                 range 64 1024
@@ -186,7 +186,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "Runtime tuning"
-        config DECTALK_TEXT_BUFFER_SIZE
+        config ESPRESS_TEXT_BUFFER_SIZE
             int "Protocol text buffer size"
             default 2048
             range 256 8192
@@ -194,7 +194,7 @@ menu "DECtalk ESPress Firmware"
                 Maximum number of text bytes buffered before they are queued
                 for synthesis.
 
-        config DECTALK_SPEECH_QUEUE_SIZE
+        config ESPRESS_SPEECH_QUEUE_SIZE
             int "Speech queue depth"
             default 32
             range 4 128
@@ -202,14 +202,14 @@ menu "DECtalk ESPress Firmware"
                 Number of queued text chunks allowed before host flow control
                 starts throttling input.
 
-        config DECTALK_RX_TIMEOUT_MS
+        config ESPRESS_RX_TIMEOUT_MS
             int "Serial RX timeout (ms)"
             default 10
             range 1 1000
             help
                 Timeout used when polling the serial receive buffer.
 
-        config DECTALK_TEXT_IDLE_TIMEOUT_MS
+        config ESPRESS_TEXT_IDLE_TIMEOUT_MS
             int "Buffered text idle flush timeout (ms)"
             default 200
             range 10 5000
@@ -218,7 +218,7 @@ menu "DECtalk ESPress Firmware"
                 arrive within this interval.
 
         menu "Advanced task tuning"
-            config DECTALK_SPEECH_TASK_CORE
+            config ESPRESS_SPEECH_TASK_CORE
                 int "Speech task core"
                 default 1 if SOC_CPU_CORES_NUM > 1
                 default 0
@@ -228,7 +228,7 @@ menu "DECtalk ESPress Firmware"
                     CPU core used for the speech synthesis thread.
                     On single-core chips this is fixed to core 0.
 
-            config DECTALK_MAIN_TASK_STACK_SIZE
+            config ESPRESS_MAIN_TASK_STACK_SIZE
                 int "Main ESPress pthread stack size"
                 default 12288
                 range 4096 32768
@@ -240,7 +240,7 @@ menu "DECtalk ESPress Firmware"
 
     menu "USB CDC transport"
         visible if !IDF_TARGET_ESP32C6
-        config DECTALK_CDC_RX_STREAM_SIZE
+        config ESPRESS_CDC_RX_STREAM_SIZE
             int "CDC RX stream buffer size"
             default 4096
             range 256 16384
@@ -251,14 +251,14 @@ menu "DECtalk ESPress Firmware"
 
     menu "JTAG serial transport"
         visible if IDF_TARGET_ESP32C6
-        config DECTALK_JTAG_RX_BUF_SIZE
+        config ESPRESS_JTAG_RX_BUF_SIZE
             int "JTAG serial RX buffer size"
             default 4096
             range 256 16384
             help
                 Size of the ring buffer for USB Serial/JTAG receive data.
 
-        config DECTALK_JTAG_TX_BUF_SIZE
+        config ESPRESS_JTAG_TX_BUF_SIZE
             int "JTAG serial TX buffer size"
             default 4096
             range 256 16384
@@ -267,7 +267,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "Onboard RGB LED"
-        config DECTALK_DISABLE_RGB_LED
+        config ESPRESS_DISABLE_RGB_LED
             bool "Disable onboard RGB LED"
             default n
             help
@@ -278,9 +278,9 @@ menu "DECtalk ESPress Firmware"
                 Not all boards have an RGB LED, so this option is disabled
                 by default.
 
-        config DECTALK_RGB_LED_GPIO
+        config ESPRESS_RGB_LED_GPIO
             int "RGB LED data GPIO"
-            depends on DECTALK_DISABLE_RGB_LED
+            depends on ESPRESS_DISABLE_RGB_LED
             default 8  if IDF_TARGET_ESP32C6
             default 18 if IDF_TARGET_ESP32S2
             default 48
@@ -295,7 +295,7 @@ menu "DECtalk ESPress Firmware"
     endmenu
 
     menu "Custom firmware commands"
-        config DECTALK_FW_CMD_ENABLE
+        config ESPRESS_FW_CMD_ENABLE
             bool "Enable [:fw ...] custom commands"
             default y
             help
@@ -303,80 +303,80 @@ menu "DECtalk ESPress Firmware"
                 When disabled, all bracket-colon tokens pass through
                 to DECtalk unchanged.
 
-        config DECTALK_FW_CMD_NAMESPACE
+        config ESPRESS_FW_CMD_NAMESPACE
             string "Custom command namespace"
             default "fw"
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 The keyword that follows [: to identify a firmware
                 custom command (e.g. "fw" matches [:fw ...]).
 
-        config DECTALK_FW_CMD_MAX_TOKEN_LEN
+        config ESPRESS_FW_CMD_MAX_TOKEN_LEN
             int "Max custom command token length"
             default 128
             range 32 512
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 Maximum number of characters between [: and ] for a
                 custom command.  Tokens longer than this are consumed
                 and logged as oversized.
 
-        config DECTALK_FW_CMD_MAX_ARGS
+        config ESPRESS_FW_CMD_MAX_ARGS
             int "Max custom command argument count"
             default 8
             range 2 32
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 Maximum number of whitespace-delimited arguments in
                 a single custom command (including the sub-command name).
 
-        config DECTALK_FW_CMD_ALLOW_NATIVE_OVERRIDE
+        config ESPRESS_FW_CMD_ALLOW_NATIVE_OVERRIDE
             bool "Allow native DECtalk command override"
             default n
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 When enabled, custom command handlers may intercept
                 tokens that would otherwise be native DECtalk inline
                 commands.  Default is off: only [:fw ...] tokens
                 are intercepted.
 
-        config DECTALK_FW_CMD_GPIO_ENABLE
+        config ESPRESS_FW_CMD_GPIO_ENABLE
             bool "Enable GPIO handler"
             default y
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 Enable the [:fw gpio <pin> <on|off|0|1>] handler.
 
-        config DECTALK_FW_CMD_TONE_ENABLE
+        config ESPRESS_FW_CMD_TONE_ENABLE
             bool "Enable tone handler"
             default n
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 Enable the [:fw tone <freq_hz> <duration_ms>] handler.
-                When enabled and DECTALK_TONE_GPIO is configured, produces
+                When enabled and ESPRESS_TONE_GPIO is configured, produces
                 a square-wave tone via the LEDC PWM peripheral.
 
-        config DECTALK_TONE_GPIO
+        config ESPRESS_TONE_GPIO
             int "Tone output GPIO (-1 to disable)"
             default -1
             range -1 48
-            depends on DECTALK_FW_CMD_TONE_ENABLE
+            depends on ESPRESS_FW_CMD_TONE_ENABLE
             help
                 GPIO connected to a piezo buzzer or small speaker for tone
                 generation via LEDC PWM.  Set to -1 to disable hardware
                 tone output (the handler will only log the request).
 
-        config DECTALK_FW_CMD_RESET_ON_RECONNECT
+        config ESPRESS_FW_CMD_RESET_ON_RECONNECT
             bool "Reset custom command state on reconnect"
             default y
-            depends on DECTALK_FW_CMD_ENABLE
+            depends on ESPRESS_FW_CMD_ENABLE
             help
                 Clear session-level custom command state (e.g. stored
                 voice and rate overrides) when the USB host reconnects.
     endmenu
 
     menu "Diagnostics and logging"
-        config DECTALK_ENABLE_DIAG_MEM
+        config ESPRESS_ENABLE_DIAG_MEM
             bool "Enable heap and stack diagnostics"
             default n
             select FREERTOS_USE_TRACE_FACILITY
@@ -389,18 +389,18 @@ menu "DECtalk ESPress Firmware"
                 when you want the quietest runtime logging or the lowest
                 possible overhead.
 
-        config DECTALK_DIAG_MEM_INTERVAL_MS
+        config ESPRESS_DIAG_MEM_INTERVAL_MS
             int "Diagnostics print interval (ms)"
-            depends on DECTALK_ENABLE_DIAG_MEM
+            depends on ESPRESS_ENABLE_DIAG_MEM
             range 1000 600000
             default 10000
             help
                 How often the diagnostics task prints task stack and heap
                 statistics, in milliseconds.
 
-        choice DECTALK_LOG_LEVEL
+        choice ESPRESS_LOG_LEVEL
             prompt "DECtalk log level"
-            default DECTALK_LOG_LEVEL_ERROR
+            default ESPRESS_LOG_LEVEL_ERROR
             help
                 Select the runtime log level used by the DECtalk ESPress
                 application, serial transport, and optional diagnostics task.
@@ -408,28 +408,28 @@ menu "DECtalk ESPress Firmware"
                 Higher log levels provide more detail for debugging, while
                 lower levels reduce console output on UART0.
 
-            config DECTALK_LOG_LEVEL_ERROR
+            config ESPRESS_LOG_LEVEL_ERROR
                 bool "Error"
                 help
                     Log only errors that prevent normal operation.
 
-            config DECTALK_LOG_LEVEL_WARN
+            config ESPRESS_LOG_LEVEL_WARN
                 bool "Warning"
                 help
                     Log warnings and errors.
 
-            config DECTALK_LOG_LEVEL_INFO
+            config ESPRESS_LOG_LEVEL_INFO
                 bool "Info"
                 help
                     Log normal status messages, warnings, and errors.
 
-            config DECTALK_LOG_LEVEL_DEBUG
+            config ESPRESS_LOG_LEVEL_DEBUG
                 bool "Debug"
                 help
                     Add debug-level messages that help diagnose protocol and
                     transport behavior.
 
-            config DECTALK_LOG_LEVEL_VERBOSE
+            config ESPRESS_LOG_LEVEL_VERBOSE
                 bool "Verbose"
                 help
                     Enable the most detailed logging level for deep debugging.
