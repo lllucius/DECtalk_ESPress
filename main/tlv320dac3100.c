@@ -32,12 +32,18 @@ static const char *TAG = "TLV320DAC3100";
 #define I2C_SCL_IO          CONFIG_DECTALK_I2C_SCL_GPIO
 #define CODEC_INT_GPIO      CONFIG_DECTALK_CODEC_INT_GPIO
 #define CODEC_RESET_GPIO    CONFIG_DECTALK_CODEC_RESET_GPIO
+#define CODEC_MCLK_GPIO     CONFIG_DECTALK_I2S_MCLK_GPIO
+#define TLV320_I2C_TIMEOUT_MS 50
 
 // ---- Page 0 registers -------------------------------------------
 #define REG_PAGE_SELECT     0x00
 #define TLV320_PAGE_ANALOG  0x01
 #define REG_RESET           0x01
-#define REG_CLOCK_MUX       0x04    // CODEC_CLKIN source
+#define REG_CLOCK_MUX       0x04    // CODEC_CLKIN / PLL_CLKIN source
+#define REG_PLL_P_R         0x05    // PLL power / P / R dividers
+#define REG_PLL_J           0x06    // PLL J multiplier
+#define REG_PLL_D_MSB       0x07    // PLL D fractional (MSB)
+#define REG_PLL_D_LSB       0x08    // PLL D fractional (LSB)
 #define REG_NDAC            0x0B    // NDAC divider
 #define REG_MDAC            0x0C    // MDAC divider
 #define REG_DOSR_MSB        0x0D    // DOSR upper byte
@@ -122,6 +128,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_HP_VOL_ROUTED_0DB 0x8A         // route enabled + 0 dB
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
 #define TLV320_HP_DRIVERS_ALT_MODE      0xCC  // HPL/HPR powered, 1.50 V CM
+#define TLV320_HP_DRIVER_GAIN_0DB_UNMUTED 0x04 // 0 dB gain + unmute (safe default)
 #define TLV320_HP_DRIVER_GAIN_6DB_UNMUTED 0x34 // 6 dB gain + unmute
 #define TLV320_HP_POP_DIAGNOSTIC_VALUE   0xBE // bit7: wait-for-powerdown, bits[6:3]: 0b0111 (304 ms), bits[2:1]: 0b11 (3.9 ms ramp)
 #define TLV320_PGA_RAMP_DIAGNOSTIC_VALUE 0x40 // conservative output-driver ramp timing
@@ -134,27 +141,17 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_RESET_ASSERT_MS      1
 #define TLV320_RESET_SETTLE_MS      10
 #define TLV320_STARTUP_VOLUME_LEVEL CONFIG_DECTALK_TLV320_STARTUP_VOLUME
-#define TLV320_DIAG_ALT_HP_DRIVER_MODE 1
-#if TLV320_DIAG_ALT_HP_DRIVER_MODE
-#define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_ALT_MODE
-#define TLV320_HP_DRIVER_MODE_LOG         "alt-cm-1.50V"
-#else
+// Use conservative CM=1.35V and 0 dB HP driver gain by default; the previous
+// 1.50V + 6 dB diagnostic combination risked clipping the headphone output
+// with sensitive / low-impedance phones and contributed to audible distortion.
 #define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_DEFAULT_MODE
-#define TLV320_HP_DRIVER_MODE_LOG         "default-cm-1.35V"
-#endif
-// Build-time routing-mode selection flag for headphone clarity testing:
-// set to 1 to keep the original mono speech duplication from the left I2S slot
-// on both outputs, or 0 to test normal stereo DAC mapping in this build.
-#define TLV320_DIAG_USE_MONO_LEFT_ROUTING 0
-#define TLV320_DAC_DATAPATH_MONO_LEFT     0xD8
-#define TLV320_DAC_DATAPATH_STEREO        0xD0
-#if TLV320_DIAG_USE_MONO_LEFT_ROUTING
-#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_MONO_LEFT
-#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left routing"
-#else
-#define TLV320_DAC_DATAPATH_VALUE         TLV320_DAC_DATAPATH_STEREO
-#define TLV320_DAC_DATAPATH_MODE_LOG      "normal stereo mapping"
-#endif
+#define TLV320_HP_DRIVER_MODE_LOG         "cm-1.35V"
+#define TLV320_HP_DRIVER_GAIN_VALUE       TLV320_HP_DRIVER_GAIN_0DB_UNMUTED
+// Mono TTS is duplicated on both left and right DACs so that both earcups /
+// speakers reproduce the same signal.  Previous 0xD0 value powered both DACs
+// but disabled the right DAC's data path, which silenced the right earcup.
+#define TLV320_DAC_DATAPATH_VALUE         0xD8  // LDAC<-L, RDAC<-L, soft-step on
+#define TLV320_DAC_DATAPATH_MODE_LOG      "mono-left duplicated to L+R"
 #define TLV320_STARTUP_VOLUME_DB    \
     ((TLV320_STARTUP_VOLUME_LEVEL == 0) ? -60.0f : \
     (TLV320_STARTUP_VOLUME_LEVEL == 1) ? -32.0f : \
@@ -225,15 +222,51 @@ typedef struct
     int16_t a2;
 } tlv320_biquad_t;
 
-// Page 0 phase: configure clocking from BCLK without PLL or MCLK.
+// Page 0 phase: configure clocking.
+//
+// Two modes are supported, selected via Kconfig (DECTALK_I2S_MCLK_GPIO):
+//
+//   * MCLK mode (CODEC_MCLK_GPIO >= 0): the ESP32 drives MCLK at 256xFs.
+//     CODEC_CLKIN = MCLK, NDAC=1, MDAC=1, DOSR=256 gives DAC_MOD_CLK =
+//     MCLK = 2.8224 MHz and DAC_FS = Fs = 11025 Hz.  This keeps
+//     DAC_MOD_CLK inside the codec's ~2.8-6.758 MHz valid range.
+//
+//   * BCLK-only mode (CODEC_MCLK_GPIO < 0): BCLK alone at 32xFs =
+//     352.8 kHz is far below the minimum DAC modulator clock, so we must
+//     enable the codec's internal PLL.  PLL_CLKIN = BCLK, and the PLL
+//     multiplies BCLK up to ~88.2 MHz (P=1, R=4, J=62, D=5000,
+//     PLL_CLK = 352.8 kHz * 4 * 62.5 = 88.2 MHz).  CODEC_CLKIN = PLL_CLK,
+//     NDAC=2, MDAC=8, DOSR=500 gives DAC_MOD_CLK = 88.2/16 = 5.5125 MHz
+//     (in spec) and DAC_FS = 88.2 MHz / (2*8*500) = 11025 Hz.
+#if CODEC_MCLK_GPIO >= 0
 static const reg_val_t clocking_init[] =
 {
-    {REG_CLOCK_MUX,    0x01},   // CODEC_CLKIN = BCLK
+    {REG_CLOCK_MUX,    0x00},   // CODEC_CLKIN = MCLK, PLL off
     {REG_NDAC,         0x81},   // NDAC = 1, powered up
     {REG_MDAC,         0x81},   // MDAC = 1, powered up
-    {REG_DOSR_MSB,     0x00},   // DOSR = 32 (0x0020)
-    {REG_DOSR_LSB,     0x20},
+    {REG_DOSR_MSB,     0x01},   // DOSR = 256 (0x0100)
+    {REG_DOSR_LSB,     0x00},
 };
+#define TLV320_CLOCK_MODE_LOG "MCLK (256xFs, no PLL)"
+#else
+static const reg_val_t clocking_init[] =
+{
+    // Route PLL_CLKIN from BCLK, CODEC_CLKIN from PLL_CLK.
+    // Bits 5:4 = 01 (PLL_CLKIN = BCLK), bits 3:2 = 11 (CODEC_CLKIN = PLL).
+    {REG_CLOCK_MUX,    0x1C},
+    // PLL: power on, P = 1, R = 4.  Bit7=1 enables PLL; bits6:4 hold P
+    // (encoded as value, with 0 meaning 8); bits3:0 hold R.
+    {REG_PLL_P_R,      0x94},   // 0b1_001_0100
+    {REG_PLL_J,        62},     // J = 62
+    {REG_PLL_D_MSB,    0x13},   // D = 5000 -> 0x1388, MSB bits 13:8 = 0x13
+    {REG_PLL_D_LSB,    0x88},   // D LSB
+    {REG_NDAC,         0x82},   // NDAC = 2, powered up
+    {REG_MDAC,         0x88},   // MDAC = 8, powered up
+    {REG_DOSR_MSB,     0x01},   // DOSR = 500 (0x01F4)
+    {REG_DOSR_LSB,     0xF4},
+};
+#define TLV320_CLOCK_MODE_LOG "PLL from BCLK (~88.2 MHz CODEC_CLKIN)"
+#endif
 
 // Page 0 phase: configure the I2S data interface.
 static const reg_val_t audio_interface_init[] =
@@ -247,11 +280,11 @@ static const reg_val_t dac_processing_init[] =
 {
     {REG_DAC_PRB,      0x01},   // Processing block PRB_P1
     {REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE},
-                                // TLV320_DIAG_USE_MONO_LEFT_ROUTING = 1 keeps
-                                // the previous mono speech duplication from
-                                // the left I2S slot into both outputs.
-                                // Leaving it at 0 selects normal left/right
-                                // DAC mapping for this routing test build.
+                                // 0xD8: LDAC powered + fed from left I2S
+                                // slot, RDAC powered + also fed from left
+                                // slot, so mono TTS audio appears on both
+                                // analog outputs (left earcup and right
+                                // earcup / both speakers).
     {REG_DAC_VOL_CTRL, 0x00},   // Leave volume control in its normal mode
 };
 
@@ -381,20 +414,20 @@ static esp_err_t write_reg_raw(i2c_master_dev_handle_t dev,
                                 uint8_t val)
 {
     uint8_t buf[2] = {reg, val};
-    return i2c_master_transmit(dev, buf, sizeof(buf), -1);
+    return i2c_master_transmit(dev, buf, sizeof(buf), TLV320_I2C_TIMEOUT_MS);
 }
 
 static esp_err_t read_reg_raw(i2c_master_dev_handle_t dev,
                               uint8_t reg,
                               uint8_t *val)
 {
-    esp_err_t err = i2c_master_transmit(dev, &reg, 1, -1);
+    esp_err_t err = i2c_master_transmit(dev, &reg, 1, TLV320_I2C_TIMEOUT_MS);
     if (err != ESP_OK)
     {
         return err;
     }
 
-    return i2c_master_receive(dev, val, 1, -1);
+    return i2c_master_receive(dev, val, 1, TLV320_I2C_TIMEOUT_MS);
 }
 
 static esp_err_t select_page(uint8_t page)
@@ -1028,15 +1061,17 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
         {REG_SPK_DRIVER, 0x04},
     };
 
-    // Initial hardware bring-up tuning for low headphone output; may be reduced
-    // later.
+    // Conservative headphone bring-up: HP drivers powered with 1.35V CM and
+    // analog gain left at 0 dB.  Digital volume controls loudness; avoiding
+    // the earlier +6 dB analog boost prevents audible clipping / distortion
+    // with sensitive or low-impedance headphones.
     static const reg_val_t headphone_output_cfg[] =
     {
         {REG_SPK_DRIVER, 0x00},
         {REG_SPK_AMP,    0x06},
         {REG_HP_DRIVERS, TLV320_HP_DRIVERS_HEADPHONE_VALUE},
-        {REG_HPL_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
-        {REG_HPR_DRIVER, TLV320_HP_DRIVER_GAIN_6DB_UNMUTED},
+        {REG_HPL_DRIVER, TLV320_HP_DRIVER_GAIN_VALUE},
+        {REG_HPR_DRIVER, TLV320_HP_DRIVER_GAIN_VALUE},
     };
 
     const reg_val_t *cfg = (profile == TLV320_PROFILE_HEADPHONE)
@@ -1192,6 +1227,7 @@ esp_err_t tlv320dac3100_init(void)
 
     ESP_LOGI(TAG, "Initializing TLV320DAC3100 (I2C addr 0x%02X)...",
              TLV320_I2C_ADDR);
+    ESP_LOGI(TAG, "Clocking: %s", TLV320_CLOCK_MODE_LOG);
     ESP_LOGI(TAG, "DAC path: %s", TLV320_DAC_DATAPATH_MODE_LOG);
 
     // ---- Create I2C master bus ----------------------------------
@@ -1263,6 +1299,13 @@ esp_err_t tlv320dac3100_init(void)
     {
         goto init_fail;
     }
+
+#if CODEC_MCLK_GPIO < 0
+    // Give the internal PLL time to lock onto BCLK before we start
+    // programming the DAC datapath.  Datasheet typical lock time is a few
+    // ms; 15 ms is a comfortable margin.
+    vTaskDelay(pdMS_TO_TICKS(15));
+#endif
 
     // ---- Phase 3: configure the audio interface -----------------
     err = write_regs(0x00,

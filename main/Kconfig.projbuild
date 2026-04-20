@@ -49,6 +49,26 @@ menu "DECtalk ESPress Firmware"
             help
                 GPIO used for the I2S serial data output.
 
+        config DECTALK_I2S_MCLK_GPIO
+            int "I2S MCLK GPIO (-1 to disable)"
+            default -1
+            range -1 48
+            help
+                GPIO used to output the I2S master clock (MCLK) to the
+                codec.  Set to -1 when MCLK is not wired; in that case the
+                TLV320DAC3100 driver enables its internal PLL and derives
+                CODEC_CLKIN from BCLK instead.
+
+                When a valid GPIO is selected, the ESP32 emits MCLK at
+                256 x Fs and the codec is configured with CODEC_CLKIN =
+                MCLK (no PLL).  This produces a cleaner and in-spec DAC
+                modulator clock, which helps at low sample rates such as
+                11025 Hz where BCLK alone is far below the codec's
+                minimum DAC_MOD_CLK of ~2.8 MHz.
+
+                Only has an effect when DECTALK_DAC_TLV320DAC3100 is
+                selected; the generic DAC path does not require MCLK.
+
         config DECTALK_I2C_SDA_GPIO
             int "I2C SDA GPIO"
             default 18
