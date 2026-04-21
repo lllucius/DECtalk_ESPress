@@ -731,7 +731,7 @@ bool tlv320_dsp_state_is_flat(const tlv320_dsp_state_t *state)
 
 esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops)
 {
-    if (!ops || !ops->write_reg || !ops->mute)
+    if (!ops || !ops->write_reg || !ops->mute || !ops->dac_power)
     {
         return ESP_ERR_INVALID_ARG;
     }
@@ -758,41 +758,57 @@ esp_err_t tlv320_dsp_apply(const tlv320_dsp_state_t *state)
     // clicks.  On failure we leave the codec muted and let the
     // caller decide how to recover (usually by re-running apply
     // with the last known-good state).
-    //
-    // NOTE: a previous revision of this function also bracketed
-    // the PRB / coefficient writes with a full DAC power-down via
-    // REG_DAC_DATAPATH D7/D6.  The theory was that SLAS833 §6.5
-    // requires the DAC to be off when PRB (0x3C) or the biquad
-    // coefficient RAM (pages 8/9) are updated.  In practice that
-    // sequence left the codec silent after any non-flat apply
-    // (EQ / bass / treble / DRC / preset), so it has been removed.
-    // The coefficient RAM is double-buffered on this family and
-    // writes are safe while the DAC is running; making the
-    // resulting PRB switch take audible effect is a separate
-    // problem that must be solved without power-cycling the DAC.
     esp_err_t err = s_ops.mute(true);
     if (err != ESP_OK) return err;
 
+    // Give the digital-volume soft-step ramp time to reach the
+    // muted level before we power the DAC down.  At Fs = 11.025 kHz
+    // the 126-step ramp takes ~11.4 ms; 15 ms is a safe margin.
+    vTaskDelay(pdMS_TO_TICKS(15));
+
+    // Per SLAS833 §6.5 the DAC Processing Block selection register
+    // (0x3C) and the biquad coefficient RAM (pages 8/9) must be
+    // written while the DAC is powered DOWN -- otherwise the new
+    // PRB and/or coefficients are silently ignored and the audio
+    // path keeps running the previous settings.  `dac_power(false)`
+    // performs the transition instantaneously by bypassing the
+    // soft-step ramp (see tlv320.c), so the coefficient writes that
+    // follow really do happen while the DAC is off.
+    esp_err_t dac_err = s_ops.dac_power(false);
+    if (dac_err != ESP_OK)
+    {
+        // Can't safely touch the coefficient RAM if we couldn't
+        // confirm the DAC is down; bail and unmute.
+        err = dac_err;
+        goto out;
+    }
+
     // Drop to PRB_P1 before rewriting coefficients so the DSP is in
-    // a known quiescent state while the coefficient RAM changes.
+    // a known quiescent state when it powers back up.
     err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
-    if (err != ESP_OK) goto out;
+    if (err != ESP_OK) goto out_power;
 
     if (!flat)
     {
         err = upload_biquads(state);
-        if (err != ESP_OK) goto out;
+        if (err != ESP_OK) goto out_power;
 
         // Switch to PRB_P2 so the freshly-written biquads are active.
         err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
-        if (err != ESP_OK) goto out;
+        if (err != ESP_OK) goto out_power;
     }
 
     err = program_drc(state);
-    if (err != ESP_OK) goto out;
+    if (err != ESP_OK) goto out_power;
 
     s_last_applied     = *state;
     s_has_last_applied = true;
+
+out_power:
+    {
+        esp_err_t pwr_err = s_ops.dac_power(true);
+        if (err == ESP_OK) err = pwr_err;
+    }
 
 out:
     {
@@ -806,6 +822,8 @@ out:
         // Log and continue; don't recurse if the revert also fails.
         ESP_LOGE(TAG, "DSP apply failed (%d); reverting to last good", err);
         (void)s_ops.mute(true);
+        vTaskDelay(pdMS_TO_TICKS(15));
+        (void)s_ops.dac_power(false);
         (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
         (void)upload_biquads(&s_last_applied);
         if (!tlv320_dsp_state_is_flat(&s_last_applied))
@@ -813,6 +831,7 @@ out:
             (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
         }
         (void)program_drc(&s_last_applied);
+        (void)s_ops.dac_power(true);
         (void)s_ops.mute(false);
     }
 

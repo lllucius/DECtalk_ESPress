@@ -190,21 +190,21 @@ int32_t tlv320_dsp_float_to_q23(float x);
 // Low-level hooks provided by tlv320.c so the DSP module
 // can talk to the codec without duplicating I2C plumbing.
 //
-// NOTE: a previous revision of this module also exposed a
-// `dac_power(bool)` hook that bracketed coefficient / PRB writes
-// with a DAC power-down / power-up on the theory that the
-// TLV320DAC3100 ignores such writes while the DAC is running.
-// In practice that sequence left the codec silent after any
-// non-flat apply, so the bracket has been removed.  Coefficient /
-// PRB writes are now issued while the DAC remains running (soft
-// muted via the digital volume register) — the codec's coefficient
-// RAM is double-buffered, so the writes are safe; making them
-// actually take audible effect is a separate problem that should
-// be solved without power-cycling the DAC.
+// `dac_power(false)` must power the LDAC/RDAC down *instantly*
+// (not via the normal digital-volume soft-step ramp, which would
+// race the subsequent coefficient / PRB writes).  The current
+// implementation temporarily clears the soft-step bits of
+// REG_DAC_DATAPATH (0x3F) while toggling D7:D6, and restores
+// the normal soft-step setting when `dac_power(true)` returns.
+// Per SLAS833 §6.5 the DAC Processing Block register (0x3C) and
+// the biquad coefficient RAM (pages 8/9) are only honoured while
+// the DAC is powered down, so every call to `apply()` brackets
+// those writes with `dac_power(false)` / `dac_power(true)`.
 typedef struct
 {
     esp_err_t (*write_reg)(uint8_t page, uint8_t reg, uint8_t val);
     esp_err_t (*mute)(bool enable);
+    esp_err_t (*dac_power)(bool enable);
 } tlv320_dsp_hw_ops_t;
 
 // Install the hw ops and initialise the DSP to a flat / bypassed
