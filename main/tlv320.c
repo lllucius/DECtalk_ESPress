@@ -912,12 +912,18 @@ static esp_err_t dsp_dac_power_and_wait(bool enable)
     const uint8_t mask   = 0x88;
     const uint8_t target = enable ? 0x88 : 0x00;
 
-    // 50 ms total budget, polled every 1 ms.  Empirically the
-    // power-down completes in ~2–5 ms and power-up in ~10–20 ms
-    // with the default soft-step rate at Fs=11.025 kHz; 50 ms is
-    // comfortable headroom without being user-visible.
+    // 500 ms total budget, polled every 1 ms.  This matches the
+    // mainline Linux tlv320aic31xx driver (DAC3100 is a member of
+    // the aic31xx family), whose aic31xx_dapm_power_event() uses a
+    // 500 ms / 5 ms budget for this exact status-bit poll.  An
+    // earlier 50 ms budget was observed to time out on hardware
+    // with DAC_FLAG stuck at 0xAA (LDAC+HPL+RDAC+HPR still powered)
+    // because, with soft-step enabled (DAC_DATAPATH D1:D0 = 00,
+    // one step per Fs) at Fs = 11.025 kHz, the full 127 × 0.5 dB
+    // ramp plus DAC shutdown settling exceeds 50 ms in practice.
+    // 500 ms is user-visible only if the codec actually hangs.
     const int poll_interval_ms = 1;
-    const int poll_timeout_ms  = 50;
+    const int poll_timeout_ms  = 500;
     uint8_t flag = 0;
     for (int waited = 0; waited < poll_timeout_ms; waited += poll_interval_ms)
     {
