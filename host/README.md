@@ -114,13 +114,15 @@ full accessibility support. Features:
 - **Connection** – select serial port and connect with automatic device probe
 - **Multi-line text input** with standard editing
 - **Voice / rate / pitch** controls
-- **Audio Settings dialog** (`Device → Audio Settings…`, `Ctrl+Shift+A`) –
-  output profile (speaker / headphone), autoswitch, volume, class-D speaker
-  amp gain, mute, bass / treble tone controls, 5-band peaking EQ with
-  named presets (`flat`, `speech`, `crisp`, `warm`), and DRC with tuning
-  presets (`soft`, `speech`, `loud`).  All changes are sent as `[:fw …]`
-  inline commands and take effect immediately; **Save to Device** (and the
-  `Device → Save Settings to Device` menu item) persist them to NVS.
+- **Audio Settings dialog** (**Audio Settings…** button next to
+  *Query Status*) – output profile (speaker / headphone), autoswitch,
+  volume, class-D speaker amp gain, mute, bass / treble tone controls,
+  5-band peaking EQ with named presets (`flat`, `speech`, `crisp`,
+  `warm`), and DRC with tuning presets (`soft`, `speech`, `loud`).
+  All changes are sent as `[:fw …]` inline commands and take effect
+  immediately; the **Save to Device** button (both inside the dialog
+  and in the main toolbar row) persists them to NVS.  The dialog is
+  modeless, so the main window stays interactive while it is open.
 - **Pause / Resume** buttons — send SO (0x0E) / SI (0x0F) control characters
 - **Flush** button — cancel all pending speech (TSR flush sequence + SOH ack)
 - **Query Status** — send ENQ (0x05) and decode the DLE status response
