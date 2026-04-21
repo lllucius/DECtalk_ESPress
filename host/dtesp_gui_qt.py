@@ -914,6 +914,33 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.status_btn.clicked.connect(self._on_query_status)
         parent_layout.addWidget(self.status_btn)
 
+        # Audio Settings dialog launcher + NVS save shortcut live next
+        # to Query Status so the codec / DSP controls are reachable
+        # without diving into a menu.  Both buttons are disabled
+        # until a device connection is established (see
+        # _on_connect_success / _disconnect).
+        self.audio_settings_btn = QPushButton("&Audio Settings...")
+        self.audio_settings_btn.setEnabled(False)
+        self.audio_settings_btn.setAccessibleName("Audio settings")
+        self.audio_settings_btn.setAccessibleDescription(
+            "Open the Audio Settings dialog with codec output, tone, "
+            "equalizer, compression, and amplifier-gain controls"
+        )
+        self.audio_settings_btn.clicked.connect(self._open_audio_settings)
+        parent_layout.addWidget(self.audio_settings_btn)
+
+        self.save_settings_btn = QPushButton("Sa&ve to Device")
+        self.save_settings_btn.setEnabled(False)
+        self.save_settings_btn.setAccessibleName("Save settings to device")
+        self.save_settings_btn.setAccessibleDescription(
+            "Persist current codec and DSP settings to the device's "
+            "non-volatile storage"
+        )
+        self.save_settings_btn.clicked.connect(
+            lambda: self._send_fw_cmd("save")
+        )
+        parent_layout.addWidget(self.save_settings_btn)
+
         parent_layout.addStretch()
 
         self.clear_btn = QPushButton("Cl&ear Text")
@@ -1039,9 +1066,19 @@ class DECtalkESPressGUIQt(QMainWindow):
         threading.Thread(target=do_send, daemon=True).start()
 
     def _open_audio_settings(self):
-        """Show the modal Audio Settings dialog."""
+        """Show the Audio Settings dialog (modeless).
+
+        The dialog is created lazily and reused across opens so the
+        user's last selections are preserved and so opening it
+        repeatedly doesn't pile up window objects.  Using ``show()``
+        instead of ``exec()`` keeps it modeless -- the main window
+        remains interactive, which matches how the tone / EQ / DRC
+        controls naturally get used (speak some text, tweak a band,
+        speak again).
+        """
         if self._audio_dialog is None:
             self._audio_dialog = AudioSettingsDialog(self, self._audio_state)
+            self._audio_dialog.setModal(False)
         else:
             # Refresh widgets from current state in case of later edits.
             self._audio_dialog._loading = True
@@ -1049,7 +1086,9 @@ class DECtalkESPressGUIQt(QMainWindow):
                 self._audio_dialog._load_from_state()
             finally:
                 self._audio_dialog._loading = False
-        self._audio_dialog.exec()
+        self._audio_dialog.show()
+        self._audio_dialog.raise_()
+        self._audio_dialog.activateWindow()
 
     def _build_status_bar(self):
         """Status bar at the bottom of the window."""
@@ -1065,6 +1104,11 @@ class DECtalkESPressGUIQt(QMainWindow):
     def _build_menubar(self):
         """Menu bar with keyboard-accessible entry points for features
         that cannot fit inside the main window without growing it.
+
+        The Audio Settings dialog and the "Save Settings to Device"
+        action are reachable via dedicated buttons next to "Query
+        Status" (see :meth:`_build_button_frame`), so the menu bar
+        only hosts the File menu.
         """
         menubar = self.menuBar()
         menubar.setAccessibleName("Application menu bar")
@@ -1077,35 +1121,6 @@ class DECtalkESPressGUIQt(QMainWindow):
         quit_act.setStatusTip("Close the DECtalk ESPress GUI")
         quit_act.triggered.connect(self.close)
         file_menu.addAction(quit_act)
-
-        # Device menu
-        dev_menu = menubar.addMenu("&Device")
-        dev_menu.setAccessibleName("Device menu")
-
-        self.audio_settings_act = QAction("&Audio Settings...", self)
-        self.audio_settings_act.setShortcut("Ctrl+Shift+A")
-        self.audio_settings_act.setStatusTip(
-            "Open codec output, tone, equalizer, compression, and "
-            "amplifier-gain controls"
-        )
-        self.audio_settings_act.setEnabled(False)
-        self.audio_settings_act.triggered.connect(self._open_audio_settings)
-        dev_menu.addAction(self.audio_settings_act)
-
-        dev_menu.addSeparator()
-
-        self.save_settings_act = QAction(
-            "&Save Settings to Device", self
-        )
-        self.save_settings_act.setStatusTip(
-            "Persist current codec and DSP settings to the device's "
-            "non-volatile storage"
-        )
-        self.save_settings_act.setEnabled(False)
-        self.save_settings_act.triggered.connect(
-            lambda: self._send_fw_cmd("save")
-        )
-        dev_menu.addAction(self.save_settings_act)
 
     def _setup_tab_order(self):
         """Set a logical tab order for keyboard navigation."""
@@ -1121,7 +1136,9 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.setTabOrder(self.pause_btn, self.resume_btn)
         self.setTabOrder(self.resume_btn, self.flush_btn)
         self.setTabOrder(self.flush_btn, self.status_btn)
-        self.setTabOrder(self.status_btn, self.clear_btn)
+        self.setTabOrder(self.status_btn, self.audio_settings_btn)
+        self.setTabOrder(self.audio_settings_btn, self.save_settings_btn)
+        self.setTabOrder(self.save_settings_btn, self.clear_btn)
         self.setTabOrder(self.clear_btn, self.log_text)
 
     # -- Context Menus --------------------------------------------
@@ -1283,8 +1300,8 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.resume_btn.setEnabled(True)
         self.flush_btn.setEnabled(True)
         self.status_btn.setEnabled(True)
-        self.audio_settings_act.setEnabled(True)
-        self.save_settings_act.setEnabled(True)
+        self.audio_settings_btn.setEnabled(True)
+        self.save_settings_btn.setEnabled(True)
         self._paused = False
 
         # Start polling device status
@@ -1318,8 +1335,8 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.resume_btn.setEnabled(False)
         self.flush_btn.setEnabled(False)
         self.status_btn.setEnabled(False)
-        self.audio_settings_act.setEnabled(False)
-        self.save_settings_act.setEnabled(False)
+        self.audio_settings_btn.setEnabled(False)
+        self.save_settings_btn.setEnabled(False)
         self._paused = False
 
     # -- Speech Controls ------------------------------------------

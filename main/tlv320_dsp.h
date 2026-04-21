@@ -189,10 +189,21 @@ int32_t tlv320_dsp_float_to_q23(float x);
 
 // Low-level hooks provided by tlv320.c so the DSP module
 // can talk to the codec without duplicating I2C plumbing.
+//
+// dac_power() must toggle the Left/Right DAC power bits (D7/D6 of
+// REG_DAC_DATAPATH on page 0).  Per SLAS833 §6.5, the DAC
+// Processing Block Selection register and the biquad coefficient
+// RAM both have to be programmed with the DAC powered DOWN; writes
+// made while the DAC is running are latched into the inactive
+// coefficient buffer and, in the case of PRB selection, ignored
+// outright.  Bracketing the coefficient / PRB writes in
+// tlv320_dsp_apply() with dac_power(false)/dac_power(true) is what
+// actually makes EQ / bass / treble / DRC audible at runtime.
 typedef struct
 {
     esp_err_t (*write_reg)(uint8_t page, uint8_t reg, uint8_t val);
     esp_err_t (*mute)(bool enable);
+    esp_err_t (*dac_power)(bool enable);
 } tlv320_dsp_hw_ops_t;
 
 // Install the hw ops and initialise the DSP to a flat / bypassed

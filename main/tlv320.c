@@ -872,6 +872,35 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     return write_digital_volume(s_digital_volume_reg);
 }
 
+// DSP hw-op: toggle the LDAC/RDAC power bits (D7/D6) of
+// REG_DAC_DATAPATH without touching the data-source or soft-step
+// bits.  The TLV320DAC3100 requires the DAC to be powered DOWN
+// before the Processing Block Selection register (0x3C) or the
+// biquad coefficient RAM (pages 8/9) are reprogrammed (SLAS833
+// §6.5); otherwise the new PRB and coefficients are silently
+// ignored.  A short delay after each transition gives the DAC's
+// internal soft-step ramp time to settle so the caller doesn't
+// hear a click.
+static esp_err_t dsp_dac_power(bool enable)
+{
+    uint8_t val = TLV320_DAC_DATAPATH_VALUE;
+    if (!enable)
+    {
+        // Clear D7 (LDAC power) and D6 (RDAC power).
+        val &= (uint8_t)~0xC0;
+    }
+    esp_err_t err = write_reg(0x00, REG_DAC_DATAPATH, val);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+    // DAC power transitions use the codec's internal soft-step
+    // ramp; a few milliseconds is enough for it to complete at
+    // 11.025 kHz Fs with the default soft-step rate.
+    vTaskDelay(pdMS_TO_TICKS(5));
+    return ESP_OK;
+}
+
 
 esp_err_t tlv320_init(void)
 {
@@ -1058,6 +1087,7 @@ esp_err_t tlv320_init(void)
         {
             .write_reg = write_reg,
             .mute      = tlv320_mute,
+            .dac_power = dsp_dac_power,
         };
         esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
         if (dsp_err != ESP_OK)
