@@ -207,6 +207,28 @@ typedef struct
     esp_err_t (*write_reg)(uint8_t page, uint8_t reg, uint8_t val);
     esp_err_t (*mute)(bool enable);
     esp_err_t (*dac_power)(bool enable);
+
+    // Optional: if BOTH of the following hooks are provided, the DSP
+    // module will enable the codec's adaptive filtering mode at init
+    // and use it as the fast path for all subsequent coefficient
+    // updates.  Adaptive mode double-buffers the coefficient RAM
+    // (buffer A on pages 8/9, buffer B on pages 12/13) and swaps
+    // atomically on a sample boundary, so coefficient updates no
+    // longer require muting the DAC or cycling its power.  Either
+    // hook being NULL disables the fast path and falls back to the
+    // dac_power() sequence above.
+    //
+    // set_adaptive_mode(enable) writes bit 2 of the CRAM Control
+    // register (page 8, reg 0x01).  Must be called only while both
+    // DACs are powered down — the DSP module handles bracketing.
+    //
+    // trigger_buffer_switch() sets bit 0 of the same register and
+    // waits (bounded) for the codec to clear it, indicating the
+    // swap has taken effect.  Must return ESP_ERR_TIMEOUT if the
+    // swap did not complete (e.g. because I2S is not running), so
+    // the module can fall back to the power-cycle path.
+    esp_err_t (*set_adaptive_mode)(bool enable);
+    esp_err_t (*trigger_buffer_switch)(void);
 } tlv320_dsp_hw_ops_t;
 
 // Install the hw ops and initialise the DSP to a flat / bypassed

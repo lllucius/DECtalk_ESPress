@@ -533,6 +533,11 @@ const char *tlv320_dsp_drc_preset_name(tlv320_dsp_drc_preset_t preset)
 
 #define DSP_PAGE_LEFT_COEFFS        8
 #define DSP_PAGE_RIGHT_COEFFS       9
+// Buffer B pages for adaptive filtering mode.  See
+// tlv320_dsp_hw_ops_t::set_adaptive_mode.  In non-adaptive mode
+// these pages are unused and ignored.
+#define DSP_PAGE_LEFT_COEFFS_B      12
+#define DSP_PAGE_RIGHT_COEFFS_B     13
 #define DSP_COEFF_BIQUAD_BASE_REG   0x18
 #define DSP_COEFF_BYTES_PER_BIQUAD  15   // 5 coeffs × 3 bytes
 
@@ -579,6 +584,14 @@ static tlv320_dsp_hw_ops_t s_ops;
 static bool                s_initialised = false;
 static tlv320_dsp_state_t  s_last_applied;
 static bool                s_has_last_applied = false;
+// Set to true once the codec has been switched into adaptive
+// filtering mode (CRAM_CTRL bit 2 asserted).  When true,
+// tlv320_dsp_apply() uses the fast double-buffered path: write
+// coefficients to pages 8/9, trigger an atomic buffer switch, then
+// mirror to pages 12/13 — no mute, no DAC power cycle.  When false
+// (hw ops didn't provide the adaptive hooks, or the one-time init
+// upgrade failed), apply() falls back to the dac_power() sequence.
+static bool                s_adaptive_mode = false;
 
 // Return the biquad slot's per-slot filter computation function
 // result, or bypass coefficients if the slot is disabled.
@@ -642,7 +655,9 @@ static esp_err_t write_coeff_bytes(uint8_t page,
     return ESP_OK;
 }
 
-static esp_err_t upload_biquads(const tlv320_dsp_state_t *state)
+static esp_err_t upload_biquads_to_pages(const tlv320_dsp_state_t *state,
+                                         uint8_t left_page,
+                                         uint8_t right_page)
 {
     // Write as many slots as the PRB offers biquads for.  Order on
     // the wire is slot 0 -> slot N-1 mapped to biquad A, B, C, ….
@@ -676,9 +691,9 @@ static esp_err_t upload_biquads(const tlv320_dsp_state_t *state)
         uint8_t reg = (uint8_t)(DSP_COEFF_BIQUAD_BASE_REG
                                 + slot * DSP_COEFF_BYTES_PER_BIQUAD);
 
-        esp_err_t err = write_coeff_bytes(DSP_PAGE_LEFT_COEFFS, reg, coeffs);
+        esp_err_t err = write_coeff_bytes(left_page, reg, coeffs);
         if (err != ESP_OK) return err;
-        err = write_coeff_bytes(DSP_PAGE_RIGHT_COEFFS, reg, coeffs);
+        err = write_coeff_bytes(right_page, reg, coeffs);
         if (err != ESP_OK) return err;
     }
 
@@ -690,6 +705,13 @@ static esp_err_t upload_biquads(const tlv320_dsp_state_t *state)
     }
 
     return ESP_OK;
+}
+
+static esp_err_t upload_biquads(const tlv320_dsp_state_t *state)
+{
+    return upload_biquads_to_pages(state,
+                                   DSP_PAGE_LEFT_COEFFS,
+                                   DSP_PAGE_RIGHT_COEFFS);
 }
 
 static esp_err_t program_drc(const tlv320_dsp_state_t *state)
@@ -738,41 +760,105 @@ esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops)
     s_ops = *ops;
     s_initialised = true;
     s_has_last_applied = false;
+    s_adaptive_mode = false;
 
     // Leave the codec in its current PRB (PRB_P1 from the init
     // table) and explicitly disable DRC.  This is a no-op on the
     // audio path compared to the pre-feature firmware.
     tlv320_dsp_state_t flat;
     tlv320_dsp_state_default(&flat);
-    return tlv320_dsp_apply(&flat);
+    esp_err_t err = tlv320_dsp_apply(&flat);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    // One-time upgrade to adaptive filtering mode if the hw driver
+    // supplied the necessary hooks.  From this point on every
+    // coefficient update goes through the double-buffered fast path,
+    // so [:fw bass|treble|eq|drc] commands never need to mute or
+    // cycle the DAC — the swap is atomic on the next sample edge.
+    //
+    // We permanently park the codec on PRB_P2 because adaptive mode
+    // implies a fixed processing block, and we prime both CRAM
+    // buffers with bypass coefficients so either buffer can become
+    // live without introducing audible changes.
+    if (s_ops.set_adaptive_mode && s_ops.trigger_buffer_switch)
+    {
+        esp_err_t upg = s_ops.mute(true);
+        if (upg == ESP_OK) upg = s_ops.dac_power(false);
+        if (upg == ESP_OK) upg = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
+        if (upg == ESP_OK) upg = upload_biquads_to_pages(&flat,
+                                                        DSP_PAGE_LEFT_COEFFS,
+                                                        DSP_PAGE_RIGHT_COEFFS);
+        if (upg == ESP_OK) upg = upload_biquads_to_pages(&flat,
+                                                        DSP_PAGE_LEFT_COEFFS_B,
+                                                        DSP_PAGE_RIGHT_COEFFS_B);
+        if (upg == ESP_OK) upg = s_ops.set_adaptive_mode(true);
+
+        // Always restore DAC power / unmute, even on error.
+        esp_err_t pwr = s_ops.dac_power(true);
+        if (upg == ESP_OK) upg = pwr;
+        esp_err_t um = s_ops.mute(false);
+        if (upg == ESP_OK) upg = um;
+
+        if (upg == ESP_OK)
+        {
+            s_adaptive_mode = true;
+            ESP_LOGI(TAG,
+                     "DSP running in adaptive filtering mode; "
+                     "coefficient updates will not cycle DAC power");
+        }
+        else
+        {
+            // Best-effort revert of the adaptive bit in case we set
+            // it before a later step failed.
+            (void)s_ops.set_adaptive_mode(false);
+            ESP_LOGW(TAG,
+                     "Adaptive filtering mode setup failed (%s); "
+                     "falling back to power-cycle coefficient updates",
+                     esp_err_to_name(upg));
+        }
+    }
+
+    return ESP_OK;
 }
 
-esp_err_t tlv320_dsp_apply(const tlv320_dsp_state_t *state)
+// Adaptive fast path: write coeffs to buffer A (pages 8/9), trigger
+// an atomic buffer swap, mirror into buffer B (pages 12/13), then
+// update DRC.  No DAC power cycle, no mute.  Returns ESP_ERR_TIMEOUT
+// if the codec does not acknowledge the buffer switch (the I2S
+// clock is likely stopped), letting the caller fall back to the
+// non-adaptive path.
+static esp_err_t apply_adaptive(const tlv320_dsp_state_t *state)
 {
-    if (!s_initialised) return ESP_ERR_INVALID_STATE;
-    if (!state)         return ESP_ERR_INVALID_ARG;
+    esp_err_t err = upload_biquads_to_pages(state,
+                                            DSP_PAGE_LEFT_COEFFS,
+                                            DSP_PAGE_RIGHT_COEFFS);
+    if (err != ESP_OK) return err;
 
-    bool flat = tlv320_dsp_state_is_flat(state);
+    err = s_ops.trigger_buffer_switch();
+    if (err != ESP_OK) return err;  // ESP_ERR_TIMEOUT bubbles up for fallback
 
-    // Soft-mute briefly so coefficient writes can't be heard as
-    // clicks.  On failure we leave the codec muted and let the
-    // caller decide how to recover (usually by re-running apply
-    // with the last known-good state).
-    //
-    // Per SLAS833 §6.5 the DAC Processing Block Selection register
-    // (0x3C) and the biquad coefficient RAM (pages 8/9) must be
-    // written while the DAC is powered DOWN — otherwise the new
-    // PRB / coefficients are silently ignored and the audio path
-    // keeps running the previous settings.  That is the bug that
-    // made [:fw bass|treble|eq|drc|preset] inaudible while volume
-    // (which goes through a separately hot-writable register)
-    // worked.  We therefore bracket the PRB / coefficient / DRC
-    // writes with dac_power(false) / dac_power(true).  The hw-op
-    // is required to *poll the DAC Flag Register* (page 0 reg
-    // 0x25) so it only returns once the DAC has actually reached
-    // the requested state — a fixed delay is not sufficient
-    // because the power transition is gated by the codec's
-    // internal soft-step ramp.
+    // Mirror into buffer B so a subsequent apply() still sees the
+    // same coefficients on the now-inactive buffer.
+    err = upload_biquads_to_pages(state,
+                                  DSP_PAGE_LEFT_COEFFS_B,
+                                  DSP_PAGE_RIGHT_COEFFS_B);
+    if (err != ESP_OK) return err;
+
+    return program_drc(state);
+}
+
+// Non-adaptive path (original behaviour): mute, cycle DAC power,
+// set PRB, write coefficients, write DRC, restore power, unmute.
+// Per SLAS833 §6.5 coefficient RAM and the DAC Processing Block
+// Selection register can only be written while both DACs are
+// powered down.  The hw-op dac_power(false) follows SLAS833
+// §6.3.10.9 figure 6-18 to poll the PGA-gain-applied bits before
+// cutting DAC power.
+static esp_err_t apply_nonadaptive(const tlv320_dsp_state_t *state, bool flat)
+{
     esp_err_t err = s_ops.mute(true);
     if (err != ESP_OK) return err;
 
@@ -801,10 +887,6 @@ esp_err_t tlv320_dsp_apply(const tlv320_dsp_state_t *state)
     }
 
     err = program_drc(state);
-    if (err != ESP_OK) goto out_power;
-
-    s_last_applied     = *state;
-    s_has_last_applied = true;
 
 out_power:
     {
@@ -818,22 +900,51 @@ out:
         if (err == ESP_OK) err = mute_err;
     }
 
+    return err;
+}
+
+esp_err_t tlv320_dsp_apply(const tlv320_dsp_state_t *state)
+{
+    if (!s_initialised) return ESP_ERR_INVALID_STATE;
+    if (!state)         return ESP_ERR_INVALID_ARG;
+
+    bool flat = tlv320_dsp_state_is_flat(state);
+    esp_err_t err;
+
+    if (s_adaptive_mode)
+    {
+        err = apply_adaptive(state);
+        if (err == ESP_OK)
+        {
+            s_last_applied     = *state;
+            s_has_last_applied = true;
+            return ESP_OK;
+        }
+        if (err != ESP_ERR_TIMEOUT)
+        {
+            return err;
+        }
+        // Buffer swap didn't complete (I2S probably not running).
+        // Fall through to the non-adaptive path, which pauses and
+        // re-starts the DAC explicitly.
+        ESP_LOGW(TAG,
+                 "adaptive CRAM buffer switch timed out; using power-cycle path");
+    }
+
+    err = apply_nonadaptive(state, flat);
+    if (err == ESP_OK)
+    {
+        s_last_applied     = *state;
+        s_has_last_applied = true;
+    }
+
     if (err != ESP_OK && s_has_last_applied)
     {
         // Best-effort revert to the last known-good configuration.
         // Log and continue; don't recurse if the revert also fails.
         ESP_LOGE(TAG, "DSP apply failed (%d); reverting to last good", err);
-        (void)s_ops.mute(true);
-        (void)s_ops.dac_power(false);
-        (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
-        (void)upload_biquads(&s_last_applied);
-        if (!tlv320_dsp_state_is_flat(&s_last_applied))
-        {
-            (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
-        }
-        (void)program_drc(&s_last_applied);
-        (void)s_ops.dac_power(true);
-        (void)s_ops.mute(false);
+        (void)apply_nonadaptive(&s_last_applied,
+                                tlv320_dsp_state_is_flat(&s_last_applied));
     }
 
     return err;

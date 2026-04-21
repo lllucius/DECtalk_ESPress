@@ -51,7 +51,7 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_DOSR_LSB        0x0E    // DOSR lower byte
 #define REG_CODEC_IF        0x1B    // Audio interface control
 #define REG_OVERFLOW_FLAGS  0x27    // DAC overflow flags
-#define REG_DAC_FLAG        0x25    // DAC Flag Register (power/PGA status)
+#define REG_DAC_FLAG2       0x26    // DAC Flag Register 2 (PGA gain-applied)
 #define REG_DAC_INT_FLAGS   0x2C    // Sticky interrupt flags
 #define REG_DAC_INT_STATUS  0x2E    // Current interrupt status
 #define REG_INT1_CTRL       0x30    // INT1 routing / pulse mode
@@ -873,81 +873,162 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     return write_digital_volume(s_digital_volume_reg);
 }
 
-// DSP hw-op: toggle the LDAC/RDAC power bits (D7/D6) of
-// REG_DAC_DATAPATH and then poll REG_DAC_FLAG (page 0, reg 0x25)
-// to confirm the DAC has actually reached the requested state
-// before returning.  This is the sequence called out in SLAS833
-// §6.5: the Processing Block Selection register (0x3C) and the
-// biquad coefficient RAM (pages 8/9) must be written while both
-// DACs are powered DOWN, otherwise the new PRB/coefficients are
-// silently ignored.  A fixed vTaskDelay() is not sufficient — on
-// this codec the power-up/-down transition is gated by the soft-
-// step ramp and can take longer than the coarse 5 ms used in the
-// first version of this helper.  Waiting on the flag register is
-// the only way to know the transition actually completed.
+// DSP hw-op: bracket a coefficient/PRB update with a DAC power
+// cycle, following the "Coefficient Update" sequence from SLAS833
+// §6.3.10.9 (figure 6-18).  Per that section, the DAC Processing
+// Block Selection register (0x3C) and the biquad coefficient RAM
+// (pages 8/9, 12/13) must only be written while both DACs are
+// powered DOWN; writes made while the DAC is running are silently
+// ignored, which is why [:fw bass|treble|eq|drc|preset] had no
+// audible effect before this helper was added.
 //
-// REG_DAC_FLAG bit layout (page 0, reg 0x25), per SLAS833:
-//   D7 = 1 when Left  DAC is powered up
-//   D3 = 1 when Right DAC is powered up
-//   (other bits reflect HPL/HPR and PGA state; not used here)
+// The caller is expected to have already forced the digital volume
+// down (via tlv320_mute(true), which sets LDAC/RDAC_VOL = 0x81).
+// This helper then:
+//
+//   enable = false  (prepare for coefficient write):
+//     1. Poll REG_DAC_FLAG2 D4 (LPGA gain applied) and D0 (RPGA
+//        gain applied) until both are set — i.e. the soft-step
+//        ramp triggered by the outer mute has actually reached
+//        the programmed target.  Polling the PGA-applied flags
+//        is what TI's reference implementation and the yellobyte
+//        TLV320DAC3101 Arduino library do; polling DAC_FLAG
+//        (0x25 D7/D3) is incorrect because those bits reflect
+//        LDAC/RDAC *power* state and are not affected by the
+//        soft-step volume ramp.  A prior version polled 0x25 and
+//        timed out on hardware with DAC_FLAG stuck at 0xAA
+//        (LDAC+HPL+RDAC+HPR still powered) after clearing D7/D6
+//        of DAC_DATAPATH.
+//     2. vTaskDelay(20 ms) for the PGA output to fully settle
+//        (fig 6-18 explicitly shows this fixed delay).
+//     3. Clear D7/D6 of REG_DAC_DATAPATH to power down both DACs.
+//
+//   enable = true   (resume after coefficient write):
+//     1. Set D7/D6 of REG_DAC_DATAPATH to power up both DACs.
+//     2. vTaskDelay(20 ms) so the analog blocks stabilise before
+//        the caller restores volume via mute(false).  The PGA
+//        ramp-up is driven by the subsequent volume write and
+//        does not need to be polled here.
 static esp_err_t dsp_dac_power_and_wait(bool enable)
 {
-    uint8_t val = TLV320_DAC_DATAPATH_VALUE;
-    if (!enable)
+    if (enable)
     {
-        val &= (uint8_t)~0xC0;   // clear D7 (LDAC pwr) and D6 (RDAC pwr)
-    }
-
-    esp_err_t err = write_reg(0x00, REG_DAC_DATAPATH, val);
-    if (err != ESP_OK)
-    {
-        ESP_LOGW(TAG, "DSP power%s: write REG_DAC_DATAPATH=0x%02X failed: %s",
-                 enable ? "-up" : "-down", val, esp_err_to_name(err));
-        return err;
-    }
-
-    // The target mask for REG_DAC_FLAG: both DACs up (0x88) when
-    // enabling, both DACs down (0x00) when disabling.  We only
-    // care about D7 and D3; mask the rest out when comparing.
-    const uint8_t mask   = 0x88;
-    const uint8_t target = enable ? 0x88 : 0x00;
-
-    // 500 ms total budget, polled every 1 ms.  This matches the
-    // mainline Linux tlv320aic31xx driver (DAC3100 is a member of
-    // the aic31xx family), whose aic31xx_dapm_power_event() uses a
-    // 500 ms / 5 ms budget for this exact status-bit poll.  An
-    // earlier 50 ms budget was observed to time out on hardware
-    // with DAC_FLAG stuck at 0xAA (LDAC+HPL+RDAC+HPR still powered)
-    // because, with soft-step enabled (DAC_DATAPATH D1:D0 = 00,
-    // one step per Fs) at Fs = 11.025 kHz, the full 127 × 0.5 dB
-    // ramp plus DAC shutdown settling exceeds 50 ms in practice.
-    // 500 ms is user-visible only if the codec actually hangs.
-    const int poll_interval_ms = 1;
-    const int poll_timeout_ms  = 500;
-    uint8_t flag = 0;
-    for (int waited = 0; waited < poll_timeout_ms; waited += poll_interval_ms)
-    {
-        err = read_reg(0x00, REG_DAC_FLAG, &flag);
+        uint8_t val = TLV320_DAC_DATAPATH_VALUE;
+        esp_err_t err = write_reg(0x00, REG_DAC_DATAPATH, val);
         if (err != ESP_OK)
         {
-            ESP_LOGW(TAG, "DSP power%s: read REG_DAC_FLAG failed: %s",
-                     enable ? "-up" : "-down", esp_err_to_name(err));
+            ESP_LOGW(TAG, "DSP power-up: write REG_DAC_DATAPATH=0x%02X failed: %s",
+                     val, esp_err_to_name(err));
             return err;
         }
-        if ((flag & mask) == target)
+        // Fixed post-power-up settle (SLAS833 §6.3.10.9 fig 6-18).
+        vTaskDelay(pdMS_TO_TICKS(20));
+        return ESP_OK;
+    }
+
+    // Wait for the outer mute's soft-step volume ramp to settle.
+    // FLAG2 D4 = LPGA gain reached programmed value, D0 = RPGA
+    // ditto.  Both must be 1 before it's safe to cut DAC power.
+    const uint8_t mask   = (1u << 4) | (1u << 0);
+    const int poll_interval_ms = 1;
+    const int poll_timeout_ms  = 500;
+    uint8_t flag2 = 0;
+    esp_err_t err = ESP_OK;
+    int waited = 0;
+    for (; waited < poll_timeout_ms; waited += poll_interval_ms)
+    {
+        err = read_reg(0x00, REG_DAC_FLAG2, &flag2);
+        if (err != ESP_OK)
         {
-            ESP_LOGD(TAG, "DSP power%s: DAC_FLAG=0x%02X settled after %d ms",
-                     enable ? "-up" : "-down", flag, waited);
-            return ESP_OK;
+            ESP_LOGW(TAG, "DSP power-down: read REG_DAC_FLAG2 failed: %s",
+                     esp_err_to_name(err));
+            return err;
+        }
+        if ((flag2 & mask) == mask)
+        {
+            ESP_LOGD(TAG, "DSP power-down: DAC_FLAG2=0x%02X PGA-settled after %d ms",
+                     flag2, waited);
+            break;
         }
         vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
     }
+    if (waited >= poll_timeout_ms)
+    {
+        // Non-fatal: log and continue with the power-down anyway.
+        // Worst case we write coefficients to a still-running DAC
+        // and the change is silently ignored, which is the same
+        // failure mode as before this helper existed.
+        ESP_LOGW(TAG, "DSP power-down: timeout waiting for PGA ramp (DAC_FLAG2=0x%02X)",
+                 flag2);
+    }
 
-    ESP_LOGW(TAG, "DSP power%s: timeout waiting for DAC_FLAG=0x%02X (got 0x%02X)",
-             enable ? "-up" : "-down", target, flag);
-    return ESP_ERR_TIMEOUT;
+    // Fixed PGA-settle delay from fig 6-18.
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    uint8_t val = (uint8_t)(TLV320_DAC_DATAPATH_VALUE & ~0xC0);
+    err = write_reg(0x00, REG_DAC_DATAPATH, val);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "DSP power-down: write REG_DAC_DATAPATH=0x%02X failed: %s",
+                 val, esp_err_to_name(err));
+        return err;
+    }
+
+    return ESP_OK;
 }
 
+// DSP hw-op: enable/disable the codec's adaptive filtering mode by
+// writing bit 2 of the CRAM Control register (page 8, reg 0x01).
+// Per SLAS833 §6.3.10.9 this register's adaptive-mode bit should
+// only be toggled while both DACs are powered down — the caller
+// is responsible for bracketing this with dsp_dac_power_and_wait.
+// When adaptive mode is enabled, coefficient RAM is double-buffered:
+//   - Buffer A occupies pages  8 (left) and  9 (right).
+//   - Buffer B occupies pages 12 (left) and 13 (right).
+// Writes always target the currently inactive buffer; setting the
+// buffer-switch bit (bit 0 of the same register) triggers an atomic
+// swap on the next sample boundary so new coefficients go live with
+// no glitch and no DAC power cycle.
+static esp_err_t dsp_set_adaptive_mode(bool enable)
+{
+    uint8_t v;
+    esp_err_t err = read_reg(0x08, 0x01, &v);
+    if (err != ESP_OK) return err;
+    uint8_t new_v = enable ? (uint8_t)(v | 0x04) : (uint8_t)(v & ~0x04);
+    if (new_v == v) return ESP_OK;
+    return write_reg(0x08, 0x01, new_v);
+}
+
+// DSP hw-op: trigger an atomic CRAM buffer switch and wait for the
+// codec to acknowledge it.  Sets bit 0 of CRAM_CTRL (page 8 reg
+// 0x01); the codec self-clears this bit once the DSP has picked up
+// the new buffer (nominally on the next sample edge).  If the I2S
+// clock is stopped the switch never completes, so we bound the wait
+// to 20 ms (matching the yellobyte TLV320DAC3101 reference library)
+// and return ESP_ERR_TIMEOUT so the caller can fall back to the
+// DAC-power-cycle path.
+static esp_err_t dsp_trigger_buffer_switch(void)
+{
+    uint8_t v;
+    esp_err_t err = read_reg(0x08, 0x01, &v);
+    if (err != ESP_OK) return err;
+    err = write_reg(0x08, 0x01, (uint8_t)(v | 0x01));
+    if (err != ESP_OK) return err;
+
+    for (int waited = 0; waited < 20; waited++)
+    {
+        err = read_reg(0x08, 0x01, &v);
+        if (err != ESP_OK) return err;
+        if ((v & 0x01) == 0)
+        {
+            ESP_LOGD(TAG, "CRAM buffer switch completed after %d ms", waited);
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+    ESP_LOGW(TAG, "CRAM buffer switch: timeout (bit 0 still set); I2S clock stopped?");
+    return ESP_ERR_TIMEOUT;
+}
 
 esp_err_t tlv320_init(void)
 {
@@ -1132,9 +1213,11 @@ esp_err_t tlv320_init(void)
     {
         static const tlv320_dsp_hw_ops_t dsp_ops =
         {
-            .write_reg = write_reg,
-            .mute      = tlv320_mute,
-            .dac_power = dsp_dac_power_and_wait,
+            .write_reg             = write_reg,
+            .mute                  = tlv320_mute,
+            .dac_power             = dsp_dac_power_and_wait,
+            .set_adaptive_mode     = dsp_set_adaptive_mode,
+            .trigger_buffer_switch = dsp_trigger_buffer_switch,
         };
         esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
         if (dsp_err != ESP_OK)
