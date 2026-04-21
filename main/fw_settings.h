@@ -23,7 +23,7 @@
 #include <stdbool.h>
 #include "esp_err.h"
 
-#ifdef CONFIG_DTESP_DAC_TLV320DAC3100
+#ifdef CONFIG_DTESP_DAC_TLV320
 #include "tlv320_dsp.h"
 #endif
 
@@ -46,7 +46,7 @@ esp_err_t fw_settings_init(void);
 /**
  * @brief Apply the currently loaded settings to the codec.
  *
- * Must be called after tlv320dac3100_init() so that the codec is
+ * Must be called after tlv320_init() so that the codec is
  * ready to accept runtime changes (profile switch, volume write,
  * autoswitch flag).
  */
@@ -70,13 +70,13 @@ void fw_settings_set_volume(uint8_t level);
 void fw_settings_set_profile(uint8_t profile);
 void fw_settings_set_autoswitch(uint8_t enable);
 
-#ifdef CONFIG_DTESP_DAC_TLV320DAC3100
+#ifdef CONFIG_DTESP_DAC_TLV320
 /**
  * @brief Return a pointer to the in-memory DSP state (EQ + DRC).
  *
  * The returned pointer is valid until the next fw_settings_init().
  * Callers mutate the state in place and then either apply it to
- * the codec via tlv320dac3100_apply_dsp() and/or persist it with
+ * the codec via tlv320_apply_dsp() and/or persist it with
  * fw_settings_save().
  */
 tlv320_dsp_state_t *fw_settings_get_dsp(void);

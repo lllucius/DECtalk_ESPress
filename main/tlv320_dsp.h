@@ -187,7 +187,7 @@ int32_t tlv320_dsp_float_to_q23(float x);
 // ------------------------------------------------------------
 #ifdef ESP_PLATFORM
 
-// Low-level hooks provided by tlv320dac3100.c so the DSP module
+// Low-level hooks provided by tlv320.c so the DSP module
 // can talk to the codec without duplicating I2C plumbing.
 typedef struct
 {
@@ -196,7 +196,7 @@ typedef struct
 } tlv320_dsp_hw_ops_t;
 
 // Install the hw ops and initialise the DSP to a flat / bypassed
-// state.  Call once from tlv320dac3100_init() *after* the codec is
+// state.  Call once from tlv320_init() *after* the codec is
 // out of reset.  Safe to call repeatedly.
 esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops);
 

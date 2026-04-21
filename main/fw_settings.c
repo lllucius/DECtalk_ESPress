@@ -14,8 +14,8 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
-#include "tlv320dac3100.h"
+#if CONFIG_DTESP_DAC_TLV320
+#include "tlv320.h"
 #include "tlv320_dsp.h"
 #endif
 
@@ -58,7 +58,7 @@ _Static_assert(sizeof(fw_dsp_blob_t) == 32,
                "fw_dsp_blob_t must be exactly 32 bytes for forward compat");
 
 // Compile-time factory defaults pulled from Kconfig.
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
 #define FW_DEFAULT_VOLUME ((uint8_t)CONFIG_DTESP_TLV320_STARTUP_VOLUME)
 #if CONFIG_DTESP_TLV320_DEFAULT_PROFILE_HEADPHONE
 #define FW_DEFAULT_PROFILE ((uint8_t)1)
@@ -83,7 +83,7 @@ static uint8_t s_profile    = FW_DEFAULT_PROFILE;
 static uint8_t s_autoswitch = FW_DEFAULT_AUTOSW;
 static bool    s_initialised = false;
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
 
 #ifdef CONFIG_DTESP_TLV320_DEFAULT_SPK_GAIN_DB
 #define FW_DEFAULT_SPK_GAIN ((uint8_t)CONFIG_DTESP_TLV320_DEFAULT_SPK_GAIN_DB)
@@ -168,7 +168,7 @@ static bool fw_dsp_from_blob(const fw_dsp_blob_t *blob)
     return true;
 }
 
-#endif // CONFIG_DTESP_DAC_TLV320DAC3100
+#endif // CONFIG_DTESP_DAC_TLV320
 
 static esp_err_t load_u8(nvs_handle_t h, const char *key, uint8_t *out,
                          uint8_t fallback)
@@ -193,7 +193,7 @@ static esp_err_t load_u8(nvs_handle_t h, const char *key, uint8_t *out,
 
 esp_err_t fw_settings_init(void)
 {
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
     // Always start from factory DSP defaults; the NVS blob (if
     // present) then overwrites any fields it covers.
     fw_dsp_reset_defaults();
@@ -225,7 +225,7 @@ esp_err_t fw_settings_init(void)
     (void)load_u8(h, FW_SETTINGS_KEY_PROFILE, &s_profile,    FW_DEFAULT_PROFILE);
     (void)load_u8(h, FW_SETTINGS_KEY_AUTOSW,  &s_autoswitch, FW_DEFAULT_AUTOSW);
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
     // Load the DSP blob when present.  Any schema mismatch silently
     // falls back to the factory defaults computed above.
     {
@@ -277,8 +277,8 @@ esp_err_t fw_settings_init(void)
 
 void fw_settings_apply(void)
 {
-#if CONFIG_DTESP_DAC_TLV320DAC3100
-    tlv320dac3100_set_autoswitch(s_autoswitch != 0);
+#if CONFIG_DTESP_DAC_TLV320
+    tlv320_set_autoswitch(s_autoswitch != 0);
 
     tlv320_profile_t tp = (s_profile == 1)
                               ? TLV320_PROFILE_HEADPHONE
@@ -286,20 +286,20 @@ void fw_settings_apply(void)
 
     // Push the desired speaker analog gain before the profile
     // switch so the first set_profile() picks it up.
-    (void)tlv320dac3100_set_speaker_gain_db(s_spk_gain_db);
+    (void)tlv320_set_speaker_gain_db(s_spk_gain_db);
 
-    esp_err_t err = tlv320dac3100_set_profile(tp);
+    esp_err_t err = tlv320_set_profile(tp);
     if (err != ESP_OK)
     {
         ESP_LOGW(TAG, "set_profile on apply failed: %s",
                  esp_err_to_name(err));
     }
 
-    tlv320dac3100_set_volume(s_volume);
+    tlv320_set_volume(s_volume);
 
     // Apply DSP state last so EQ / DRC sit on top of the profile's
     // cleanly programmed base routing.
-    esp_err_t derr = tlv320dac3100_apply_dsp(&s_dsp);
+    esp_err_t derr = tlv320_apply_dsp(&s_dsp);
     if (derr != ESP_OK)
     {
         ESP_LOGW(TAG, "apply_dsp failed: %s", esp_err_to_name(derr));
@@ -327,7 +327,7 @@ esp_err_t fw_settings_save(void)
         err = nvs_set_u8(h, FW_SETTINGS_KEY_AUTOSW, s_autoswitch);
     }
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
     if (err == ESP_OK)
     {
         fw_dsp_blob_t blob;
@@ -379,7 +379,7 @@ void fw_settings_set_autoswitch(uint8_t enable)
     s_autoswitch = enable ? 1 : 0;
 }
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
 tlv320_dsp_state_t *fw_settings_get_dsp(void)
 {
     return &s_dsp;
