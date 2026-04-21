@@ -197,7 +197,7 @@ int32_t tlv320_dsp_float_to_q23(float x);
 // REG_DAC_DATAPATH (0x3F) while toggling D7:D6, and restores
 // the normal soft-step setting when `dac_power(true)` returns.
 // Per SLAS833 §6.5 the DAC Processing Block register (0x3C) and
-// the biquad coefficient RAM (pages 8/9) are only honoured while
+// the biquad coefficient RAM (pages 8/9) are only honored while
 // the DAC is powered down, so every call to `apply()` brackets
 // those writes with `dac_power(false)` / `dac_power(true)`.
 typedef struct

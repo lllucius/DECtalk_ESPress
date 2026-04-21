@@ -875,7 +875,7 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
 
 // DSP hw-op: power the LDAC/RDAC down/up *immediately* so that
 // subsequent writes to the DAC Processing Block register (0x3C)
-// and the biquad coefficient RAM (pages 8/9) are actually honoured
+// and the biquad coefficient RAM (pages 8/9) are actually honored
 // (SLAS833 §6.5 — those writes are ignored while the DAC is
 // running).  The TLV320DAC3100 applies its normal digital-volume
 // soft-step ramp on REG_DAC_DATAPATH D7:D6 transitions when soft-
