@@ -354,8 +354,8 @@
 │   ├── custom_actions.h            # Action handler public API
 │   ├── fw_settings.c               # NVS-backed codec settings (volume, profile, autoswitch)
 │   ├── fw_settings.h               # Firmware settings public API
-│   ├── tlv320dac3100.c             # TI TLV320DAC3100 codec driver (Adafruit breakout)
-│   ├── tlv320dac3100.h             # Codec driver public API
+│   ├── tlv320.c             # TI TLV320DAC3100 codec driver (Adafruit breakout)
+│   ├── tlv320.h             # Codec driver public API
 │   ├── usb_cdc_transport.c         # ESP32-S3 USB CDC-ACM transport layer (TinyUSB wrapper)
 │   ├── usb_cdc_transport.h         # ESP32-S3 transport API
 │   ├── jtag_serial_transport.c     # ESP32-C6 USB Serial/JTAG transport layer
@@ -416,8 +416,8 @@
 <td>NVS-backed mirror of codec settings (volume, profile, autoswitch); loaded at startup, persisted by <code>[:fw save]</code></td>
 </tr>
 <tr class="odd">
-<td><code>tlv320dac3100.c</code></td>
-<td>Driver for the TI TLV320DAC3100 stereo DAC / headphone amplifier (Adafruit breakout); compiled only when <code>DTESP_DAC_TLV320DAC3100</code> is selected</td>
+<td><code>tlv320.c</code></td>
+<td>Driver for the TI TLV320DAC3100 stereo DAC / headphone amplifier (Adafruit breakout); compiled only when <code>DTESP_DAC_TLV320</code> is selected</td>
 </tr>
 <tr class="even">
 <td><code>usb_cdc_transport.c</code></td>
@@ -443,7 +443,7 @@
 <li><code>esp_driver_i2s</code> — I2S driver (audio output)</li>
 <li><code>esp_timer</code> — High-resolution timer</li>
 <li><code>esp_driver_ledc</code> — LEDC PWM driver (compiled in only when <code>DTESP_FW_CMD_TONE_ENABLE</code> is set)</li>
-<li><code>nvs_flash</code> — Non-volatile storage (compiled in only when <code>DTESP_DAC_TLV320DAC3100</code> is selected)</li>
+<li><code>nvs_flash</code> — Non-volatile storage (compiled in only when <code>DTESP_DAC_TLV320</code> is selected)</li>
 </ul>
 <p>External dependency via <code>idf_component.yml</code>:</p>
 <ul>

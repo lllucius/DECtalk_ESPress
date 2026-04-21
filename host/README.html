@@ -319,6 +319,7 @@
 <li><strong>Connection</strong> – select serial port and connect with automatic device probe</li>
 <li><strong>Multi-line text input</strong> with standard editing</li>
 <li><strong>Voice / rate / pitch</strong> controls</li>
+<li><strong>Audio Settings dialog</strong> (<code>Device → Audio Settings…</code>, <code>Ctrl+Shift+A</code>) – output profile (speaker / headphone), autoswitch, volume, class-D speaker amp gain, mute, bass / treble tone controls, 5-band peaking EQ with named presets (<code>flat</code>, <code>speech</code>, <code>crisp</code>, <code>warm</code>), and DRC with tuning presets (<code>soft</code>, <code>speech</code>, <code>loud</code>). All changes are sent as <code>[:fw …]</code> inline commands and take effect immediately; <strong>Save to Device</strong> (and the <code>Device → Save Settings to Device</code> menu item) persist them to NVS.</li>
 <li><strong>Pause / Resume</strong> buttons — send SO (0x0E) / SI (0x0F) control characters</li>
 <li><strong>Flush</strong> button — cancel all pending speech (TSR flush sequence + SOH ack)</li>
 <li><strong>Query Status</strong> — send ENQ (0x05) and decode the DLE status response</li>
