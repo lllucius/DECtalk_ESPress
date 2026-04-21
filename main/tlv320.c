@@ -52,6 +52,11 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_CODEC_IF        0x1B    // Audio interface control
 #define REG_OVERFLOW_FLAGS  0x27    // DAC overflow flags
 #define REG_DAC_FLAG2       0x26    // DAC Flag Register 2 (PGA gain-applied)
+// REG_DAC_FLAG2 bit layout (page 0, reg 0x26), per SLAS833:
+//   D4 = 1 when Left  DAC PGA gain has reached the programmed value
+//   D0 = 1 when Right DAC PGA gain has reached the programmed value
+#define DAC_FLAG2_LPGA_APPLIED      (1u << 4)
+#define DAC_FLAG2_RPGA_APPLIED      (1u << 0)
 #define REG_DAC_INT_FLAGS   0x2C    // Sticky interrupt flags
 #define REG_DAC_INT_STATUS  0x2E    // Current interrupt status
 #define REG_INT1_CTRL       0x30    // INT1 routing / pulse mode
@@ -59,6 +64,8 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_GPIO1_CTRL      0x33    // GPIO1 control / INT1 output mux
 #define REG_DAC_PRB         0x3C    // DAC processing block
 #define REG_DAC_DATAPATH    0x3F    // DAC data-path setup
+// REG_DAC_DATAPATH D7 = Left DAC power, D6 = Right DAC power.
+#define DAC_DATAPATH_POWER_MASK     0xC0
 #define REG_DAC_VOL_CTRL    0x40    // DAC volume / mute control
 #define REG_DAC_LVOL        0x41    // Left DAC digital volume
 #define REG_DAC_RVOL        0x42    // Right DAC digital volume
@@ -74,6 +81,15 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_HPL_DRIVER      0x28    // HPL driver gain / mute
 #define REG_HPR_DRIVER      0x29    // HPR driver gain / mute
 #define REG_SPK_DRIVER      0x2A    // SPK driver gain / mute
+
+// ---- Page 8: DAC coefficient RAM control ------------------------
+#define REG_CRAM_CTRL       0x01    // C-RAM control (page 8)
+// REG_CRAM_CTRL bit layout, per SLAS833 §6.3.10.9:
+//   D2 = adaptive filtering mode enable (double-buffered CRAM)
+//   D0 = buffer-switch trigger (atomic on next sample edge;
+//        self-clears when the swap has taken effect)
+#define CRAM_CTRL_ADAPTIVE_BIT      (1u << 2)
+#define CRAM_CTRL_BUF_SWITCH_BIT    (1u << 0)
 
 // ---- Headset detection status (bits 6:5 of REG_HEADSET_DETECT) ---
 #define HEADSET_NONE        0x00    // No headset detected
@@ -929,7 +945,7 @@ static esp_err_t dsp_dac_power_and_wait(bool enable)
     // Wait for the outer mute's soft-step volume ramp to settle.
     // FLAG2 D4 = LPGA gain reached programmed value, D0 = RPGA
     // ditto.  Both must be 1 before it's safe to cut DAC power.
-    const uint8_t mask   = (1u << 4) | (1u << 0);
+    const uint8_t mask   = DAC_FLAG2_LPGA_APPLIED | DAC_FLAG2_RPGA_APPLIED;
     const int poll_interval_ms = 1;
     const int poll_timeout_ms  = 500;
     uint8_t flag2 = 0;
@@ -965,7 +981,7 @@ static esp_err_t dsp_dac_power_and_wait(bool enable)
     // Fixed PGA-settle delay from fig 6-18.
     vTaskDelay(pdMS_TO_TICKS(20));
 
-    uint8_t val = (uint8_t)(TLV320_DAC_DATAPATH_VALUE & ~0xC0);
+    uint8_t val = (uint8_t)(TLV320_DAC_DATAPATH_VALUE & ~DAC_DATAPATH_POWER_MASK);
     err = write_reg(0x00, REG_DAC_DATAPATH, val);
     if (err != ESP_OK)
     {
@@ -992,11 +1008,13 @@ static esp_err_t dsp_dac_power_and_wait(bool enable)
 static esp_err_t dsp_set_adaptive_mode(bool enable)
 {
     uint8_t v;
-    esp_err_t err = read_reg(0x08, 0x01, &v);
+    esp_err_t err = read_reg(0x08, REG_CRAM_CTRL, &v);
     if (err != ESP_OK) return err;
-    uint8_t new_v = enable ? (uint8_t)(v | 0x04) : (uint8_t)(v & ~0x04);
+    uint8_t new_v = enable
+        ? (uint8_t)(v |  CRAM_CTRL_ADAPTIVE_BIT)
+        : (uint8_t)(v & ~CRAM_CTRL_ADAPTIVE_BIT);
     if (new_v == v) return ESP_OK;
-    return write_reg(0x08, 0x01, new_v);
+    return write_reg(0x08, REG_CRAM_CTRL, new_v);
 }
 
 // DSP hw-op: trigger an atomic CRAM buffer switch and wait for the
@@ -1010,16 +1028,16 @@ static esp_err_t dsp_set_adaptive_mode(bool enable)
 static esp_err_t dsp_trigger_buffer_switch(void)
 {
     uint8_t v;
-    esp_err_t err = read_reg(0x08, 0x01, &v);
+    esp_err_t err = read_reg(0x08, REG_CRAM_CTRL, &v);
     if (err != ESP_OK) return err;
-    err = write_reg(0x08, 0x01, (uint8_t)(v | 0x01));
+    err = write_reg(0x08, REG_CRAM_CTRL, (uint8_t)(v | CRAM_CTRL_BUF_SWITCH_BIT));
     if (err != ESP_OK) return err;
 
     for (int waited = 0; waited < 20; waited++)
     {
-        err = read_reg(0x08, 0x01, &v);
+        err = read_reg(0x08, REG_CRAM_CTRL, &v);
         if (err != ESP_OK) return err;
-        if ((v & 0x01) == 0)
+        if ((v & CRAM_CTRL_BUF_SWITCH_BIT) == 0)
         {
             ESP_LOGD(TAG, "CRAM buffer switch completed after %d ms", waited);
             return ESP_OK;

@@ -785,24 +785,24 @@ esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops)
     // live without introducing audible changes.
     if (s_ops.set_adaptive_mode && s_ops.trigger_buffer_switch)
     {
-        esp_err_t upg = s_ops.mute(true);
-        if (upg == ESP_OK) upg = s_ops.dac_power(false);
-        if (upg == ESP_OK) upg = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
-        if (upg == ESP_OK) upg = upload_biquads_to_pages(&flat,
+        esp_err_t upgrade_err = s_ops.mute(true);
+        if (upgrade_err == ESP_OK) upgrade_err = s_ops.dac_power(false);
+        if (upgrade_err == ESP_OK) upgrade_err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
+        if (upgrade_err == ESP_OK) upgrade_err = upload_biquads_to_pages(&flat,
                                                         DSP_PAGE_LEFT_COEFFS,
                                                         DSP_PAGE_RIGHT_COEFFS);
-        if (upg == ESP_OK) upg = upload_biquads_to_pages(&flat,
+        if (upgrade_err == ESP_OK) upgrade_err = upload_biquads_to_pages(&flat,
                                                         DSP_PAGE_LEFT_COEFFS_B,
                                                         DSP_PAGE_RIGHT_COEFFS_B);
-        if (upg == ESP_OK) upg = s_ops.set_adaptive_mode(true);
+        if (upgrade_err == ESP_OK) upgrade_err = s_ops.set_adaptive_mode(true);
 
         // Always restore DAC power / unmute, even on error.
         esp_err_t pwr = s_ops.dac_power(true);
-        if (upg == ESP_OK) upg = pwr;
+        if (upgrade_err == ESP_OK) upgrade_err = pwr;
         esp_err_t um = s_ops.mute(false);
-        if (upg == ESP_OK) upg = um;
+        if (upgrade_err == ESP_OK) upgrade_err = um;
 
-        if (upg == ESP_OK)
+        if (upgrade_err == ESP_OK)
         {
             s_adaptive_mode = true;
             ESP_LOGI(TAG,
@@ -817,7 +817,7 @@ esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops)
             ESP_LOGW(TAG,
                      "Adaptive filtering mode setup failed (%s); "
                      "falling back to power-cycle coefficient updates",
-                     esp_err_to_name(upg));
+                     esp_err_to_name(upgrade_err));
         }
     }
 
