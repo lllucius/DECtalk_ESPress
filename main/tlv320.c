@@ -1027,13 +1027,20 @@ static esp_err_t dsp_set_adaptive_mode(bool enable)
 // DAC-power-cycle path.
 static esp_err_t dsp_trigger_buffer_switch(void)
 {
+    // Nominal swap latency is one sample period (~21 µs at 48 kHz);
+    // yellobyte's TLV320DAC3101 library uses the same 20 ms budget.
+    // If I2S is stopped the bit never clears, so we bail instead of
+    // hanging and let the caller fall back to the power-cycle path.
+    const int poll_interval_ms = 1;
+    const int poll_timeout_ms  = 20;
+
     uint8_t v;
     esp_err_t err = read_reg(0x08, REG_CRAM_CTRL, &v);
     if (err != ESP_OK) return err;
     err = write_reg(0x08, REG_CRAM_CTRL, (uint8_t)(v | CRAM_CTRL_BUF_SWITCH_BIT));
     if (err != ESP_OK) return err;
 
-    for (int waited = 0; waited < 20; waited++)
+    for (int waited = 0; waited < poll_timeout_ms; waited += poll_interval_ms)
     {
         err = read_reg(0x08, REG_CRAM_CTRL, &v);
         if (err != ESP_OK) return err;
@@ -1042,7 +1049,7 @@ static esp_err_t dsp_trigger_buffer_switch(void)
             ESP_LOGD(TAG, "CRAM buffer switch completed after %d ms", waited);
             return ESP_OK;
         }
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
     }
     ESP_LOGW(TAG, "CRAM buffer switch: timeout (bit 0 still set); I2S clock stopped?");
     return ESP_ERR_TIMEOUT;
