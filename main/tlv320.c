@@ -51,6 +51,7 @@ static const char *TAG = "TLV320DAC3100";
 #define REG_DOSR_LSB        0x0E    // DOSR lower byte
 #define REG_CODEC_IF        0x1B    // Audio interface control
 #define REG_OVERFLOW_FLAGS  0x27    // DAC overflow flags
+#define REG_DAC_FLAG        0x25    // DAC Flag Register (power/PGA status)
 #define REG_DAC_INT_FLAGS   0x2C    // Sticky interrupt flags
 #define REG_DAC_INT_STATUS  0x2E    // Current interrupt status
 #define REG_INT1_CTRL       0x30    // INT1 routing / pulse mode
@@ -872,6 +873,75 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
     return write_digital_volume(s_digital_volume_reg);
 }
 
+// DSP hw-op: toggle the LDAC/RDAC power bits (D7/D6) of
+// REG_DAC_DATAPATH and then poll REG_DAC_FLAG (page 0, reg 0x25)
+// to confirm the DAC has actually reached the requested state
+// before returning.  This is the sequence called out in SLAS833
+// §6.5: the Processing Block Selection register (0x3C) and the
+// biquad coefficient RAM (pages 8/9) must be written while both
+// DACs are powered DOWN, otherwise the new PRB/coefficients are
+// silently ignored.  A fixed vTaskDelay() is not sufficient — on
+// this codec the power-up/-down transition is gated by the soft-
+// step ramp and can take longer than the coarse 5 ms used in the
+// first version of this helper.  Waiting on the flag register is
+// the only way to know the transition actually completed.
+//
+// REG_DAC_FLAG bit layout (page 0, reg 0x25), per SLAS833:
+//   D7 = 1 when Left  DAC is powered up
+//   D3 = 1 when Right DAC is powered up
+//   (other bits reflect HPL/HPR and PGA state; not used here)
+static esp_err_t dsp_dac_power_and_wait(bool enable)
+{
+    uint8_t val = TLV320_DAC_DATAPATH_VALUE;
+    if (!enable)
+    {
+        val &= (uint8_t)~0xC0;   // clear D7 (LDAC pwr) and D6 (RDAC pwr)
+    }
+
+    esp_err_t err = write_reg(0x00, REG_DAC_DATAPATH, val);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "DSP power%s: write REG_DAC_DATAPATH=0x%02X failed: %s",
+                 enable ? "-up" : "-down", val, esp_err_to_name(err));
+        return err;
+    }
+
+    // The target mask for REG_DAC_FLAG: both DACs up (0x88) when
+    // enabling, both DACs down (0x00) when disabling.  We only
+    // care about D7 and D3; mask the rest out when comparing.
+    const uint8_t mask   = 0x88;
+    const uint8_t target = enable ? 0x88 : 0x00;
+
+    // 50 ms total budget, polled every 1 ms.  Empirically the
+    // power-down completes in ~2–5 ms and power-up in ~10–20 ms
+    // with the default soft-step rate at Fs=11.025 kHz; 50 ms is
+    // comfortable headroom without being user-visible.
+    const int poll_interval_ms = 1;
+    const int poll_timeout_ms  = 50;
+    uint8_t flag = 0;
+    for (int waited = 0; waited < poll_timeout_ms; waited += poll_interval_ms)
+    {
+        err = read_reg(0x00, REG_DAC_FLAG, &flag);
+        if (err != ESP_OK)
+        {
+            ESP_LOGW(TAG, "DSP power%s: read REG_DAC_FLAG failed: %s",
+                     enable ? "-up" : "-down", esp_err_to_name(err));
+            return err;
+        }
+        if ((flag & mask) == target)
+        {
+            ESP_LOGD(TAG, "DSP power%s: DAC_FLAG=0x%02X settled after %d ms",
+                     enable ? "-up" : "-down", flag, waited);
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(poll_interval_ms));
+    }
+
+    ESP_LOGW(TAG, "DSP power%s: timeout waiting for DAC_FLAG=0x%02X (got 0x%02X)",
+             enable ? "-up" : "-down", target, flag);
+    return ESP_ERR_TIMEOUT;
+}
+
 
 esp_err_t tlv320_init(void)
 {
@@ -1058,6 +1128,7 @@ esp_err_t tlv320_init(void)
         {
             .write_reg = write_reg,
             .mute      = tlv320_mute,
+            .dac_power = dsp_dac_power_and_wait,
         };
         esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
         if (dsp_err != ESP_OK)
