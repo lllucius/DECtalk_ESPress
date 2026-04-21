@@ -13,13 +13,14 @@ set(SRCS
 set(REQUIRES
     dectalk
     driver
-    pthread
     esp_driver_gpio
     esp_driver_i2c
     esp_driver_i2s
     esp_driver_gpio
     esp_driver_ledc
     esp_timer
+    nvs_flash
+    pthread
 )
 
 # LEDC is needed for the tone handler.

@@ -36,6 +36,10 @@
 #include "dtesp_transport.h"
 #include "dtesp_audio.h"
 
+#if CONFIG_DTESP_DAC_TLV320
+#include "tlv320.h"
+#endif
+
 static const char *TAG = "DECtalk ESPress";
 
 static esp_log_level_t dtesp_log_level(void)
