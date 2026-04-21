@@ -873,64 +873,6 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
 }
 
 
-// DSP hw-op: power the LDAC/RDAC down/up *immediately* so that
-// subsequent writes to the DAC Processing Block register (0x3C)
-// and the biquad coefficient RAM (pages 8/9) are actually honored
-// (SLAS833 §6.5 — those writes are ignored while the DAC is
-// running).  The TLV320DAC3100 applies its normal digital-volume
-// soft-step ramp on REG_DAC_DATAPATH D7:D6 transitions when soft-
-// step is enabled (D1:D0 = 00, the reset / normal-operation value
-// 0xD8 we configure at init), which at Fs = 11.025 kHz would take
-// ~11 ms per transition and race the coefficient writes.  So for
-// the duration of an apply we bypass soft-step (D1:D0 = 10) and
-// restore it as the final step of `dac_power(true)`.  The
-// `tlv320_mute()` call that brackets the whole DSP apply has
-// already driven the digital volume down, so toggling soft-step
-// here is inaudible.
-#define TLV320_DAC_DATAPATH_SOFTSTEP_DISABLED  0x02  // D1:D0 = 10
-#define TLV320_DAC_DATAPATH_POWERED_OFF_BITS   0x00  // D7:D6 = 00
-#define TLV320_DAC_DATAPATH_ROUTING_MASK       0x3C  // D5:D2 preserved
-static esp_err_t dsp_dac_power(bool enable)
-{
-    // Keep the routing bits (D5:D2) identical to
-    // TLV320_DAC_DATAPATH_VALUE so we don't disturb
-    // LDAC/RDAC data-source selection.
-    uint8_t routing = (uint8_t)(TLV320_DAC_DATAPATH_VALUE
-                                & TLV320_DAC_DATAPATH_ROUTING_MASK);
-    uint8_t power   = enable ? (uint8_t)(TLV320_DAC_DATAPATH_VALUE & 0xC0)
-                             : TLV320_DAC_DATAPATH_POWERED_OFF_BITS;
-
-    // Step 1: write the requested power state with soft-step
-    // disabled so the transition is instantaneous.
-    uint8_t val = (uint8_t)(power | routing
-                            | TLV320_DAC_DATAPATH_SOFTSTEP_DISABLED);
-    esp_err_t err = write_reg(0x00, REG_DAC_DATAPATH, val);
-    if (err != ESP_OK)
-    {
-        return err;
-    }
-    // Short settling delay (a couple of WCLKs at 11.025 kHz is
-    // ~0.2 ms; a few ms is plenty and keeps the I²C bus from
-    // issuing the next coefficient write before the DAC has
-    // actually transitioned).
-    vTaskDelay(pdMS_TO_TICKS(2));
-
-    // Step 2: when powering back on, restore the normal soft-step
-    // configuration so subsequent volume / mute writes ramp as
-    // usual.  No transition is triggered because D7:D6 are
-    // unchanged from the instantaneous power-up we just did.
-    if (enable)
-    {
-        err = write_reg(0x00, REG_DAC_DATAPATH, TLV320_DAC_DATAPATH_VALUE);
-        if (err != ESP_OK)
-        {
-            return err;
-        }
-    }
-    return ESP_OK;
-}
-
-
 esp_err_t tlv320_init(void)
 {
     esp_err_t err;
@@ -1116,7 +1058,6 @@ esp_err_t tlv320_init(void)
         {
             .write_reg = write_reg,
             .mute      = tlv320_mute,
-            .dac_power = dsp_dac_power,
         };
         esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
         if (dsp_err != ESP_OK)
