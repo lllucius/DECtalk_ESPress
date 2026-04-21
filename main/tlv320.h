@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 Leland Lucius
 
-#ifndef TLV320DAC3100_H
-#define TLV320DAC3100_H
+#ifndef TLV320_H
+#define TLV320_H
 
 #include "esp_err.h"
 #include <stdbool.h>
@@ -27,7 +27,7 @@ typedef enum
  *
  * @return ESP_OK on success, or an error code on failure.
  */
-esp_err_t tlv320dac3100_init(void);
+esp_err_t tlv320_init(void);
 
 /**
  * @brief Switch between the speaker and headphone output profiles.
@@ -40,7 +40,7 @@ esp_err_t tlv320dac3100_init(void);
  *
  * @return ESP_OK on success, or an error code on failure.
  */
-esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile);
+esp_err_t tlv320_set_profile(tlv320_profile_t profile);
 
 /**
  * @brief Mute or unmute the codec output.
@@ -52,7 +52,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile);
  *
  * @return ESP_OK on success, or an error code on failure.
  */
-esp_err_t tlv320dac3100_mute(bool enable);
+esp_err_t tlv320_mute(bool enable);
 
 /**
  * @brief Check headset detection and switch audio outputs.
@@ -68,52 +68,52 @@ esp_err_t tlv320dac3100_mute(bool enable);
  *
  * @return ESP_OK on success, or an error code on failure.
  */
-esp_err_t tlv320dac3100_check_headset(void);
+esp_err_t tlv320_check_headset(void);
 
 /**
  * @brief Timer callback for polling headset detection.
  */
-void tlv320dac3100_poll_headset(void);
+void tlv320_poll_headset(void);
 
 
 /**
  * @brief Maximum volume level.
  */
-#define TLV320DAC3100_MAX_VOLUME 9
+#define TLV320_MAX_VOLUME 9
 
 /**
  * @brief Set the DAC digital volume.
  *
- * @param level  Volume level 0–TLV320DAC3100_MAX_VOLUME
- *               (0 = near-mute, TLV320DAC3100_MAX_VOLUME = 0 dB).
+ * @param level  Volume level 0–TLV320_MAX_VOLUME
+ *               (0 = near-mute, TLV320_MAX_VOLUME = 0 dB).
  *               Thin wrapper that maps to the dB-based setter.
  */
-void tlv320dac3100_set_volume(uint8_t level);
+void tlv320_set_volume(uint8_t level);
 
 /**
  * @brief Get the current volume level.
  *
  * @return Current volume level 0–9.
  */
-uint8_t tlv320dac3100_get_volume(void);
+uint8_t tlv320_get_volume(void);
 
 /**
  * @brief Set the DAC digital volume in decibels.
  *
  * Accepts values from -63.5 dB to 0.0 dB.  Out-of-range values are
  * clamped.  The nearest discrete level (0–9) is stored for
- * `tlv320dac3100_get_volume()`.
+ * `tlv320_get_volume()`.
  *
  * @param db  Target volume in dB (0 dB = full scale).
  */
-void tlv320dac3100_set_volume_db(float db);
+void tlv320_set_volume_db(float db);
 
 /**
  * @brief Get the current volume in decibels.
  *
  * @return Current volume setting in dB.
  */
-float tlv320dac3100_get_volume_db(void);
+float tlv320_get_volume_db(void);
 
 /**
  * @brief Enable or disable headset auto-switching at runtime.
@@ -123,17 +123,17 @@ float tlv320dac3100_get_volume_db(void);
  * profile.  When disabled, profile changes must be performed
  * explicitly.  Initial value is taken from Kconfig.
  */
-void tlv320dac3100_set_autoswitch(bool enable);
+void tlv320_set_autoswitch(bool enable);
 
 /**
  * @brief Query the current headset auto-switching flag.
  */
-bool tlv320dac3100_get_autoswitch(void);
+bool tlv320_get_autoswitch(void);
 
 /**
  * @brief Query the currently-active output profile.
  */
-tlv320_profile_t tlv320dac3100_get_profile(void);
+tlv320_profile_t tlv320_get_profile(void);
 
 // ----------------------------------------------------------------
 // DSP / EQ / analog-gain extensions
@@ -151,7 +151,7 @@ tlv320_profile_t tlv320dac3100_get_profile(void);
  *
  * @return ESP_OK on success, an ESP-IDF error on hardware fault.
  */
-esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state);
+esp_err_t tlv320_apply_dsp(const tlv320_dsp_state_t *state);
 
 /**
  * @brief Allowed class-D speaker-driver analog gain stages (dB).
@@ -161,7 +161,7 @@ esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state);
  * 00=6 dB, 01=12 dB, 10=18 dB, 11=24 dB.  6 dB matches the pre-
  * feature firmware behaviour.
  */
-#define TLV320DAC3100_SPK_GAIN_VALID(db) \
+#define TLV320_SPK_GAIN_VALID(db) \
     ((db) == 6 || (db) == 12 || (db) == 18 || (db) == 24)
 
 /**
@@ -171,11 +171,11 @@ esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state);
  * currently routed to headphones.  Valid values: 6, 12, 18, 24.
  * Other values are rejected with ESP_ERR_INVALID_ARG.
  */
-esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db);
+esp_err_t tlv320_set_speaker_gain_db(uint8_t db);
 
 /**
  * @brief Return the current class-D speaker driver analog gain in dB.
  */
-uint8_t tlv320dac3100_get_speaker_gain_db(void);
+uint8_t tlv320_get_speaker_gain_db(void);
 
-#endif // TLV320DAC3100_H
+#endif // TLV320_H

@@ -24,7 +24,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include <stdint.h>
-#include "tlv320dac3100.h"
+#include "tlv320.h"
 #include "tlv320_dsp.h"
 
 static const char *TAG = "TLV320DAC3100";
@@ -107,7 +107,7 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_GPIO1_MODE_INT1      (0x5U << TLV320_GPIO1_MODE_SHIFT)
 
 // ---- Default runtime settings ------------------------------------
-#define MAX_VOLUME                  TLV320DAC3100_MAX_VOLUME
+#define MAX_VOLUME                  TLV320_MAX_VOLUME
 #define TLV320_MUTED_REG_VALUE      0x81
 #define TLV320_INVALID_PAGE         0xFF
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
@@ -579,7 +579,7 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
     // headset insertion/removal only updates the presence flag.
     if (s_autoswitch && headset_present && !s_hp_active)
     {
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_HEADPHONE);
+        err = tlv320_set_profile(TLV320_PROFILE_HEADPHONE);
         if (err != ESP_OK)
         {
             ESP_LOGE(TAG, "Failed to switch to headphone profile: %s",
@@ -588,7 +588,7 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
     }
     else if (s_autoswitch && !headset_present && s_hp_active)
     {
-        err = tlv320dac3100_set_profile(TLV320_PROFILE_SPEAKER);
+        err = tlv320_set_profile(TLV320_PROFILE_SPEAKER);
         if (err != ESP_OK)
         {
             ESP_LOGE(TAG, "Failed to switch to speaker profile: %s",
@@ -873,7 +873,7 @@ static esp_err_t tlv320_apply_gain_defaults(tlv320_profile_t profile,
 }
 
 
-esp_err_t tlv320dac3100_init(void)
+esp_err_t tlv320_init(void)
 {
     esp_err_t err;
     tlv320_profile_t default_profile = tlv320_get_default_profile();
@@ -1040,7 +1040,7 @@ esp_err_t tlv320dac3100_init(void)
 
     // ---- Phases 8-9: apply the configured startup profile, gains, and EQ --
     s_apply_profile_volume_default = true;
-    err = tlv320dac3100_set_profile(default_profile);
+    err = tlv320_set_profile(default_profile);
     if (err != ESP_OK)
     {
         goto init_fail;
@@ -1057,7 +1057,7 @@ esp_err_t tlv320dac3100_init(void)
         static const tlv320_dsp_hw_ops_t dsp_ops =
         {
             .write_reg = write_reg,
-            .mute      = tlv320dac3100_mute,
+            .mute      = tlv320_mute,
         };
         esp_err_t dsp_err = tlv320_dsp_init(&dsp_ops);
         if (dsp_err != ESP_OK)
@@ -1069,7 +1069,7 @@ esp_err_t tlv320dac3100_init(void)
 
     if (tlv320_headset_events_enabled())
     {
-        err = tlv320dac3100_check_headset();
+        err = tlv320_check_headset();
         if (err != ESP_OK)
         {
             ESP_LOGW(TAG, "Initial headset detection failed: %s",
@@ -1089,7 +1089,7 @@ esp_err_t tlv320dac3100_init(void)
     }
 
     // ---- Phase 10: unmute at end --------------------------------
-    err = tlv320dac3100_mute(false);
+    err = tlv320_mute(false);
     if (err != ESP_OK)
     {
         goto init_fail;
@@ -1119,7 +1119,7 @@ init_fail:
 }
 
 
-esp_err_t tlv320dac3100_check_headset(void)
+esp_err_t tlv320_check_headset(void)
 {
     // Read headset detection status from bits 6:5 of REG_HEADSET_DETECT
     // (Page 0).
@@ -1134,14 +1134,14 @@ esp_err_t tlv320dac3100_check_headset(void)
 }
 
 
-void tlv320dac3100_poll_headset(void)
+void tlv320_poll_headset(void)
 {
     // Ignores return value since this is called from a timer callback
-    tlv320dac3100_check_headset();
+    tlv320_check_headset();
 }
 
 
-void tlv320dac3100_set_volume(uint8_t level)
+void tlv320_set_volume(uint8_t level)
 {
     if (level > MAX_VOLUME)
     {
@@ -1149,17 +1149,17 @@ void tlv320dac3100_set_volume(uint8_t level)
     }
 
     // Delegate to the dB-based setter using the lookup table.
-    tlv320dac3100_set_volume_db(vol_db_table[level]);
+    tlv320_set_volume_db(vol_db_table[level]);
     s_volume = level;
 }
 
 
-uint8_t tlv320dac3100_get_volume(void)
+uint8_t tlv320_get_volume(void)
 {
     return s_volume;
 }
 
-void tlv320dac3100_set_volume_db(float db)
+void tlv320_set_volume_db(float db)
 {
     // Clamp to the hardware-representable range.
     if (db > 0.0f)
@@ -1211,12 +1211,12 @@ void tlv320dac3100_set_volume_db(float db)
     }
 }
 
-float tlv320dac3100_get_volume_db(void)
+float tlv320_get_volume_db(void)
 {
     return s_volume_db;
 }
 
-esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
+esp_err_t tlv320_set_profile(tlv320_profile_t profile)
 {
     if (s_dev == NULL)
     {
@@ -1230,7 +1230,7 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
     }
 
     bool was_muted = s_muted;
-    esp_err_t err = tlv320dac3100_mute(true);
+    esp_err_t err = tlv320_mute(true);
     if (err != ESP_OK)
     {
         return err;
@@ -1269,13 +1269,13 @@ esp_err_t tlv320dac3100_set_profile(tlv320_profile_t profile)
 
     if (!was_muted)
     {
-        return tlv320dac3100_mute(false);
+        return tlv320_mute(false);
     }
 
     return ESP_OK;
 }
 
-esp_err_t tlv320dac3100_mute(bool enable)
+esp_err_t tlv320_mute(bool enable)
 {
     if (s_dev == NULL)
     {
@@ -1288,7 +1288,7 @@ esp_err_t tlv320dac3100_mute(bool enable)
     return write_digital_volume(get_effective_volume_reg());
 }
 
-void tlv320dac3100_set_autoswitch(bool enable)
+void tlv320_set_autoswitch(bool enable)
 {
     if (s_autoswitch == enable)
     {
@@ -1298,12 +1298,12 @@ void tlv320dac3100_set_autoswitch(bool enable)
     ESP_LOGI(TAG, "Headset autoswitch %s", enable ? "enabled" : "disabled");
 }
 
-bool tlv320dac3100_get_autoswitch(void)
+bool tlv320_get_autoswitch(void)
 {
     return s_autoswitch;
 }
 
-tlv320_profile_t tlv320dac3100_get_profile(void)
+tlv320_profile_t tlv320_get_profile(void)
 {
     return s_profile;
 }
@@ -1312,7 +1312,7 @@ tlv320_profile_t tlv320dac3100_get_profile(void)
 // DSP / EQ / speaker-gain extensions
 // ----------------------------------------------------------------
 
-esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state)
+esp_err_t tlv320_apply_dsp(const tlv320_dsp_state_t *state)
 {
     if (s_dev == NULL)
     {
@@ -1325,7 +1325,7 @@ esp_err_t tlv320dac3100_apply_dsp(const tlv320_dsp_state_t *state)
 // an ESP_ERR_INVALID_ARG for any value not in the valid set.
 static esp_err_t encode_spk_driver_gain(uint8_t db, uint8_t *reg_val_out)
 {
-    if (!TLV320DAC3100_SPK_GAIN_VALID(db))
+    if (!TLV320_SPK_GAIN_VALID(db))
     {
         return ESP_ERR_INVALID_ARG;
     }
@@ -1344,7 +1344,7 @@ static esp_err_t encode_spk_driver_gain(uint8_t db, uint8_t *reg_val_out)
     return ESP_OK;
 }
 
-esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db)
+esp_err_t tlv320_set_speaker_gain_db(uint8_t db)
 {
     uint8_t reg_val;
     esp_err_t err = encode_spk_driver_gain(db, &reg_val);
@@ -1373,7 +1373,7 @@ esp_err_t tlv320dac3100_set_speaker_gain_db(uint8_t db)
     return err;
 }
 
-uint8_t tlv320dac3100_get_speaker_gain_db(void)
+uint8_t tlv320_get_speaker_gain_db(void)
 {
     return s_spk_gain_db;
 }

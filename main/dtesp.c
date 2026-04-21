@@ -592,27 +592,27 @@ static void dtesp_process_dle(void)
                 dtesp_send_byte(SOH);
                 break;
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
             case CTRL_vol_up:
             {
-                uint8_t vol = tlv320dac3100_get_volume();
-                if (vol < TLV320DAC3100_MAX_VOLUME)
+                uint8_t vol = tlv320_get_volume();
+                if (vol < TLV320_MAX_VOLUME)
                 {
-                    tlv320dac3100_set_volume(vol + 1);
+                    tlv320_set_volume(vol + 1);
                 }
                 break;
             }
             case CTRL_vol_down:
             {
-                uint8_t vol = tlv320dac3100_get_volume();
+                uint8_t vol = tlv320_get_volume();
                 if (vol > 0)
                 {
-                    tlv320dac3100_set_volume(vol - 1);
+                    tlv320_set_volume(vol - 1);
                 }
                 break;
             }
             case CTRL_vol_set:
-                tlv320dac3100_set_volume(cmd_sub & 0xFF);
+                tlv320_set_volume(cmd_sub & 0xFF);
                 break;
 #else
             case CTRL_vol_up:

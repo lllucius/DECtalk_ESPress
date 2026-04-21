@@ -15,8 +15,8 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
-#include "tlv320dac3100.h"
+#if CONFIG_DTESP_DAC_TLV320
+#include "tlv320.h"
 #include "fw_settings.h"
 #include "nvs_flash.h"
 #endif
@@ -101,7 +101,7 @@ esp_err_t dtesp_audio_init(void)
                  SAMPLE_RATE);
     }
 
-#if CONFIG_DTESP_DAC_TLV320DAC3100
+#if CONFIG_DTESP_DAC_TLV320
     // Initialize NVS so fw_settings can persist/restore codec state,
     // then load the stored firmware settings (with Kconfig fallbacks).
     esp_err_t nvs_err = nvs_flash_init();
@@ -119,7 +119,7 @@ esp_err_t dtesp_audio_init(void)
     // The TLV320DAC3100 is configured over I2C after BCLK/MCLK are running
     // so that its internal PLL (when used in BCLK-only mode) has a stable
     // reference clock to lock onto.
-    ESP_ERROR_CHECK(tlv320dac3100_init());
+    ESP_ERROR_CHECK(tlv320_init());
 
     // Apply the NVS-backed settings now that the codec is ready.
     fw_settings_apply();

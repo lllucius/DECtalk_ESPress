@@ -19,7 +19,7 @@ menu "DECtalk ESPress Firmware"
                     and similar boards that derive their clocks from
                     BCLK and WS alone.
 
-            config DTESP_DAC_TLV320DAC3100
+            config DTESP_DAC_TLV320
                 bool "Adafruit TLV320DAC3100 breakout"
                 help
                     TI TLV320DAC3100 stereo DAC with headphone amplifier
@@ -66,14 +66,14 @@ menu "DECtalk ESPress Firmware"
                 11025 Hz where BCLK alone is far below the codec's
                 minimum DAC_MOD_CLK of ~2.8 MHz.
 
-                Only has an effect when DTESP_DAC_TLV320DAC3100 is
+                Only has an effect when DTESP_DAC_TLV320 is
                 selected; the generic DAC path does not require MCLK.
 
         config DTESP_I2C_SDA_GPIO
             int "I2C SDA GPIO"
             default 18
             range 0 48
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 GPIO used for the I2C data line to the TLV320DAC3100.
 
@@ -81,14 +81,14 @@ menu "DECtalk ESPress Firmware"
             int "I2C SCL GPIO"
             default 9
             range 0 48
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 GPIO used for the I2C clock line to the TLV320DAC3100.
 
         config DTESP_TLV320_I2C_ADDR
             hex "TLV320DAC3100 I2C address"
             default 0x18
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 7-bit I2C address of the TLV320DAC3100.  The Adafruit
                 breakout board defaults to 0x18.
@@ -97,7 +97,7 @@ menu "DECtalk ESPress Firmware"
             int "TLV320DAC3100 interrupt GPIO"
             default 15
             range -1 48
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 MCU GPIO connected to the TLV320DAC3100 interrupt output.
 
@@ -110,7 +110,7 @@ menu "DECtalk ESPress Firmware"
             int "TLV320DAC3100 reset GPIO"
             default 22
             range -1 48
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 MCU GPIO connected to the TLV320DAC3100 active-low reset pin.
 
@@ -119,7 +119,7 @@ menu "DECtalk ESPress Firmware"
                 a hardware reset pulse before codec register configuration.
 
         menu "TLV320DAC3100 defaults"
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
 
             comment "Tone-shaping / DSP defaults."
 
@@ -457,7 +457,7 @@ menu "DECtalk ESPress Firmware"
             bool "Enable DSP / EQ / DRC / tone / mute commands"
             default y
             depends on DTESP_FW_CMD_ENABLE
-            depends on DTESP_DAC_TLV320DAC3100
+            depends on DTESP_DAC_TLV320
             help
                 Enable the on-chip-DSP-backed [:fw ...] sub-commands:
                 bass, treble, eq, drc, spkgain and mute.  Requires the

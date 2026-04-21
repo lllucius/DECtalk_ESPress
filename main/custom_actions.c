@@ -28,8 +28,8 @@
 #include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#if CONFIG_DTESP_DAC_TLV320DAC3100
-#include "tlv320dac3100.h"
+#if CONFIG_DTESP_DAC_TLV320
+#include "tlv320.h"
 #include "fw_settings.h"
 #endif
 static const char *TAG = "custom_act";
@@ -423,9 +423,9 @@ static void volume_execute(void *ctx)
         return;
     }
     LOG_I("volume action: level=%u", (unsigned)v->level);
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     fw_settings_set_volume(v->level);
-    tlv320dac3100_set_volume(v->level);
+    tlv320_set_volume(v->level);
 #endif
 }
 
@@ -481,12 +481,12 @@ static void profile_execute(void *ctx)
     }
     LOG_I("profile action: %s",
           p->profile == 0 ? "speaker" : "headphone");
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     tlv320_profile_t tp = (p->profile == 1)
                               ? TLV320_PROFILE_HEADPHONE
                               : TLV320_PROFILE_SPEAKER;
     fw_settings_set_profile((uint8_t)tp);
-    esp_err_t err = tlv320dac3100_set_profile(tp);
+    esp_err_t err = tlv320_set_profile(tp);
     if (err != ESP_OK)
     {
         LOG_E("profile: codec set_profile failed (%d)", (int)err);
@@ -546,9 +546,9 @@ static void autoswitch_execute(void *ctx)
         return;
     }
     LOG_I("autoswitch action: %s", a->enable ? "on" : "off");
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     fw_settings_set_autoswitch(a->enable ? 1 : 0);
-    tlv320dac3100_set_autoswitch(a->enable ? true : false);
+    tlv320_set_autoswitch(a->enable ? true : false);
 #endif
 }
 
@@ -595,7 +595,7 @@ static void save_execute(void *ctx)
 {
     (void)ctx;
     LOG_I("save action: persisting firmware settings to NVS");
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     esp_err_t err = fw_settings_save();
     if (err != ESP_OK)
     {
@@ -691,7 +691,7 @@ static void dsp_tone_execute(void *ctx)
     if (!t) return;
     LOG_I("%s action: %+d dB",
           t->slot == 0 ? "bass" : "treble", (int)t->gain_db);
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     tlv320_dsp_state_t *s = fw_settings_get_dsp();
     if (!s) return;
     if (t->slot == 0)
@@ -702,7 +702,7 @@ static void dsp_tone_execute(void *ctx)
     {
         tlv320_dsp_state_set_treble(s, (float)t->gain_db);
     }
-    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    esp_err_t err = tlv320_apply_dsp(s);
     if (err != ESP_OK)
     {
         LOG_E("%s: apply_dsp failed (%d)",
@@ -781,7 +781,7 @@ static void eq_execute(void *ctx)
         break;
     }
 
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     tlv320_dsp_state_t *s = fw_settings_get_dsp();
     if (!s) return;
 
@@ -809,7 +809,7 @@ static void eq_execute(void *ctx)
     }
     }
 
-    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    esp_err_t err = tlv320_apply_dsp(s);
     if (err != ESP_OK)
     {
         LOG_E("eq: apply_dsp failed (%d)", (int)err);
@@ -918,7 +918,7 @@ static void drc_execute(void *ctx)
                               d->preset_name);                      break;
     }
 
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     tlv320_dsp_state_t *s = fw_settings_get_dsp();
     if (!s) return;
 
@@ -944,7 +944,7 @@ static void drc_execute(void *ctx)
     }
     }
 
-    esp_err_t err = tlv320dac3100_apply_dsp(s);
+    esp_err_t err = tlv320_apply_dsp(s);
     if (err != ESP_OK)
     {
         LOG_E("drc: apply_dsp failed (%d)", (int)err);
@@ -1013,9 +1013,9 @@ static void spkgain_execute(void *ctx)
     spkgain_action_ctx_t *s = (spkgain_action_ctx_t *)ctx;
     if (!s) return;
     LOG_I("spkgain action: %u dB", (unsigned)s->gain_db);
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     fw_settings_set_spk_gain_db(s->gain_db);
-    esp_err_t err = tlv320dac3100_set_speaker_gain_db(s->gain_db);
+    esp_err_t err = tlv320_set_speaker_gain_db(s->gain_db);
     if (err != ESP_OK)
     {
         LOG_E("spkgain: set failed (%d)", (int)err);
@@ -1054,8 +1054,8 @@ static void mute_execute(void *ctx)
     mute_action_ctx_t *m = (mute_action_ctx_t *)ctx;
     if (!m) return;
     LOG_I("mute action: %s", m->enable ? "on" : "off");
-#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320DAC3100
-    esp_err_t err = tlv320dac3100_mute(m->enable != 0);
+#if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
+    esp_err_t err = tlv320_mute(m->enable != 0);
     if (err != ESP_OK)
     {
         LOG_E("mute: set failed (%d)", (int)err);

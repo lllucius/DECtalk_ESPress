@@ -38,18 +38,22 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QGroupBox, QLabel, QComboBox, QPushButton, QPlainTextEdit,
         QSlider, QStatusBar, QMenu, QMessageBox, QSplitter,
+        QDialog, QDialogButtonBox, QCheckBox, QGridLayout, QRadioButton,
+        QButtonGroup,
     )
     from PySide6.QtCore import Qt, Signal, QObject
-    from PySide6.QtGui import QFont, QKeySequence, QTextCursor
+    from PySide6.QtGui import QFont, QKeySequence, QTextCursor, QAction
     _QT_BINDING = "PySide6"
 except ImportError:
     from PyQt6.QtWidgets import (
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QGroupBox, QLabel, QComboBox, QPushButton, QPlainTextEdit,
         QSlider, QStatusBar, QMenu, QMessageBox, QSplitter,
+        QDialog, QDialogButtonBox, QCheckBox, QGridLayout, QRadioButton,
+        QButtonGroup,
     )
     from PyQt6.QtCore import Qt, pyqtSignal as Signal, QObject
-    from PyQt6.QtGui import QFont, QKeySequence, QTextCursor
+    from PyQt6.QtGui import QFont, QKeySequence, QTextCursor, QAction
     _QT_BINDING = "PyQt6"
 
 # Allow running from the host/ directory or the repo root
@@ -83,6 +87,538 @@ class _SignalBridge(QObject):
     device_status = Signal(int, bool)
 
 
+# ---- Codec / DSP control ranges (mirror firmware PR #63) ------------
+
+# Bass / treble shelving tone controls
+TONE_GAIN_MIN = -12
+TONE_GAIN_MAX = 12
+
+# 5-band peaking EQ centre frequencies (Hz), matched to tlv320_dsp.c
+EQ_BAND_FREQS = (160, 500, 1500, 3000, 5000)
+EQ_GAIN_MIN = -12
+EQ_GAIN_MAX = 12
+
+# Named EQ and DRC presets exposed by the firmware
+EQ_PRESETS  = ("flat", "speech", "crisp", "warm")
+DRC_PRESETS = ("soft", "speech", "loud")
+
+# Class-D speaker-amp analog gain stages (dB)
+SPK_GAIN_VALUES = (6, 12, 18, 24)
+
+# Volume levels (TLV320_MAX_VOLUME = 9)
+VOLUME_MIN = 0
+VOLUME_MAX = 9
+VOLUME_DEFAULT = 5
+
+
+class AudioSettingsDialog(QDialog):
+    """Modal dialog exposing the firmware's `[:fw ...]` audio / DSP commands.
+
+    All controls operate in "fire-and-forget" mode — each change is sent
+    immediately to the device as an inline ``[:fw ...]`` command via
+    :meth:`DECtalkESPressGUIQt._send_fw_cmd`.  The device is authoritative;
+    the dialog simply remembers the last values the user selected so they
+    persist across opens within the same session.
+
+    Accessibility:
+      - Every control has an accessible name and description.
+      - Labels use ``&`` mnemonics and ``setBuddy`` to focus their control.
+      - A logical tab order is installed at the end of construction.
+      - The dialog can be closed with Escape / Alt+C (Close).
+    """
+
+    def __init__(self, parent, state):
+        super().__init__(parent)
+        self._parent = parent
+        self._state = state          # Shared dict of last-known settings
+        self._loading = True         # Suppress signals during initial load
+
+        self.setWindowTitle("Audio Settings")
+        self.setAccessibleName("Audio settings dialog")
+        self.setAccessibleDescription(
+            "Dialog for codec output routing, tone controls, equalizer, "
+            "dynamic range compression, and speaker amplifier gain."
+        )
+        self.setModal(True)
+        # Give screen-reader users a sensible default focus.
+        self.setMinimumWidth(560)
+
+        self._build_ui()
+        self._load_from_state()
+        self._loading = False
+
+    # -- Construction -----------------------------------------------
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setSpacing(8)
+
+        self._build_output_group(root)
+        self._build_tone_group(root)
+        self._build_eq_group(root)
+        self._build_drc_group(root)
+
+        # Persist + Close buttons
+        btns = QDialogButtonBox(self)
+        btns.setAccessibleName("Dialog buttons")
+        self.save_btn = btns.addButton(
+            "&Save to Device", QDialogButtonBox.ButtonRole.ActionRole
+        )
+        self.save_btn.setAccessibleName("Save to device")
+        self.save_btn.setAccessibleDescription(
+            "Persist current codec and DSP settings to non-volatile storage "
+            "on the device. Sends the [:fw save] command."
+        )
+        self.save_btn.clicked.connect(self._on_save)
+
+        self.close_btn = btns.addButton(
+            "&Close", QDialogButtonBox.ButtonRole.RejectRole
+        )
+        self.close_btn.setAccessibleName("Close audio settings")
+        self.close_btn.setAccessibleDescription(
+            "Close the Audio Settings dialog. "
+            "Changes already made remain in effect on the device."
+        )
+        btns.rejected.connect(self.reject)
+        root.addWidget(btns)
+
+        self._setup_tab_order()
+
+    # ---- Output routing / levels ---------------------------------
+
+    def _build_output_group(self, parent_layout):
+        group = QGroupBox("&Output")
+        group.setAccessibleName("Output routing and levels")
+        grid = QGridLayout(group)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(4)
+
+        # Profile (speaker / headphone) as radio buttons
+        profile_label = QLabel("Profile:")
+        grid.addWidget(profile_label, 0, 0)
+
+        self.profile_speaker = QRadioButton("Spea&ker")
+        self.profile_speaker.setAccessibleName("Speaker profile")
+        self.profile_speaker.setAccessibleDescription(
+            "Route audio to the class-D speaker output"
+        )
+        self.profile_headphone = QRadioButton("&Headphone")
+        self.profile_headphone.setAccessibleName("Headphone profile")
+        self.profile_headphone.setAccessibleDescription(
+            "Route audio to the headphone jack"
+        )
+        self._profile_group = QButtonGroup(self)
+        self._profile_group.addButton(self.profile_speaker, 0)
+        self._profile_group.addButton(self.profile_headphone, 1)
+        self._profile_group.buttonClicked.connect(self._on_profile_changed)
+        prow = QHBoxLayout()
+        prow.addWidget(self.profile_speaker)
+        prow.addWidget(self.profile_headphone)
+        prow.addStretch()
+        grid.addLayout(prow, 0, 1, 1, 3)
+
+        # Autoswitch
+        self.autoswitch_chk = QCheckBox("Headset &auto-switch")
+        self.autoswitch_chk.setAccessibleName("Headset auto-switch")
+        self.autoswitch_chk.setAccessibleDescription(
+            "When enabled, inserting a headphone plug switches to the "
+            "headphone profile and removal switches back to the speaker"
+        )
+        self.autoswitch_chk.toggled.connect(self._on_autoswitch_toggled)
+        grid.addWidget(self.autoswitch_chk, 1, 1, 1, 3)
+
+        # Volume slider
+        vol_label = QLabel("&Volume:")
+        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_slider.setMinimum(VOLUME_MIN)
+        self.volume_slider.setMaximum(VOLUME_MAX)
+        self.volume_slider.setPageStep(1)
+        self.volume_slider.setSingleStep(1)
+        self.volume_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.volume_slider.setTickInterval(1)
+        self.volume_slider.setAccessibleName("Codec digital volume")
+        self.volume_slider.setAccessibleDescription(
+            "Codec digital volume level, from %d (near-mute) to %d (0 dB)"
+            % (VOLUME_MIN, VOLUME_MAX)
+        )
+        vol_label.setBuddy(self.volume_slider)
+        self.volume_slider.valueChanged.connect(self._on_volume_changed)
+        self.volume_slider.sliderReleased.connect(
+            lambda: self._on_volume_commit(self.volume_slider.value())
+        )
+        self.volume_value_label = QLabel("--")
+        self.volume_value_label.setFixedWidth(30)
+        self.volume_value_label.setAccessibleName("Current volume value")
+        grid.addWidget(vol_label, 2, 0)
+        grid.addWidget(self.volume_slider, 2, 1, 1, 2)
+        grid.addWidget(self.volume_value_label, 2, 3)
+
+        # Speaker gain combobox
+        spk_label = QLabel("Speaker &gain (dB):")
+        self.spkgain_combo = QComboBox()
+        for v in SPK_GAIN_VALUES:
+            self.spkgain_combo.addItem(str(v), userData=v)
+        self.spkgain_combo.setAccessibleName("Speaker amplifier gain")
+        self.spkgain_combo.setAccessibleDescription(
+            "Class-D speaker amplifier analog gain in decibels. "
+            "Only affects the speaker output path."
+        )
+        spk_label.setBuddy(self.spkgain_combo)
+        self.spkgain_combo.currentIndexChanged.connect(
+            self._on_spkgain_changed
+        )
+        grid.addWidget(spk_label, 3, 0)
+        grid.addWidget(self.spkgain_combo, 3, 1)
+
+        # Mute
+        self.mute_chk = QCheckBox("&Mute")
+        self.mute_chk.setAccessibleName("Mute")
+        self.mute_chk.setAccessibleDescription("Soft-mute the codec output")
+        self.mute_chk.toggled.connect(self._on_mute_toggled)
+        grid.addWidget(self.mute_chk, 3, 2, 1, 2)
+
+        parent_layout.addWidget(group)
+
+    # ---- Tone controls -------------------------------------------
+
+    def _build_tone_group(self, parent_layout):
+        group = QGroupBox("&Tone Controls")
+        group.setAccessibleName("Tone controls")
+        group.setAccessibleDescription(
+            "Low-shelf bass and high-shelf treble tone controls"
+        )
+        grid = QGridLayout(group)
+        grid.setHorizontalSpacing(8)
+
+        self.bass_slider, self.bass_value_label = self._make_gain_slider(
+            grid, 0, "&Bass (dB):", "Bass tone control",
+            "Low-shelf bass gain around 200 Hz, from %d to %d dB"
+            % (TONE_GAIN_MIN, TONE_GAIN_MAX),
+            TONE_GAIN_MIN, TONE_GAIN_MAX,
+            commit=lambda v: self._on_tone_commit("bass", v),
+        )
+
+        self.treble_slider, self.treble_value_label = self._make_gain_slider(
+            grid, 1, "T&reble (dB):", "Treble tone control",
+            "High-shelf treble gain around 4.5 kHz, from %d to %d dB"
+            % (TONE_GAIN_MIN, TONE_GAIN_MAX),
+            TONE_GAIN_MIN, TONE_GAIN_MAX,
+            commit=lambda v: self._on_tone_commit("treble", v),
+        )
+
+        parent_layout.addWidget(group)
+
+    # ---- Equalizer -----------------------------------------------
+
+    def _build_eq_group(self, parent_layout):
+        group = QGroupBox("&Equalizer (5-band peaking)")
+        group.setAccessibleName("Equalizer")
+        group.setAccessibleDescription(
+            "Five-band peaking equalizer at 160, 500, 1500, 3000, and "
+            "5000 Hz, with named presets"
+        )
+        vlay = QVBoxLayout(group)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        self.eq_sliders = []
+        self.eq_value_labels = []
+        # Mnemonic digit keys: Alt+1 .. Alt+5 jump to each band
+        for i, f in enumerate(EQ_BAND_FREQS):
+            label_text = "&%d: %s Hz (dB):" % (i + 1, self._freq_text(f))
+            s, v = self._make_gain_slider(
+                grid, i, label_text,
+                "Equalizer band %d" % (i + 1),
+                "Peaking EQ gain at %d Hz, from %d to %d dB"
+                % (f, EQ_GAIN_MIN, EQ_GAIN_MAX),
+                EQ_GAIN_MIN, EQ_GAIN_MAX,
+                commit=lambda val, idx=i: self._on_eq_commit(idx, val),
+            )
+            self.eq_sliders.append(s)
+            self.eq_value_labels.append(v)
+        vlay.addLayout(grid)
+
+        # Preset + reset row
+        prow = QHBoxLayout()
+        preset_label = QLabel("EQ &preset:")
+        self.eq_preset_combo = QComboBox()
+        self.eq_preset_combo.addItem("(custom)", userData=None)
+        for name in EQ_PRESETS:
+            self.eq_preset_combo.addItem(name, userData=name)
+        self.eq_preset_combo.setAccessibleName("Equalizer preset")
+        self.eq_preset_combo.setAccessibleDescription(
+            "Load a named equalizer preset: flat, speech, crisp, or warm"
+        )
+        preset_label.setBuddy(self.eq_preset_combo)
+        self.eq_preset_combo.activated.connect(self._on_eq_preset_activated)
+        prow.addWidget(preset_label)
+        prow.addWidget(self.eq_preset_combo)
+
+        self.eq_reset_btn = QPushButton("Reset &Bands")
+        self.eq_reset_btn.setAccessibleName("Reset equalizer bands")
+        self.eq_reset_btn.setAccessibleDescription(
+            "Flatten every peaking band to 0 dB. Bass and treble are "
+            "preserved. Sends the [:fw eq reset] command."
+        )
+        self.eq_reset_btn.clicked.connect(self._on_eq_reset)
+        prow.addWidget(self.eq_reset_btn)
+        prow.addStretch()
+        vlay.addLayout(prow)
+
+        parent_layout.addWidget(group)
+
+    # ---- DRC -----------------------------------------------------
+
+    def _build_drc_group(self, parent_layout):
+        group = QGroupBox("D&ynamic Range Compression")
+        group.setAccessibleName("Dynamic range compression")
+        group.setAccessibleDescription(
+            "Enable dynamic range compression and select a tuning preset"
+        )
+        hlay = QHBoxLayout(group)
+
+        self.drc_chk = QCheckBox("DRC &enabled")
+        self.drc_chk.setAccessibleName("DRC enabled")
+        self.drc_chk.setAccessibleDescription(
+            "Turn dynamic range compression on or off"
+        )
+        self.drc_chk.toggled.connect(self._on_drc_toggled)
+        hlay.addWidget(self.drc_chk)
+
+        drcp_label = QLabel("Prese&t:")
+        self.drc_preset_combo = QComboBox()
+        for name in DRC_PRESETS:
+            self.drc_preset_combo.addItem(name, userData=name)
+        self.drc_preset_combo.setAccessibleName("DRC preset")
+        self.drc_preset_combo.setAccessibleDescription(
+            "Select a DRC tuning preset: soft, speech, or loud"
+        )
+        drcp_label.setBuddy(self.drc_preset_combo)
+        self.drc_preset_combo.currentIndexChanged.connect(
+            self._on_drc_preset_changed
+        )
+        hlay.addWidget(drcp_label)
+        hlay.addWidget(self.drc_preset_combo)
+        hlay.addStretch()
+
+        parent_layout.addWidget(group)
+
+    # ---- Helpers -------------------------------------------------
+
+    @staticmethod
+    def _freq_text(hz):
+        if hz >= 1000:
+            khz = hz / 1000.0
+            # "1.5 kHz", but trim to "3 kHz" when the fractional part is 0
+            if abs(khz - round(khz)) < 1e-6:
+                return "%d kHz" % round(khz)
+            return "%.1f kHz" % khz
+        return "%d Hz" % hz
+
+    def _make_gain_slider(self, grid, row, label_text,
+                          access_name, access_desc,
+                          lo, hi, commit):
+        """Create one labelled gain slider and place it on ``grid``.
+
+        Commit semantics:
+          - ``valueChanged`` always refreshes the numeric read-out.
+          - Keyboard / mouse-wheel / click-on-track changes commit
+            immediately (``isSliderDown()`` is False in those cases).
+          - Mouse-drag changes coalesce: no command is sent until the
+            user releases the slider, via ``sliderReleased``.
+        """
+        lbl = QLabel(label_text)
+        s = QSlider(Qt.Orientation.Horizontal)
+        s.setMinimum(lo)
+        s.setMaximum(hi)
+        s.setSingleStep(1)
+        s.setPageStep(3)
+        s.setTickPosition(QSlider.TickPosition.TicksBelow)
+        s.setTickInterval(3)
+        s.setValue(0)
+        s.setMinimumWidth(220)
+        s.setAccessibleName(access_name)
+        s.setAccessibleDescription(access_desc)
+        lbl.setBuddy(s)
+
+        vlbl = QLabel("0")
+        vlbl.setFixedWidth(40)
+        vlbl.setAccessibleName(access_name + " value")
+
+        def on_change(val):
+            vlbl.setText("%+d" % val if val else "0")
+            # Only commit if the user isn't in the middle of a drag;
+            # keyboard / wheel / click-on-track all leave isSliderDown
+            # as False, so they commit immediately.
+            if not s.isSliderDown():
+                commit(val)
+        s.valueChanged.connect(on_change)
+        # End-of-drag commit for mouse users.
+        s.sliderReleased.connect(lambda sl=s: commit(sl.value()))
+
+        grid.addWidget(lbl, row, 0)
+        grid.addWidget(s, row, 1)
+        grid.addWidget(vlbl, row, 2)
+        return s, vlbl
+
+    def _setup_tab_order(self):
+        chain = [
+            self.profile_speaker, self.profile_headphone,
+            self.autoswitch_chk,
+            self.volume_slider, self.spkgain_combo, self.mute_chk,
+            self.bass_slider, self.treble_slider,
+        ]
+        chain += list(self.eq_sliders)
+        chain += [
+            self.eq_preset_combo, self.eq_reset_btn,
+            self.drc_chk, self.drc_preset_combo,
+            self.save_btn, self.close_btn,
+        ]
+        for a, b in zip(chain, chain[1:]):
+            self.setTabOrder(a, b)
+
+    # -- Load / sync ------------------------------------------------
+
+    def _load_from_state(self):
+        """Populate controls from the parent's persisted settings dict."""
+        s = self._state
+        if s["profile"] == 1:
+            self.profile_headphone.setChecked(True)
+        else:
+            self.profile_speaker.setChecked(True)
+        self.autoswitch_chk.setChecked(bool(s["autoswitch"]))
+        self.volume_slider.setValue(int(s["volume"]))
+        self.volume_value_label.setText(str(int(s["volume"])))
+        try:
+            self.spkgain_combo.setCurrentIndex(
+                SPK_GAIN_VALUES.index(int(s["spkgain"]))
+            )
+        except ValueError:
+            self.spkgain_combo.setCurrentIndex(0)
+        self.mute_chk.setChecked(bool(s["mute"]))
+
+        self.bass_slider.setValue(int(s["bass"]))
+        self.treble_slider.setValue(int(s["treble"]))
+        for i, sl in enumerate(self.eq_sliders):
+            sl.setValue(int(s["eq"][i]))
+
+        # EQ preset combo: "(custom)" unless user explicitly loaded one.
+        if s.get("eq_preset") in EQ_PRESETS:
+            idx = EQ_PRESETS.index(s["eq_preset"]) + 1  # +1 for "(custom)"
+            self.eq_preset_combo.setCurrentIndex(idx)
+        else:
+            self.eq_preset_combo.setCurrentIndex(0)
+
+        self.drc_chk.setChecked(bool(s["drc"]))
+        try:
+            self.drc_preset_combo.setCurrentIndex(
+                DRC_PRESETS.index(s["drc_preset"])
+            )
+        except ValueError:
+            self.drc_preset_combo.setCurrentIndex(0)
+
+    # -- Command emitters (each routed through parent) --------------
+
+    def _send(self, subcmd):
+        if self._loading:
+            return
+        self._parent._send_fw_cmd(subcmd)
+
+    # Output
+    def _on_profile_changed(self, _btn):
+        idx = self._profile_group.checkedId()
+        name = "headphone" if idx == 1 else "speaker"
+        self._state["profile"] = idx
+        self._send("profile %s" % name)
+
+    def _on_autoswitch_toggled(self, checked):
+        self._state["autoswitch"] = bool(checked)
+        self._send("autoswitch %s" % ("on" if checked else "off"))
+
+    def _on_volume_changed(self, val):
+        """Refresh the volume read-out; commit unless a drag is in progress."""
+        self.volume_value_label.setText(str(val))
+        if not self.volume_slider.isSliderDown():
+            self._on_volume_commit(val)
+
+    def _on_volume_commit(self, val):
+        self._state["volume"] = int(val)
+        self._send("volume %d" % int(val))
+
+    def _on_spkgain_changed(self, idx):
+        val = self.spkgain_combo.itemData(idx)
+        if val is None:
+            return
+        self._state["spkgain"] = int(val)
+        self._send("spkgain %d" % int(val))
+
+    def _on_mute_toggled(self, checked):
+        self._state["mute"] = bool(checked)
+        self._send("mute %s" % ("on" if checked else "off"))
+
+    # Tone
+    def _on_tone_commit(self, which, val):
+        self._state[which] = int(val)
+        self._send("%s %d" % (which, int(val)))
+
+    # EQ
+    def _on_eq_commit(self, band_index, val):
+        self._state["eq"][band_index] = int(val)
+        # User-driven band change → invalidate preset selection
+        self._state["eq_preset"] = None
+        self._loading = True
+        try:
+            self.eq_preset_combo.setCurrentIndex(0)
+        finally:
+            self._loading = False
+        # Firmware command uses 1-based band index.
+        self._send("eq %d %d" % (band_index + 1, int(val)))
+
+    def _on_eq_preset_activated(self, idx):
+        name = self.eq_preset_combo.itemData(idx)
+        if not name:
+            return
+        self._state["eq_preset"] = name
+        # Local mirror: firmware presets only touch peaking bands, not
+        # bass/treble (except "flat" which also zeroes those).  Rather
+        # than duplicate that table here we simply rely on [:fw eq show]
+        # /user interaction; the UI leaves slider positions alone and
+        # re-flags as "(custom)" on the next manual tweak.
+        self._send("eq preset %s" % name)
+
+    def _on_eq_reset(self):
+        for i, sl in enumerate(self.eq_sliders):
+            self._loading = True
+            try:
+                sl.setValue(0)
+                self._state["eq"][i] = 0
+            finally:
+                self._loading = False
+            self.eq_value_labels[i].setText("0")
+        self._state["eq_preset"] = None
+        self._loading = True
+        try:
+            self.eq_preset_combo.setCurrentIndex(0)
+        finally:
+            self._loading = False
+        self._send("eq reset")
+
+    # DRC
+    def _on_drc_toggled(self, checked):
+        self._state["drc"] = bool(checked)
+        self._send("drc %s" % ("on" if checked else "off"))
+
+    def _on_drc_preset_changed(self, idx):
+        name = self.drc_preset_combo.itemData(idx)
+        if not name:
+            return
+        self._state["drc_preset"] = name
+        self._send("drc preset %s" % name)
+
+    def _on_save(self):
+        self._send("save")
+
+
 class DECtalkESPressGUIQt(QMainWindow):
     """Main GUI application for DECtalk ESPress host control (Qt version)."""
 
@@ -99,6 +635,26 @@ class DECtalkESPressGUIQt(QMainWindow):
         self._paused = False
         self._polling = False
 
+        # Last-known audio/DSP settings, mirrored from the dialog.
+        # These are the values that would be restored on the device
+        # by firmware NVS defaults (see main/fw_settings.c) or by the
+        # [:fw save] command.  We keep a local copy so reopening the
+        # Audio Settings dialog shows the user their most recent choices.
+        self._audio_state = {
+            "profile":    0,                  # 0 = speaker, 1 = headphone
+            "autoswitch": True,
+            "volume":     VOLUME_DEFAULT,
+            "spkgain":    SPK_GAIN_VALUES[0], # 6 dB
+            "mute":       False,
+            "bass":       0,
+            "treble":     0,
+            "eq":         [0] * len(EQ_BAND_FREQS),
+            "eq_preset":  None,
+            "drc":        False,
+            "drc_preset": DRC_PRESETS[0],     # "soft"
+        }
+        self._audio_dialog = None
+
         # Signal bridge for thread-safe UI updates
         self._signals = _SignalBridge()
         self._signals.connected.connect(self._on_connected)
@@ -114,6 +670,7 @@ class DECtalkESPressGUIQt(QMainWindow):
 
     def _build_ui(self):
         """Build the complete GUI layout."""
+        self._build_menubar()
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
@@ -449,6 +1006,51 @@ class DECtalkESPressGUIQt(QMainWindow):
         vlayout.addWidget(self.log_text)
         parent_layout.addWidget(group, stretch=1)
 
+    # -- Firmware [:fw ...] command dispatch ----------------------
+
+    def _send_fw_cmd(self, subcmd):
+        """Send a ``[:fw <subcmd>]`` inline command to the device.
+
+        The firmware's inline-command tokenizer recognises ``[:fw ...]``
+        and dispatches it through ``custom_actions.c`` — the same path
+        that parses commands embedded in the speech text.  Sending it
+        as text over the existing serial connection therefore reuses
+        the transport and flow-control logic for free.
+
+        Called from the Audio Settings dialog.  Logs both the outgoing
+        command and any transport error.
+        """
+        if not self.dtesp.connected:
+            self._set_status("Not connected — audio command ignored")
+            self._log("--", "FW cmd ignored (not connected): [:fw %s]" % subcmd)
+            return
+
+        cmd = "[:fw %s]" % subcmd
+        self._log("TX", "FW: %s" % cmd)
+
+        def do_send():
+            try:
+                self.dtesp.send_text(cmd)
+            except Exception as exc:
+                err = str(exc)
+                self._set_status_from_thread("Error: %s" % err)
+                self._log_from_thread("RX", "FW cmd error: %s" % err)
+
+        threading.Thread(target=do_send, daemon=True).start()
+
+    def _open_audio_settings(self):
+        """Show the modal Audio Settings dialog."""
+        if self._audio_dialog is None:
+            self._audio_dialog = AudioSettingsDialog(self, self._audio_state)
+        else:
+            # Refresh widgets from current state in case of later edits.
+            self._audio_dialog._loading = True
+            try:
+                self._audio_dialog._load_from_state()
+            finally:
+                self._audio_dialog._loading = False
+        self._audio_dialog.exec()
+
     def _build_status_bar(self):
         """Status bar at the bottom of the window."""
         self.status_bar = QStatusBar()
@@ -459,6 +1061,51 @@ class DECtalkESPressGUIQt(QMainWindow):
             "Shows the current connection status and recent activity"
         )
         self.status_bar.addWidget(self._status_label)
+
+    def _build_menubar(self):
+        """Menu bar with keyboard-accessible entry points for features
+        that cannot fit inside the main window without growing it.
+        """
+        menubar = self.menuBar()
+        menubar.setAccessibleName("Application menu bar")
+
+        # File menu
+        file_menu = menubar.addMenu("&File")
+        file_menu.setAccessibleName("File menu")
+        quit_act = QAction("&Quit", self)
+        quit_act.setShortcut(QKeySequence.StandardKey.Quit)
+        quit_act.setStatusTip("Close the DECtalk ESPress GUI")
+        quit_act.triggered.connect(self.close)
+        file_menu.addAction(quit_act)
+
+        # Device menu
+        dev_menu = menubar.addMenu("&Device")
+        dev_menu.setAccessibleName("Device menu")
+
+        self.audio_settings_act = QAction("&Audio Settings...", self)
+        self.audio_settings_act.setShortcut("Ctrl+Shift+A")
+        self.audio_settings_act.setStatusTip(
+            "Open codec output, tone, equalizer, compression, and "
+            "amplifier-gain controls"
+        )
+        self.audio_settings_act.setEnabled(False)
+        self.audio_settings_act.triggered.connect(self._open_audio_settings)
+        dev_menu.addAction(self.audio_settings_act)
+
+        dev_menu.addSeparator()
+
+        self.save_settings_act = QAction(
+            "&Save Settings to Device", self
+        )
+        self.save_settings_act.setStatusTip(
+            "Persist current codec and DSP settings to the device's "
+            "non-volatile storage"
+        )
+        self.save_settings_act.setEnabled(False)
+        self.save_settings_act.triggered.connect(
+            lambda: self._send_fw_cmd("save")
+        )
+        dev_menu.addAction(self.save_settings_act)
 
     def _setup_tab_order(self):
         """Set a logical tab order for keyboard navigation."""
@@ -636,6 +1283,8 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.resume_btn.setEnabled(True)
         self.flush_btn.setEnabled(True)
         self.status_btn.setEnabled(True)
+        self.audio_settings_act.setEnabled(True)
+        self.save_settings_act.setEnabled(True)
         self._paused = False
 
         # Start polling device status
@@ -669,6 +1318,8 @@ class DECtalkESPressGUIQt(QMainWindow):
         self.resume_btn.setEnabled(False)
         self.flush_btn.setEnabled(False)
         self.status_btn.setEnabled(False)
+        self.audio_settings_act.setEnabled(False)
+        self.save_settings_act.setEnabled(False)
         self._paused = False
 
     # -- Speech Controls ------------------------------------------
