@@ -9,7 +9,7 @@
 // custom commands.
 //
 // The pure-math helpers below keep the existing internal Q1.23-ish
-// representation and the codec's TI/AIC "plus" sign convention:
+// representation and the codec-family "plus" sign convention:
 //
 //     y[n] = N0·x[n] + N1·x[n-1] + N2·x[n-2]
 //                   + D1·y[n-1] + D2·y[n-2]
@@ -17,7 +17,10 @@
 // so D1,D2 are stored as the negated normalised a1,a2 from the
 // standard RBJ cookbook.  The ESP-platform backend converts that
 // internal form into the codec's 16-bit PRB_P2 playback-biquad
-// storage format before touching hardware.
+// storage format before touching hardware.  The sign convention is
+// documented across the TI AIC31xx family; the exact 16-bit playback
+// packing used here is family-derived rather than spelled out in the
+// DAC3100 datasheet itself.
 // ----------------------------------------------------------------
 
 #ifndef TLV320_DSP_H

@@ -510,7 +510,7 @@ const char *tlv320_dsp_drc_preset_name(tlv320_dsp_drc_preset_t preset)
 // ================================================================
 #ifdef ESP_PLATFORM
 
-// ---- Register map (SLAS833 + AIC31xx family) --------------------
+// ---- Register map (SLAS833 + close AIC31xx-family references) ---
 //
 // PRB_P1 is the cheap default used at startup and whenever the DSP
 // state is flat.  PRB_P2 is the "EQ active" block: per SLAS833
@@ -545,15 +545,54 @@ const char *tlv320_dsp_drc_preset_name(tlv320_dsp_drc_preset_t preset)
 #define REG_DAC_PRB                 0x3C
 
 // ---- DRC registers (page 0, SLAS833) ----------------------------
-#define REG_DRC_CTRL1               0x44   // DRC enable + threshold hi-nibble
-#define REG_DRC_CTRL2               0x45   // DRC hysteresis + threshold lo
-#define REG_DRC_CTRL3               0x46   // DRC hold / attack / decay
+#define REG_DRC_CTRL1               0x44   // D6/D5 enable, D4:D2 threshold, D1:D0 hysteresis
+#define REG_DRC_CTRL2               0x45   // D6:D3 hold time, D7/D2:D0 reserved (keep reset=0)
+#define REG_DRC_CTRL3               0x46   // D7:D4 attack rate, D3:D0 decay rate
 
-// DRC preset values.  These bit patterns correspond to the
-// "threshold / attack / decay / ratio" combinations documented in
-// SLAS833 §5.1.6.  Ratios are hard-coded to 2:1 — the DAC3100 DRC
-// is fixed ratio and only the thresholds/time constants are
-// programmable.
+#define DRC_CTRL1_ENABLE_LEFT       0x40
+#define DRC_CTRL1_ENABLE_RIGHT      0x20
+#define DRC_CTRL1_ENABLE_BOTH       (DRC_CTRL1_ENABLE_LEFT | DRC_CTRL1_ENABLE_RIGHT)
+#define DRC_CTRL1_THRESHOLD_SHIFT   2
+#define DRC_CTRL2_HOLD_SHIFT        3
+#define DRC_CTRL3_ATTACK_SHIFT      4
+
+#define DRC_THRESHOLD_NEG_24DB      0x07
+#define DRC_THRESHOLD_NEG_12DB      0x03
+
+#define DRC_HYST_0DB                0x00
+#define DRC_HYST_3DB                0x03
+
+#define DRC_HOLD_DISABLED           0x00
+
+#define DRC_ATTACK_CODE_2           0x02
+#define DRC_ATTACK_CODE_4           0x04
+#define DRC_ATTACK_CODE_B           0x0B
+
+#define DRC_DECAY_CODE_4            0x04
+#define DRC_DECAY_CODE_6            0x06
+
+#define DRC_CTRL1_PACK(enable_mask, threshold_code, hyst_code) \
+    ((uint8_t)((enable_mask) \
+               | (((threshold_code) & 0x07) << DRC_CTRL1_THRESHOLD_SHIFT) \
+               | ((hyst_code) & 0x03)))
+#define DRC_CTRL2_PACK(hold_code) \
+    ((uint8_t)(((hold_code) & 0x0F) << DRC_CTRL2_HOLD_SHIFT))
+#define DRC_CTRL3_PACK(attack_code, decay_code) \
+    ((uint8_t)((((attack_code) & 0x0F) << DRC_CTRL3_ATTACK_SHIFT) \
+               | ((decay_code) & 0x0F)))
+
+// DRC preset values.
+//
+// The DAC3100 register bitfields themselves are documented in SLAS833:
+//   CTRL1 = enable / threshold / hysteresis
+//   CTRL2 = hold-time nibble only (reserved bits stay at reset)
+//   CTRL3 = attack / decay nibbles
+//
+// The user-facing preset names are firmware-level choices.  Only the
+// "speech" preset below is tied to a TI-family recommended example:
+// the threshold / hysteresis / hold / attack / decay tuple matches the
+// defaults used by a close TLV320DAC3101 implementation that cites the
+// DAC31xx family documentation for §6.3.10.4.1...5.
 typedef struct
 {
     uint8_t ctrl1;
@@ -563,16 +602,33 @@ typedef struct
 
 static const drc_preset_regs_t drc_presets_regs[] =
 {
-    // soft:   threshold -24 dB, slow attack/decay
-    { 0x60, 0x14, 0x44 },
-    // speech: threshold -18 dB, fast attack, medium decay
-    { 0x60, 0x0C, 0x22 },
-    // loud:   threshold -12 dB, fast attack, slow decay
-    { 0x60, 0x04, 0x24 },
+    // soft: -24 dB threshold, 0 dB hysteresis, hold disabled,
+    // attack code 0x4, decay code 0x4.
+    {
+        DRC_CTRL1_PACK(DRC_CTRL1_ENABLE_BOTH, DRC_THRESHOLD_NEG_24DB, DRC_HYST_0DB),
+        DRC_CTRL2_PACK(DRC_HOLD_DISABLED),
+        DRC_CTRL3_PACK(DRC_ATTACK_CODE_4, DRC_DECAY_CODE_4),
+    },
+    // speech: TI-family recommended example / defaults:
+    // -24 dB threshold, 3 dB hysteresis, hold disabled,
+    // attack code 0xB, decay code 0x6.
+    {
+        DRC_CTRL1_PACK(DRC_CTRL1_ENABLE_BOTH, DRC_THRESHOLD_NEG_24DB, DRC_HYST_3DB),
+        DRC_CTRL2_PACK(DRC_HOLD_DISABLED),
+        DRC_CTRL3_PACK(DRC_ATTACK_CODE_B, DRC_DECAY_CODE_6),
+    },
+    // loud: -12 dB threshold, 0 dB hysteresis, hold disabled,
+    // attack code 0x2, decay code 0x4.
+    {
+        DRC_CTRL1_PACK(DRC_CTRL1_ENABLE_BOTH, DRC_THRESHOLD_NEG_12DB, DRC_HYST_0DB),
+        DRC_CTRL2_PACK(DRC_HOLD_DISABLED),
+        DRC_CTRL3_PACK(DRC_ATTACK_CODE_2, DRC_DECAY_CODE_4),
+    },
 };
 
 static const drc_preset_regs_t drc_bypass_regs =
 {
+    // DRC disabled, all other fields back at reset.
     0x00, 0x00, 0x00,
 };
 
@@ -638,13 +694,16 @@ static void compute_slot_coeffs(const tlv320_dsp_band_t *b,
 
 static int16_t coeff_internal_to_hw16(int coeff_index, int32_t coeff_q23)
 {
-    // The existing pure-math layer emits the old internal half-scaled
-    // representation:
+    // Internal coeffs are stored in the existing family-style Q1.23
+    // model used by the pure-math helpers:
     //   N0,N1,N2,D1,D2 = b0/2, b1/2, b2/2, -a1/2, -a2/2
-    // PRB_P2's 16-bit playback CRAM instead stores:
+    //
+    // For the DAC31xx 16-bit playback biquad RAM, close family sources
+    // (not the DAC3100 datasheet itself) consistently use:
     //   N0,N1,N2,D1,D2 = b0, b1/2, b2, -a1/2, -a2
-    // so N0/N2/D2 need one extra factor of two before the Q1.15
-    // rounding-and-clamp step.
+    //
+    // That means only indices 0, 2, and 4 (N0, N2, D2) need one extra
+    // factor of two before the final Q1.15 rounding/clamp step.
     int64_t scaled = coeff_q23;
     if (coeff_index == 0 || coeff_index == 2 || coeff_index == 4)
     {
