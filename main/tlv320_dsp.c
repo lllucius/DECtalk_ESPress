@@ -8,7 +8,7 @@
 //
 //   §1  pure math: RBJ cookbook biquad coefficients + Q1.23 convert
 //   §2  state helpers: defaults, setters, presets
-//   §3  hardware I/O (ESP-IDF only): PRB / coefficient upload / DRC
+//   §3  hardware I/O (ESP-IDF only): PRB / 16-bit playback CRAM / DRC
 //
 // Sections §1 and §2 are compiled on the host for unit testing
 // (the tests/ Makefile pulls this file in directly).  Section §3
@@ -21,6 +21,7 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <math.h>
+#include <limits.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -518,27 +519,28 @@ const char *tlv320_dsp_drc_preset_name(tlv320_dsp_drc_preset_t preset)
 // 1..4 (four peaking bands) + slot 6 (treble shelf).  EQ band 5
 // (slot 5) has no biquad slot available in PRB_P2 and is silently
 // dropped per design.
-//
-// The biquad-coefficient base register on page 8 for PRB_P2 is
-// 0x18 on the AIC31xx family; each biquad occupies five 24-bit
-// coefficients = 15 bytes, stored big-endian.  Page 9 holds the
-// mirror image for the right channel.  This is consistent with
-// TI's SLAA408 application report and with the Adafruit_TLV320_I2S
-// reference.  If a future revision of the datasheet places the
-// coefficient RAM at a different offset, change only these two
-// constants.
 // ----------------------------------------------------------------
 #define DSP_PRB_P1                  0x01
 #define DSP_PRB_P2                  0x02
 
-#define DSP_PAGE_LEFT_COEFFS        8
-#define DSP_PAGE_RIGHT_COEFFS       9
-#define DSP_COEFF_BIQUAD_BASE_REG   0x18
-#define DSP_COEFF_BYTES_PER_BIQUAD  15   // 5 coeffs × 3 bytes
+#define DSP_CRAM_CTRL_PAGE              8
+#define DSP_CRAM_CTRL_REG               0x01
+#define DSP_CRAM_CTRL_ADAPTIVE_ENABLE   0x04
+#define DSP_CRAM_CTRL_SWITCH_BUFFER     0x05
 
-// PRB_P2 provides six biquad slots per channel (per SLAS833
-// Table 5-3).  Slots beyond this limit are skipped.
-#define DSP_PRB_P2_BIQUAD_COUNT     6
+#define DSP_PLAYBACK_BUFFER_A_PAGE      8
+#define DSP_PLAYBACK_BUFFER_B_PAGE      12
+#define DSP_MISC_BUFFER_A_PAGE          9
+#define DSP_MISC_BUFFER_B_PAGE          13
+
+#define DSP_PLAYBACK_LEFT_BASE_REG      0x02
+#define DSP_PLAYBACK_RIGHT_BASE_REG     0x42
+#define DSP_PLAYBACK_BIQUAD_STRIDE      10   // 5 coefficients × 2 bytes
+#define DSP_PLAYBACK_BIQUAD_COUNT       6
+#define DSP_BIQUAD_COEFF_COUNT          5
+
+#define DSP_DRC_COEFF_START_REG         0x0E
+#define DSP_DRC_COEFF_BYTES             12
 
 #define REG_DAC_PRB                 0x3C
 
@@ -579,6 +581,23 @@ static tlv320_dsp_hw_ops_t s_ops;
 static bool                s_initialised = false;
 static tlv320_dsp_state_t  s_last_applied;
 static bool                s_has_last_applied = false;
+static bool                s_active_buffer_a = true;
+
+static const int s_hw_biquad_slot_map[DSP_PLAYBACK_BIQUAD_COUNT] =
+{
+    TLV320_DSP_SLOT_BASS,
+    TLV320_DSP_SLOT_EQ_BASE + 0,
+    TLV320_DSP_SLOT_EQ_BASE + 1,
+    TLV320_DSP_SLOT_EQ_BASE + 2,
+    TLV320_DSP_SLOT_EQ_BASE + 3,
+    TLV320_DSP_SLOT_TREBLE,
+};
+
+static const uint8_t s_drc_detector_coeffs[DSP_DRC_COEFF_BYTES] =
+{
+    0x7F, 0xAB, 0x80, 0x55, 0x7F, 0x56,
+    0x00, 0x11, 0x00, 0x11, 0x7F, 0xDE,
+};
 
 // Return the biquad slot's per-slot filter computation function
 // result, or bypass coefficients if the slot is disabled.
@@ -617,79 +636,134 @@ static void compute_slot_coeffs(const tlv320_dsp_band_t *b,
     }
 }
 
-static esp_err_t write_coeff_bytes(uint8_t page,
-                                   uint8_t reg,
-                                   const int32_t coeffs[5])
+static int16_t coeff_internal_to_hw16(int coeff_index, int32_t coeff_q23)
 {
-    uint8_t bytes[DSP_COEFF_BYTES_PER_BIQUAD];
-    for (int i = 0; i < 5; i++)
+    // The existing pure-math layer emits the old internal half-scaled
+    // representation:
+    //   N0,N1,N2,D1,D2 = b0/2, b1/2, b2/2, -a1/2, -a2/2
+    // PRB_P2's 16-bit playback CRAM instead stores:
+    //   N0,N1,N2,D1,D2 = b0, b1/2, b2, -a1/2, -a2
+    // so N0/N2/D2 need one extra factor of two before the Q1.15
+    // rounding-and-clamp step.
+    int64_t scaled = coeff_q23;
+    if (coeff_index == 0 || coeff_index == 2 || coeff_index == 4)
     {
-        int32_t c = coeffs[i];
-        // Encode as 24-bit two's-complement, big-endian.
-        bytes[i * 3 + 0] = (uint8_t)((c >> 16) & 0xFF);
-        bytes[i * 3 + 1] = (uint8_t)((c >>  8) & 0xFF);
-        bytes[i * 3 + 2] = (uint8_t)((c >>  0) & 0xFF);
+        scaled *= 2;
     }
 
-    for (int i = 0; i < DSP_COEFF_BYTES_PER_BIQUAD; i++)
+    if (scaled >= 0)
     {
-        esp_err_t err = s_ops.write_reg(page, (uint8_t)(reg + i), bytes[i]);
-        if (err != ESP_OK)
-        {
-            return err;
-        }
+        scaled += (1 << 7);
+    }
+    else
+    {
+        scaled -= (1 << 7);
+    }
+
+    scaled >>= 8; // Q1.23-ish -> Q1.15 with rounding.
+
+    if (scaled > INT16_MAX) scaled = INT16_MAX;
+    if (scaled < INT16_MIN) scaled = INT16_MIN;
+    return (int16_t)scaled;
+}
+
+static esp_err_t write_coeff16(uint8_t page, uint8_t reg, int16_t value)
+{
+    esp_err_t err = s_ops.write_reg(page, reg, (uint8_t)((uint16_t)value >> 8));
+    if (err != ESP_OK) return err;
+    return s_ops.write_reg(page, (uint8_t)(reg + 1), (uint8_t)value);
+}
+
+static esp_err_t write_biquad16(uint8_t page,
+                                uint8_t base_reg,
+                                const int32_t coeffs[DSP_BIQUAD_COEFF_COUNT])
+{
+    for (int i = 0; i < DSP_BIQUAD_COEFF_COUNT; i++)
+    {
+        uint8_t reg = (uint8_t)(base_reg + (i * 2));
+        esp_err_t err = write_coeff16(page, reg, coeff_internal_to_hw16(i, coeffs[i]));
+        if (err != ESP_OK) return err;
     }
     return ESP_OK;
 }
 
-static esp_err_t upload_biquads(const tlv320_dsp_state_t *state)
+static esp_err_t write_bytes(uint8_t page,
+                             uint8_t start_reg,
+                             const uint8_t *bytes,
+                             size_t count)
 {
-    // Write as many slots as the PRB offers biquads for.  Order on
-    // the wire is slot 0 -> slot N-1 mapped to biquad A, B, C, ….
-    int biquad_count = DSP_PRB_P2_BIQUAD_COUNT;
-    if (biquad_count > TLV320_DSP_NUM_SLOTS) biquad_count = TLV320_DSP_NUM_SLOTS;
-
-    int prescaled_count = 0;
-    bool dropped_logged = false;
-
-    for (int slot = 0; slot < TLV320_DSP_NUM_SLOTS; slot++)
+    for (size_t i = 0; i < count; i++)
     {
-        if (slot >= biquad_count)
-        {
-            // Slot doesn't fit in the active PRB.  Log once per apply
-            // so the user knows why band 5 seems ineffective.
-            if (!dropped_logged && state->bands[slot].enabled)
-            {
-                ESP_LOGW(TAG,
-                         "band slot %d has no biquad in active PRB; skipped",
-                         slot);
-                dropped_logged = true;
-            }
-            continue;
-        }
+        esp_err_t err = s_ops.write_reg(page, (uint8_t)(start_reg + i), bytes[i]);
+        if (err != ESP_OK) return err;
+    }
+    return ESP_OK;
+}
 
+static esp_err_t enable_adaptive_buffering(void)
+{
+    return s_ops.write_reg(DSP_CRAM_CTRL_PAGE,
+                           DSP_CRAM_CTRL_REG,
+                           DSP_CRAM_CTRL_ADAPTIVE_ENABLE);
+}
+
+static esp_err_t trigger_buffer_switch(void)
+{
+    return s_ops.write_reg(DSP_CRAM_CTRL_PAGE,
+                           DSP_CRAM_CTRL_REG,
+                           DSP_CRAM_CTRL_SWITCH_BUFFER);
+}
+
+static esp_err_t upload_playback_biquads(const tlv320_dsp_state_t *state,
+                                         bool target_buffer_a)
+{
+    uint8_t page = target_buffer_a ? DSP_PLAYBACK_BUFFER_A_PAGE
+                                   : DSP_PLAYBACK_BUFFER_B_PAGE;
+    int prescaled_count = 0;
+
+    if (state->bands[TLV320_DSP_SLOT_EQ_BASE + 4].enabled)
+    {
+        ESP_LOGW(TAG, "EQ5 skipped: PRB_P2 exposes only six playback biquads");
+    }
+
+    for (int hw_biquad = 0; hw_biquad < DSP_PLAYBACK_BIQUAD_COUNT; hw_biquad++)
+    {
         int32_t coeffs[5];
         bool prescaled = false;
+        int slot = s_hw_biquad_slot_map[hw_biquad];
         compute_slot_coeffs(&state->bands[slot], coeffs, &prescaled);
         if (prescaled) prescaled_count++;
 
-        uint8_t reg = (uint8_t)(DSP_COEFF_BIQUAD_BASE_REG
-                                + slot * DSP_COEFF_BYTES_PER_BIQUAD);
+        uint8_t left_reg = (uint8_t)(DSP_PLAYBACK_LEFT_BASE_REG
+                                     + (hw_biquad * DSP_PLAYBACK_BIQUAD_STRIDE));
+        uint8_t right_reg = (uint8_t)(DSP_PLAYBACK_RIGHT_BASE_REG
+                                      + (hw_biquad * DSP_PLAYBACK_BIQUAD_STRIDE));
 
-        esp_err_t err = write_coeff_bytes(DSP_PAGE_LEFT_COEFFS, reg, coeffs);
+        esp_err_t err = write_biquad16(page, left_reg, coeffs);
         if (err != ESP_OK) return err;
-        err = write_coeff_bytes(DSP_PAGE_RIGHT_COEFFS, reg, coeffs);
+        err = write_biquad16(page, right_reg, coeffs);
         if (err != ESP_OK) return err;
     }
 
     if (prescaled_count > 0)
     {
         ESP_LOGI(TAG,
-                 "%d biquad(s) prescaled to fit Q1.23 (expect ~-6 dB each)",
+                 "%d biquad(s) prescaled in the internal fixed-point model "
+                 "(expect ~-6 dB each)",
                  prescaled_count);
     }
 
     return ESP_OK;
+}
+
+static esp_err_t upload_drc_detector_coeffs(bool target_buffer_a)
+{
+    uint8_t page = target_buffer_a ? DSP_MISC_BUFFER_A_PAGE
+                                   : DSP_MISC_BUFFER_B_PAGE;
+    return write_bytes(page,
+                       DSP_DRC_COEFF_START_REG,
+                       s_drc_detector_coeffs,
+                       sizeof(s_drc_detector_coeffs));
 }
 
 static esp_err_t program_drc(const tlv320_dsp_state_t *state)
@@ -715,6 +789,53 @@ static esp_err_t program_drc(const tlv320_dsp_state_t *state)
     return err;
 }
 
+static esp_err_t apply_codec_state(const tlv320_dsp_state_t *state, bool remember_state)
+{
+    bool flat = tlv320_dsp_state_is_flat(state);
+    esp_err_t err = enable_adaptive_buffering();
+    if (err != ESP_OK) return err;
+
+    if (flat)
+    {
+        err = program_drc(state);
+        if (err != ESP_OK) return err;
+        err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
+        if (err != ESP_OK) return err;
+    }
+    else
+    {
+        bool target_buffer_a = !s_active_buffer_a;
+
+        err = upload_playback_biquads(state, target_buffer_a);
+        if (err != ESP_OK) return err;
+
+        if (state->drc_enabled)
+        {
+            err = upload_drc_detector_coeffs(target_buffer_a);
+            if (err != ESP_OK) return err;
+        }
+
+        err = trigger_buffer_switch();
+        if (err != ESP_OK) return err;
+        s_active_buffer_a = target_buffer_a;
+
+        err = program_drc(state);
+        if (err != ESP_OK) return err;
+
+        err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
+        if (err != ESP_OK) return err;
+
+    }
+
+    if (remember_state)
+    {
+        s_last_applied = *state;
+        s_has_last_applied = true;
+    }
+
+    return ESP_OK;
+}
+
 bool tlv320_dsp_state_is_flat(const tlv320_dsp_state_t *state)
 {
     if (!state) return true;
@@ -738,6 +859,7 @@ esp_err_t tlv320_dsp_init(const tlv320_dsp_hw_ops_t *ops)
     s_ops = *ops;
     s_initialised = true;
     s_has_last_applied = false;
+    s_active_buffer_a = true;
 
     // Leave the codec in its current PRB (PRB_P1 from the init
     // table) and explicitly disable DRC.  This is a no-op on the
@@ -752,68 +874,23 @@ esp_err_t tlv320_dsp_apply(const tlv320_dsp_state_t *state)
     if (!s_initialised) return ESP_ERR_INVALID_STATE;
     if (!state)         return ESP_ERR_INVALID_ARG;
 
-    bool flat = tlv320_dsp_state_is_flat(state);
-
-    // Soft-mute briefly so coefficient writes can't be heard as
-    // clicks.  On failure we leave the codec muted and let the
-    // caller decide how to recover (usually by re-running apply
-    // with the last known-good state).
-    //
-    // NOTE: a previous revision of this function also bracketed
-    // the PRB / coefficient writes with a full DAC power-down via
-    // REG_DAC_DATAPATH D7/D6.  The theory was that SLAS833 §6.5
-    // requires the DAC to be off when PRB (0x3C) or the biquad
-    // coefficient RAM (pages 8/9) are updated.  In practice that
-    // sequence left the codec silent after any non-flat apply
-    // (EQ / bass / treble / DRC / preset), so it has been removed.
-    // The coefficient RAM is double-buffered on this family and
-    // writes are safe while the DAC is running; making the
-    // resulting PRB switch take audible effect is a separate
-    // problem that must be solved without power-cycling the DAC.
+    // Soft-mute briefly so adaptive-buffer updates and PRB changes
+    // cannot be heard as clicks.
     esp_err_t err = s_ops.mute(true);
     if (err != ESP_OK) return err;
 
-    // Drop to PRB_P1 before rewriting coefficients so the DSP is in
-    // a known quiescent state while the coefficient RAM changes.
-    err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
-    if (err != ESP_OK) goto out;
-
-    if (!flat)
+    err = apply_codec_state(state, true);
+    if (err != ESP_OK && s_has_last_applied)
     {
-        err = upload_biquads(state);
-        if (err != ESP_OK) goto out;
-
-        // Switch to PRB_P2 so the freshly-written biquads are active.
-        err = s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
-        if (err != ESP_OK) goto out;
+        // Best-effort revert to the last known-good state using the
+        // same adaptive-buffer flow as a normal apply.
+        ESP_LOGE(TAG, "DSP apply failed (%d); reverting to last good", err);
+        (void)apply_codec_state(&s_last_applied, false);
     }
 
-    err = program_drc(state);
-    if (err != ESP_OK) goto out;
-
-    s_last_applied     = *state;
-    s_has_last_applied = true;
-
-out:
     {
         esp_err_t mute_err = s_ops.mute(false);
         if (err == ESP_OK) err = mute_err;
-    }
-
-    if (err != ESP_OK && s_has_last_applied)
-    {
-        // Best-effort revert to the last known-good configuration.
-        // Log and continue; don't recurse if the revert also fails.
-        ESP_LOGE(TAG, "DSP apply failed (%d); reverting to last good", err);
-        (void)s_ops.mute(true);
-        (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P1);
-        (void)upload_biquads(&s_last_applied);
-        if (!tlv320_dsp_state_is_flat(&s_last_applied))
-        {
-            (void)s_ops.write_reg(0x00, REG_DAC_PRB, DSP_PRB_P2);
-        }
-        (void)program_drc(&s_last_applied);
-        (void)s_ops.mute(false);
     }
 
     return err;

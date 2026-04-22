@@ -24,8 +24,9 @@ menu "DECtalk ESPress Firmware"
                 help
                     TI TLV320DAC3100 stereo DAC with headphone amplifier
                     and class-D speaker output (Adafruit breakout board).
-                    Requires I2C for register configuration.  MCLK is not
-                    needed; the codec derives its clock from BCLK.
+                    Requires I2C for register configuration.  When MCLK
+                    is wired the codec uses it directly; otherwise the
+                    driver locks the codec PLL from BCLK.
         endchoice
 
         config DTESP_I2S_BCK_GPIO
