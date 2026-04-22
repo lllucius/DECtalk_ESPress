@@ -3,27 +3,21 @@
 // ----------------------------------------------------------------
 // TLV320DAC3100 on-chip DSP — Public API
 //
-// Owns the codec's DAC processing block (REG_DAC_PRB) and biquad
-// coefficient RAM (pages 8 / 9) so that tone controls (bass /
-// treble), a small multi-band peaking EQ, and DRC can be driven
-// from the [:fw …] custom commands.
+// Owns the codec's DAC processing block (REG_DAC_PRB) and playback
+// coefficient RAM so that tone controls (bass / treble), a small
+// multi-band peaking EQ, and DRC can be driven from the [:fw …]
+// custom commands.
 //
-// The hardware stores biquad coefficients in Q1.23 two's-complement
-// format (24 bits, three bytes per coefficient, five coefficients
-// per biquad).  The codec's difference equation uses the TI/AIC
-// "plus" sign convention:
+// The pure-math helpers below keep the existing internal Q1.23-ish
+// representation and the codec's TI/AIC "plus" sign convention:
 //
 //     y[n] = N0·x[n] + N1·x[n-1] + N2·x[n-2]
 //                   + D1·y[n-1] + D2·y[n-2]
 //
 // so D1,D2 are stored as the negated normalised a1,a2 from the
-// standard RBJ cookbook.  Q1.23 cannot represent magnitudes ≥ 1,
-// and peaking/shelving boosts can push N0 slightly above 1, so the
-// converter uniformly halves the numerator coefficients of any
-// biquad that would otherwise overflow.  The resulting −6 dB
-// insertion loss per boosted biquad is documented and is why
-// aggressive boosts should be avoided; cutting the competing
-// frequencies is the preferred way to improve intelligibility.
+// standard RBJ cookbook.  The ESP-platform backend converts that
+// internal form into the codec's 16-bit PRB_P2 playback-biquad
+// storage format before touching hardware.
 // ----------------------------------------------------------------
 
 #ifndef TLV320_DSP_H
@@ -53,9 +47,11 @@ extern "C" {
 //   slots 1-5: EQ bands 1..5 (peaking, 160/500/1500/3000/5000 Hz, Q=1.0)
 //   slot 6   : treble        (high-shelf, ≈4500 Hz, Q≈0.707)
 //
-// The device's PRB_P2 signal-processing block offers six biquads
-// per channel (per SLAS833 §5).  Slots that don't fit are silently
-// skipped with a one-time log at upload time.
+// PRB_P2 exposes six playback biquads per channel.  This backend maps
+// them as:
+//   A=bass, B=EQ1, C=EQ2, D=EQ3, E=EQ4, F=treble
+// User-visible EQ5 therefore has no hardware slot in this backend and
+// is skipped with a warning when enabled.
 // ------------------------------------------------------------
 #define TLV320_DSP_NUM_EQ_BANDS     5
 #define TLV320_DSP_SLOT_BASS        0
@@ -148,11 +144,10 @@ const char *tlv320_dsp_drc_preset_name(tlv320_dsp_drc_preset_t preset);
 // ------------------------------------------------------------
 // Pure math helpers (host-testable; no hardware I/O).
 //
-// Each "compute_*" returns the five DAC3100-format Q1.23 signed
-// integers (N0, N1, N2, D1, D2) for a single biquad.  A trailing
-// boolean `prescaled_out` (optional, may be NULL) is set to true
-// when the function had to halve N0/N1/N2 to keep them inside the
-// Q1.23 representable range.
+// Each "compute_*" returns five internal signed coefficients
+// (N0, N1, N2, D1, D2).  A trailing boolean `prescaled_out`
+// (optional, may be NULL) is set to true when the function had to
+// halve N0/N1/N2 to keep them inside the internal fixed-point range.
 // ------------------------------------------------------------
 void tlv320_dsp_compute_bypass(int32_t coeffs[5]);
 

@@ -111,7 +111,12 @@ static const char *TAG = "TLV320DAC3100";
 #define TLV320_MUTED_REG_VALUE      0x81
 #define TLV320_INVALID_PAGE         0xFF
 #define TLV320_HP_DRIVERS_DEFAULT_MODE  0xC4  // HPL/HPR powered, 1.35 V CM
-#define TLV320_HP_DRIVER_GAIN_0DB_UNMUTED 0x04 // 0 dB gain + unmute (safe default)
+// Page-1 HPL/HPR driver registers use:
+//   D2 = mute
+//   D1 = reserved, must be written as 1
+//   D0 = 0 dB gain select
+#define TLV320_HP_DRIVER_0DB_MUTED   0x02
+#define TLV320_HP_DRIVER_0DB_UNMUTED 0x06
 #define TLV320_EVENT_QUEUE_LEN      8
 #define TLV320_EVENT_TASK_STACK     3072
 #define TLV320_EVENT_IRQ            TLV320_BIT(0)
@@ -124,7 +129,7 @@ static const char *TAG = "TLV320DAC3100";
 // 1.50V + 6 dB diagnostic combination risked clipping the headphone output
 // with sensitive / low-impedance phones and contributed to audible distortion.
 #define TLV320_HP_DRIVERS_HEADPHONE_VALUE TLV320_HP_DRIVERS_DEFAULT_MODE
-#define TLV320_HP_DRIVER_GAIN_VALUE       TLV320_HP_DRIVER_GAIN_0DB_UNMUTED
+#define TLV320_HP_DRIVER_GAIN_VALUE       TLV320_HP_DRIVER_0DB_UNMUTED
 // Mono TTS is duplicated on both left and right DACs so that both earcups /
 // speakers reproduce the same signal.  0xD0 would power both DACs but leave
 // the right DAC's data path silenced.
@@ -274,8 +279,10 @@ static const reg_val_t analog_driver_init[] =
     {REG_HPL_VOL,      0x80},   // HPL routed, analog gain = 0 dB
     {REG_HPR_VOL,      0x80},   // HPR routed, analog gain = 0 dB
     {REG_SPK_VOL,      0x80},   // SPK routed, analog gain = 0 dB
-    {REG_HPL_DRIVER,   0x00},   // HPL: muted (headphones off)
-    {REG_HPR_DRIVER,   0x00},   // HPR: muted (headphones off)
+    {REG_HPL_DRIVER,   TLV320_HP_DRIVER_0DB_MUTED},
+                                // HPL: 0 dB, muted; reserved bit kept high
+    {REG_HPR_DRIVER,   TLV320_HP_DRIVER_0DB_MUTED},
+                                // HPR: 0 dB, muted; reserved bit kept high
     {REG_SPK_DRIVER,   0x04},   // SPK: 6 dB class-D gain, unmuted
 };
 
@@ -813,8 +820,8 @@ static esp_err_t configure_profile_outputs(tlv320_profile_t profile)
     const reg_val_t speaker_output_cfg[] =
     {
         {REG_HP_DRIVERS, 0x04},
-        {REG_HPL_DRIVER, 0x00},
-        {REG_HPR_DRIVER, 0x00},
+        {REG_HPL_DRIVER, TLV320_HP_DRIVER_0DB_MUTED},
+        {REG_HPR_DRIVER, TLV320_HP_DRIVER_0DB_MUTED},
         {REG_SPK_AMP,    0x86},
         {REG_SPK_DRIVER, spk_driver_val},
     };

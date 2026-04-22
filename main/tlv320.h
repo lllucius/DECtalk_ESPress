@@ -18,9 +18,11 @@ typedef enum
  * @brief Initialize the TLV320DAC3100 DAC over I2C.
  *
  * Performs a software reset and configures the codec for I2S slave
- * operation with CODEC_CLKIN = BCLK (no PLL, no MCLK).  Startup
- * profile, startup volume, optional hardware reset, and optional
- * deferred codec event handling are taken from Kconfig.
+ * operation.  When MCLK is wired the codec uses CODEC_CLKIN = MCLK
+ * directly; otherwise the internal PLL locks to BCLK and feeds
+ * CODEC_CLKIN.  Startup profile, startup volume, optional hardware
+ * reset, and optional deferred codec event handling are taken from
+ * Kconfig.
  *
  * Must be called before I2S streaming begins so that the codec is
  * ready to accept audio data.
