@@ -256,6 +256,99 @@ menu "DECtalk ESPress Firmware"
                 default 24 if DTESP_TLV320_DEFAULT_SPK_GAIN_24
         endmenu
 
+        menu "Analog volume knob (potentiometer)"
+            config DTESP_VOLUME_KNOB_ENABLE
+                bool "Enable analog volume potentiometer"
+                depends on DTESP_DAC_TLV320
+                default n
+                help
+                    Sample an analog potentiometer via ADC and drive the
+                    TLV320DAC3100 digital volume from it.  The codec
+                    volume remains the single source of truth; the pot
+                    and [:fw volume ...] coexist via a "soft takeover"
+                    scheme so neither can cause abrupt jumps.
+
+                    When disabled, no ADC hardware is initialised and
+                    the module compiles out.
+
+            config DTESP_VOLUME_KNOB_GPIO
+                int "Volume knob ADC GPIO"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 6
+                range 0 6
+                help
+                    GPIO the potentiometer wiper is connected to.  On
+                    ESP32-C6 only GPIO0..GPIO6 are usable ADC inputs
+                    (ADC1 channels 0..6).  Default is GPIO6.
+
+            config DTESP_VOLUME_KNOB_POLL_MS
+                int "ADC poll period (ms)"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 25
+                range 5 500
+                help
+                    How often the pot is sampled.  25 ms gives a
+                    responsive feel without spamming the codec over
+                    I2C on every tiny pot movement.
+
+            config DTESP_VOLUME_KNOB_AVG_SAMPLES
+                int "Moving-average window (samples)"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 8
+                range 1 64
+                help
+                    Number of raw ADC readings combined into the
+                    filtered value used for quantisation.  Larger
+                    values give a smoother response at the cost of
+                    extra latency (window * poll_ms).
+
+            config DTESP_VOLUME_KNOB_LATCH_WINDOW
+                int "Soft-takeover latch window (steps)"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 1
+                range 0 9
+                help
+                    After a firmware volume command, the pot stays
+                    "unlatched" and its readings are ignored until the
+                    pot-derived step is within ±this many steps of the
+                    current actual volume.  1 keeps the soft-takeover
+                    tight; 0 requires an exact match before latching.
+
+            config DTESP_VOLUME_KNOB_HYSTERESIS
+                int "Step-boundary hysteresis (ADC counts)"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 40
+                range 0 1000
+                help
+                    Minimum change in filtered ADC counts required to
+                    cross from one discrete volume step to the next.
+                    Prevents flapping when the pot sits exactly at a
+                    boundary.  Raise this if the volume ever jumps
+                    between two adjacent steps at rest.
+
+            config DTESP_VOLUME_KNOB_ADC_MIN
+                int "ADC endpoint calibration: minimum count"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 0
+                range 0 4095
+                help
+                    Raw ADC reading that should map to volume 0.  Leave
+                    at 0 unless the pot's low end does not reach the
+                    true ADC floor.
+
+            config DTESP_VOLUME_KNOB_ADC_MAX
+                int "ADC endpoint calibration: maximum count"
+                depends on DTESP_VOLUME_KNOB_ENABLE
+                default 4095
+                range 1 4095
+                help
+                    Raw ADC reading that should map to volume 9.  With
+                    ADC_ATTEN_DB_12 the codec's ~3.3 V rail typically
+                    produces readings close to 4095 at the pot's upper
+                    stop; lower this value if the top of travel does
+                    not reach 9.
+        endmenu
+
         menu "Advanced audio tuning"
             config DTESP_I2S_DMA_DESC_NUM
                 int "I2S DMA descriptor count"

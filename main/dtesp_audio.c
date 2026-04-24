@@ -19,6 +19,7 @@
 #include "tlv320.h"
 #include "fw_settings.h"
 #include "nvs_flash.h"
+#include "volume_knob.h"
 #endif
 
 static const char *TAG = "audio";
@@ -123,6 +124,16 @@ esp_err_t dtesp_audio_init(void)
 
     // Apply the NVS-backed settings now that the codec is ready.
     fw_settings_apply();
+
+    // Start the optional analog volume knob after the codec has
+    // its restored volume, so the pot uses that as its initial
+    // soft-takeover reference.  No-op when the feature is disabled.
+    esp_err_t knob_err = volume_knob_init();
+    if (knob_err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "volume_knob_init failed: %s",
+                 esp_err_to_name(knob_err));
+    }
 #endif
 
     return ESP_OK;

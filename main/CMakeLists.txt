@@ -45,6 +45,15 @@ if(CONFIG_DTESP_DAC_TLV320)
     list(APPEND REQUIRES esp_driver_i2c nvs_flash)
 endif()
 
+if(CONFIG_DTESP_VOLUME_KNOB_ENABLE)
+    list(APPEND SRCS "volume_knob.c")
+    list(APPEND REQUIRES esp_adc esp_timer)
+else()
+    # Always compile the translation unit so the no-op stubs are
+    # available to any caller built unconditionally.
+    list(APPEND SRCS "volume_knob.c")
+endif()
+
 idf_component_register(
     SRCS ${SRCS}
     INCLUDE_DIRS "."

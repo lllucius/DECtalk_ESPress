@@ -38,6 +38,7 @@
 
 #if CONFIG_DTESP_DAC_TLV320
 #include "tlv320.h"
+#include "volume_knob.h"
 #endif
 
 static const char *TAG = "DECtalk ESPress";
@@ -603,6 +604,7 @@ static void dtesp_process_dle(void)
                 if (vol < TLV320_MAX_VOLUME)
                 {
                     tlv320_set_volume(vol + 1);
+                    volume_knob_notify_external_volume(vol + 1);
                 }
                 break;
             }
@@ -612,11 +614,13 @@ static void dtesp_process_dle(void)
                 if (vol > 0)
                 {
                     tlv320_set_volume(vol - 1);
+                    volume_knob_notify_external_volume(vol - 1);
                 }
                 break;
             }
             case CTRL_vol_set:
                 tlv320_set_volume(cmd_sub & 0xFF);
+                volume_knob_notify_external_volume(cmd_sub & 0xFF);
                 break;
 #else
             case CTRL_vol_up:
