@@ -260,8 +260,11 @@ static const reg_val_t headset_detect_init[] =
 
 static const reg_val_t interrupt_routing_init[] =
 {
-    {REG_INT1_CTRL, TLV320_INT_SHORT_CIRCUIT | TLV320_INT_DAC_OVERFLOW | TLV320_INT_REPEAT},
-    {REG_INT2_CTRL, TLV320_INT_HEADSET | TLV320_INT_BUTTON},
+    // Route the events we actually care about on GPIO1 to INT1.
+    {REG_INT1_CTRL, TLV320_INT_HEADSET | TLV320_INT_BUTTON |
+                    TLV320_INT_SHORT_CIRCUIT | TLV320_INT_DAC_OVERFLOW |
+                    TLV320_INT_REPEAT},
+    {REG_INT2_CTRL, 0x00},
 };
 
 // Page 1 phase: route DAC outputs to the analog mixer paths.
@@ -581,6 +584,15 @@ static esp_err_t tlv320_handle_headset_status(uint8_t headset_reg, bool headset_
         return ESP_OK;
     }
 
+    ESP_LOGI(TAG,
+             "headset handler: reg=0x%02X decoded_present=%u cached_present=%u hp_active=%u autoswitch=%u irq_seen=%u",
+             headset_reg,
+             (unsigned)headset_present,
+             (unsigned)s_headset_present,
+             (unsigned)s_hp_active,
+             (unsigned)s_autoswitch,
+             (unsigned)headset_irq_seen);
+
     // Honor the runtime s_autoswitch flag (initialised from Kconfig,
     // but switchable via [:fw autoswitch ...]).  When disabled,
     // headset insertion/removal only updates the presence flag.
@@ -635,6 +647,15 @@ static esp_err_t tlv320_service_interrupts(void)
     {
         return err;
     }
+
+    ESP_LOGD(TAG,
+             "codec irq: INT_FLAGS=0x%02X INT_STATUS=0x%02X OVERFLOW=0x%02X HEADSET=0x%02X status=%u present=%u",
+             interrupt_flags,
+             interrupt_status,
+             overflow_flags,
+             headset_reg,
+             (unsigned)tlv320_get_headset_status(headset_reg),
+             (unsigned)tlv320_headset_present_from_reg(headset_reg));
 
     // Read the current interrupt-status mirror after the sticky flags so the
     // deferred handler follows the codec's read-to-observe register flow even
