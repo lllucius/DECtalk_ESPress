@@ -17,6 +17,7 @@
 #if CONFIG_DTESP_DAC_TLV320
 #include "tlv320.h"
 #include "tlv320_dsp.h"
+#include "volume_knob.h"
 #endif
 
 static const char *TAG = "fw_settings";
@@ -296,6 +297,10 @@ void fw_settings_apply(void)
     }
 
     tlv320_set_volume(s_volume);
+    // The pot (if enabled) treats the restored volume as the new
+    // external reference and stays unlatched until the user moves
+    // the pot into the soft-takeover window.
+    volume_knob_notify_external_volume(s_volume);
 
     // Apply DSP state last so EQ / DRC sit on top of the profile's
     // cleanly programmed base routing.

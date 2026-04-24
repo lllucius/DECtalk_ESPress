@@ -31,6 +31,7 @@
 #if CONFIG_DTESP_DAC_TLV320
 #include "tlv320.h"
 #include "fw_settings.h"
+#include "volume_knob.h"
 #endif
 static const char *TAG = "custom_act";
 #define LOG_I(fmt, ...) ESP_LOGI(TAG, fmt, ##__VA_ARGS__)
@@ -426,6 +427,9 @@ static void volume_execute(void *ctx)
 #if defined(ESP_PLATFORM) && CONFIG_DTESP_DAC_TLV320
     fw_settings_set_volume(v->level);
     tlv320_set_volume(v->level);
+    // Tell the knob a FW command just changed volume so it
+    // unlatches and won't snap back to the pot's position.
+    volume_knob_notify_external_volume(v->level);
 #endif
 }
 
