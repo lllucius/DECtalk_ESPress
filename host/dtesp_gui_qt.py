@@ -102,6 +102,23 @@ EQ_GAIN_MAX = 12
 EQ_PRESETS  = ("flat", "speech", "crisp", "warm")
 DRC_PRESETS = ("soft", "speech", "loud")
 
+# Mirror of the firmware preset table in main/tlv320_dsp.c so the GUI
+# can update its sliders / checkboxes to reflect what the device will
+# apply when an EQ preset is selected.  Each entry lists the bass and
+# treble shelving gains (dB), the five peaking-EQ band gains (dB), the
+# DRC enabled flag, and the DRC preset name.  Keep this in sync with
+# the ``presets[]`` array in tlv320_dsp.c.
+EQ_PRESET_DEFINITIONS = {
+    "flat":   {"bass":  0, "eq": [ 0,  0, 0, 0, 0], "treble": 0,
+               "drc": False, "drc_preset": "speech"},
+    "speech": {"bass": -3, "eq": [ 0, -2, 0, 3, 0], "treble": 2,
+               "drc": True,  "drc_preset": "speech"},
+    "crisp":  {"bass": -3, "eq": [ 0, -2, 0, 4, 3], "treble": 2,
+               "drc": True,  "drc_preset": "loud"},
+    "warm":   {"bass":  2, "eq": [ 0,  0, 0, 0, 0], "treble": 0,
+               "drc": False, "drc_preset": "soft"},
+}
+
 # Class-D speaker-amp analog gain stages (dB)
 SPK_GAIN_VALUES = (6, 12, 18, 24)
 
@@ -480,42 +497,74 @@ class AudioSettingsDialog(QDialog):
     # -- Load / sync ------------------------------------------------
 
     def _load_from_state(self):
-        """Populate controls from the parent's persisted settings dict."""
+        """Populate controls from the parent's persisted settings dict.
+
+        Widget signals are blocked while values are written so that
+        programmatic ``setValue`` / ``setChecked`` calls do not fire
+        the user-driven callbacks (which would, e.g., re-send the
+        value back to the device or invalidate the EQ preset combo).
+        """
         s = self._state
-        if s["profile"] == 1:
-            self.profile_headphone.setChecked(True)
-        else:
-            self.profile_speaker.setChecked(True)
-        self.autoswitch_chk.setChecked(bool(s["autoswitch"]))
-        self.volume_slider.setValue(int(s["volume"]))
-        self.volume_value_label.setText(str(int(s["volume"])))
+
+        # All widgets that carry a callback we don't want to retrigger
+        # when reloading from state.
+        widgets = [
+            self.profile_speaker, self.profile_headphone,
+            self.autoswitch_chk,
+            self.volume_slider, self.spkgain_combo, self.mute_chk,
+            self.bass_slider, self.treble_slider,
+            self.eq_preset_combo,
+            self.drc_chk, self.drc_preset_combo,
+        ]
+        widgets += list(self.eq_sliders)
+
+        prev_blocked = [w.blockSignals(True) for w in widgets]
         try:
-            self.spkgain_combo.setCurrentIndex(
-                SPK_GAIN_VALUES.index(int(s["spkgain"]))
+            if s["profile"] == 1:
+                self.profile_headphone.setChecked(True)
+            else:
+                self.profile_speaker.setChecked(True)
+            self.autoswitch_chk.setChecked(bool(s["autoswitch"]))
+            self.volume_slider.setValue(int(s["volume"]))
+            self.volume_value_label.setText(str(int(s["volume"])))
+            try:
+                self.spkgain_combo.setCurrentIndex(
+                    SPK_GAIN_VALUES.index(int(s["spkgain"]))
+                )
+            except ValueError:
+                self.spkgain_combo.setCurrentIndex(0)
+            self.mute_chk.setChecked(bool(s["mute"]))
+
+            self.bass_slider.setValue(int(s["bass"]))
+            self.bass_value_label.setText(
+                "%+d" % int(s["bass"]) if int(s["bass"]) else "0"
             )
-        except ValueError:
-            self.spkgain_combo.setCurrentIndex(0)
-        self.mute_chk.setChecked(bool(s["mute"]))
-
-        self.bass_slider.setValue(int(s["bass"]))
-        self.treble_slider.setValue(int(s["treble"]))
-        for i, sl in enumerate(self.eq_sliders):
-            sl.setValue(int(s["eq"][i]))
-
-        # EQ preset combo: "(custom)" unless user explicitly loaded one.
-        if s.get("eq_preset") in EQ_PRESETS:
-            idx = EQ_PRESETS.index(s["eq_preset"]) + 1  # +1 for "(custom)"
-            self.eq_preset_combo.setCurrentIndex(idx)
-        else:
-            self.eq_preset_combo.setCurrentIndex(0)
-
-        self.drc_chk.setChecked(bool(s["drc"]))
-        try:
-            self.drc_preset_combo.setCurrentIndex(
-                DRC_PRESETS.index(s["drc_preset"])
+            self.treble_slider.setValue(int(s["treble"]))
+            self.treble_value_label.setText(
+                "%+d" % int(s["treble"]) if int(s["treble"]) else "0"
             )
-        except ValueError:
-            self.drc_preset_combo.setCurrentIndex(0)
+            for i, sl in enumerate(self.eq_sliders):
+                v = int(s["eq"][i])
+                sl.setValue(v)
+                self.eq_value_labels[i].setText("%+d" % v if v else "0")
+
+            # EQ preset combo: "(custom)" unless user explicitly loaded one.
+            if s.get("eq_preset") in EQ_PRESETS:
+                idx = EQ_PRESETS.index(s["eq_preset"]) + 1  # +1 for "(custom)"
+                self.eq_preset_combo.setCurrentIndex(idx)
+            else:
+                self.eq_preset_combo.setCurrentIndex(0)
+
+            self.drc_chk.setChecked(bool(s["drc"]))
+            try:
+                self.drc_preset_combo.setCurrentIndex(
+                    DRC_PRESETS.index(s["drc_preset"])
+                )
+            except ValueError:
+                self.drc_preset_combo.setCurrentIndex(0)
+        finally:
+            for w, prev in zip(widgets, prev_blocked):
+                w.blockSignals(prev)
 
     # -- Command emitters (each routed through parent) --------------
 
@@ -579,11 +628,25 @@ class AudioSettingsDialog(QDialog):
         if not name:
             return
         self._state["eq_preset"] = name
-        # Local mirror: firmware presets only touch peaking bands, not
-        # bass/treble (except "flat" which also zeroes those).  Rather
-        # than duplicate that table here we simply rely on [:fw eq show]
-        # /user interaction; the UI leaves slider positions alone and
-        # re-flags as "(custom)" on the next manual tweak.
+
+        # Update the local mirror to match what the firmware preset
+        # will apply on the device, then refresh every affected widget
+        # so the GUI reflects the new device settings.  The firmware
+        # preset table (main/tlv320_dsp.c) sets bass, treble, all five
+        # peaking bands, the DRC enabled flag, and the DRC preset.
+        preset = EQ_PRESET_DEFINITIONS.get(name)
+        if preset is not None:
+            self._state["bass"]       = int(preset["bass"])
+            self._state["treble"]     = int(preset["treble"])
+            self._state["eq"]         = [int(g) for g in preset["eq"]]
+            self._state["drc"]        = bool(preset["drc"])
+            self._state["drc_preset"] = preset["drc_preset"]
+            self._loading = True
+            try:
+                self._load_from_state()
+            finally:
+                self._loading = False
+
         self._send("eq preset %s" % name)
 
     def _on_eq_reset(self):
@@ -616,6 +679,32 @@ class AudioSettingsDialog(QDialog):
         self._send("drc preset %s" % name)
 
     def _on_save(self):
+        # Print the current settings to the host log before persisting
+        # them on the device so the user has a record of exactly what
+        # is being saved.
+        s = self._state
+        eq_str = ", ".join("%d:%+d" % (i + 1, int(v))
+                           for i, v in enumerate(s["eq"]))
+        eq_preset = s.get("eq_preset") or "(custom)"
+        summary = (
+            "Saving to device: profile=%s autoswitch=%s volume=%d "
+            "spkgain=%d mute=%s bass=%+d treble=%+d eq=[%s] "
+            "eq_preset=%s drc=%s drc_preset=%s"
+            % (
+                "headphone" if int(s["profile"]) == 1 else "speaker",
+                "on" if s["autoswitch"] else "off",
+                int(s["volume"]),
+                int(s["spkgain"]),
+                "on" if s["mute"] else "off",
+                int(s["bass"]),
+                int(s["treble"]),
+                eq_str,
+                eq_preset,
+                "on" if s["drc"] else "off",
+                s["drc_preset"],
+            )
+        )
+        self._parent._log("--", summary)
         self._send("save")
 
 
