@@ -704,8 +704,7 @@ class AudioSettingsDialog(QDialog):
                 s["drc_preset"],
             )
         )
-        if not self._loading:
-            self._parent._log("--", summary)
+        self._parent._log("--", summary)
         self._send("save")
 
 
