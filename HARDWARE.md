@@ -26,7 +26,7 @@ DECtalk ESPress device.
 | Back | ![Back of assembled device](images/back.png) |
 | Left side | ![Left side of assembled device](images/left%20side.png) |
 | Right side | ![Right side of assembled device](images/right%20side.png) |
-| Inside | ![Inside of assembled device](images/Inside.png) |
+| Inside | ![Inside of assembled device](images/inside.png) |
 | Perfboard wiring layout | ![Perfboard wiring layout](images/pcb%20layout.png) |
 
 ## Firmware configuration
