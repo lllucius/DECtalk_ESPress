@@ -32,6 +32,7 @@ advancing DECtalk for everyone.
 - [Key Features](#key-features)
 - [Hardware Requirements](#hardware-requirements)
 - [Wiring](#wiring)
+- [Physical Device Build](#physical-device-build)
 - [Quick Start](#quick-start)
 - [Web Flasher](#web-flasher)
 - [Release Build Workflow](#release-build-workflow)
@@ -126,6 +127,12 @@ two extra I2C connections beyond the basic I2S pins:
 All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
 Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
 Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.
+
+## Physical Device Build
+
+See **[HARDWARE.md](HARDWARE.md)** for the documented ESP32-C6 perfboard build,
+including component list, build photos, TLV320DAC3100 hookups, speaker wiring,
+and the optional analog volume potentiometer.
 
 ## Quick Start
 
