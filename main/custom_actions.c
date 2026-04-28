@@ -208,9 +208,7 @@ typedef struct
     const char *cmd;
 } voice_map_entry_t;
 
-// Canonical voice table.  The single source of truth for voice names
-// and inline command codes is voices.json in the repository root.
-// Keep this table in sync with that file.
+// Canonical voice table.
 static const voice_map_entry_t voice_map[] =
 {
     { "paul",    "[:np]"  },
