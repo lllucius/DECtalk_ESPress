@@ -6,6 +6,10 @@
 This document describes the build system, source layout, and internal
 architecture of the DECtalk ESPress firmware.
 
+The firmware build supports both **ESP32-S3** and **ESP32-C6** targets.  The
+separate **[HARDWARE.md](HARDWARE.md)** guide documents the photographed
+physical perfboard build, which is specifically based on an **ESP32-C6** board.
+
 For the DECtalk component build process (dapi source compilation, dictionary
 cross-compilation, porting notes), see the
 [component BUILD.md](components/dectalk/BUILD.md).
