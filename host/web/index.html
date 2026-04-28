@@ -406,16 +406,15 @@
       <h2 id="speech-h">Speech Settings</h2>
       <div class="form-row">
         <label class="lbl" for="voice-select">Voice:</label>
-        <select id="voice-select" aria-label="DECtalk voice"></select>
-        <span class="spacer"></span>
+        <select id="voice-select" aria-label="DECtalk voice" style="min-width:0;width:120px;flex-shrink:0;"></select>
         <label class="lbl" for="rate-slider">Rate (WPM):</label>
         <input id="rate-slider" type="range" min="75" max="600" value="200"
+               style="flex:1;min-width:80px;max-width:none;"
                aria-label="Speaking rate in words per minute">
         <output id="rate-value" for="rate-slider">200</output>
-      </div>
-      <div class="form-row">
         <label class="lbl" for="pitch-slider">Pitch (Hz):</label>
         <input id="pitch-slider" type="range" min="50" max="400" value="50"
+               style="flex:1;min-width:80px;max-width:none;"
                aria-label="Average pitch in Hz; minimum uses voice default">
         <output id="pitch-value" for="pitch-slider">Default</output>
       </div>
@@ -433,7 +432,6 @@
           <button id="btn-pause"  class="secondary" disabled>Pause</button>
           <button id="btn-resume" class="secondary" disabled>Resume</button>
           <button id="btn-flush"  class="secondary" disabled>Flush</button>
-          <button id="btn-status" class="secondary" disabled>Query Status</button>
           <button id="btn-audio"  class="secondary" disabled>Audio Settings…</button>
           <button id="btn-save"   class="secondary" disabled>Save to Device</button>
         </div>
@@ -1114,7 +1112,6 @@ const UI = {
     $("btn-resume").addEventListener("click", () =>
       this.runAction(() => this.dt.resume(), "Resume"));
     $("btn-flush").addEventListener("click",  () => this.onFlush());
-    $("btn-status").addEventListener("click", () => this.onQueryStatus());
 
     $("btn-audio").addEventListener("click", () => this.openAudioDialog());
     $("btn-save").addEventListener("click",  () => this.sendFw("save"));
@@ -1306,7 +1303,7 @@ const UI = {
     $("btn-connect").disabled    = connected;
     $("btn-disconnect").disabled = !connected;
     for (const id of ["btn-speak", "btn-pause", "btn-resume", "btn-flush",
-                      "btn-status", "btn-audio", "btn-save"]) {
+                      "btn-audio", "btn-save"]) {
       $(id).disabled = !connected;
     }
     const dot = $("conn-dot");
