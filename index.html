@@ -236,7 +236,7 @@
 <h2 id="key-features">Key Features</h2>
 <ul>
 <li><strong>ESPress serial protocol</strong> — drop-in replacement for a real DECtalk Express: plain-ASCII text input, ETX flush, ENQ status query, SO/SI pause/resume, DLE command sequences, XON/XOFF flow control</li>
-<li><strong>Native USB host transport</strong> — ESP32-S3 uses TinyUSB CDC-ACM and ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial (COM / ttyACM) ports to the host; no external UART adapter needed</li>
+<li><strong>Native USB host transport</strong> — ESP32-S3 uses TinyUSB CDC-ACM and ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial ports to the host (for example COM, <code>/dev/ttyACM*</code>, or <code>/dev/ttyUSB*</code> depending on board and driver); no external UART adapter needed</li>
 <li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
 <li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
 <li><strong>Python host tools</strong> — a serial API module (<code>dtesp_serial.py</code>) and GUI applications for controlling the device from a PC</li>
@@ -280,28 +280,28 @@
 <p><strong>Memory note:</strong> PSRAM is not strictly required to run the firmware because the ESPress application itself fits within the base 512 KB RAM budget. However, dictionary storage mode matters: embedded dictionaries and dedicated dictionary partitions can work without PSRAM, while loading the dictionary from a SPIFFS file uses additional heap, so a modest PSRAM size (roughly 2 MB, depending on filesystem size and usage) is recommended.</p>
 </blockquote>
 <h2 id="wiring">Wiring</h2>
-<p>Default I2S pin assignments (configurable via <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>):</p>
+<p>Current default I2S pin assignments (configurable via <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>):</p>
 <table>
 <thead>
 <tr class="header">
-<th>ESP32-S3 GPIO</th>
+<th>Default GPIO</th>
 <th>I2S DAC Pin</th>
 <th>Function</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>GPIO 8</td>
+<td>GPIO 21</td>
 <td>BCK</td>
 <td>Bit Clock</td>
 </tr>
 <tr class="even">
-<td>GPIO 3</td>
+<td>GPIO 20</td>
 <td>WS / LRCK</td>
 <td>Word Select</td>
 </tr>
 <tr class="odd">
-<td>GPIO 18</td>
+<td>GPIO 19</td>
 <td>DIN / DATA</td>
 <td>Serial Data</td>
 </tr>
@@ -319,34 +319,39 @@
 </table>
 <p><strong>PCM5102 notes</strong> — short SCK→GND (internal PLL), FLT→GND, DEMP→GND, FMT→GND.</p>
 <p><strong>MAX98357A notes</strong> — connect a 4–8 Ω speaker directly to the amplifier output terminals.</p>
-<p><strong>TLV320DAC3100 (Adafruit breakout) notes</strong> — the TLV320DAC3100 requires two extra I2C connections beyond the basic I2S pins:</p>
+<p><strong>TLV320DAC3100 (Adafruit breakout) notes</strong> — the TLV320DAC3100 adds I2C control pins on top of the basic I2S wiring. The current Kconfig defaults are:</p>
 <table>
 <thead>
 <tr class="header">
-<th>ESP32-S3 GPIO</th>
+<th>Default GPIO</th>
 <th>TLV320DAC3100 Pin</th>
 <th>Function</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>GPIO 9</td>
-<td>MCLK</td>
-<td>Master Clock (256 × Fs)</td>
-</tr>
-<tr class="even">
-<td>GPIO 1</td>
+<td>GPIO 18</td>
 <td>SDA</td>
 <td>I2C Data</td>
 </tr>
-<tr class="odd">
-<td>GPIO 2</td>
+<tr class="even">
+<td>GPIO 9</td>
 <td>SCL</td>
 <td>I2C Clock</td>
 </tr>
+<tr class="odd">
+<td>GPIO 22</td>
+<td>RESET</td>
+<td>Optional active-low hardware reset</td>
+</tr>
+<tr class="even">
+<td>GPIO 15</td>
+<td>INT</td>
+<td>Optional interrupt output</td>
+</tr>
 </tbody>
 </table>
-<p>All GPIOs above are configurable via <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>. Select <strong>Adafruit TLV320DAC3100 breakout</strong> as the Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.</p>
+<p>The optional TLV320 <strong>MCLK</strong> output is disabled by default (<code>-1</code>). If you wire MCLK, set it explicitly in <code>idf.py menuconfig</code> → <em>DECtalk ESPress Firmware → Audio output</em>. Select <strong>Adafruit TLV320DAC3100 breakout</strong> as the Audio DAC to expose the codec I2C, reset, interrupt, MCLK, and DSP-default settings.</p>
 <h2 id="quick-start">Quick Start</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Source the ESP-IDF environment</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">.</span> ~/esp/esp-idf/export.sh</span>
@@ -378,7 +383,7 @@
 </ol>
 <p>After flashing finishes, unplug or close the flashing connection if needed and use the board's runtime host port: <strong>native USB CDC</strong> on ESP32-S3 or <strong>USB Serial/JTAG</strong> on ESP32-C6.</p>
 <h2 id="release-build-workflow">Release Build Workflow</h2>
-<p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release-builds.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
+<p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
 <h2 id="serial-interfaces">Serial Interfaces</h2>
 <p>The firmware's host transport depends on the target:</p>
 <table>
@@ -631,7 +636,15 @@
 <tbody>
 <tr class="odd">
 <td><em>Audio output</em></td>
-<td>Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz</td>
+<td>Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, optional TLV320 MCLK, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz</td>
+</tr>
+<tr class="even">
+<td><em>Audio output → TLV320DAC3100 defaults</em></td>
+<td>Default profile, startup volume, DSP preset, DRC, speaker gain, and headset auto-switch behaviour</td>
+</tr>
+<tr class="odd">
+<td><em>Audio output → Analog volume knob (potentiometer)</em></td>
+<td>Optional ADC-driven hardware volume knob with smoothing, hysteresis, and soft-takeover tuning</td>
 </tr>
 <tr class="even">
 <td><em>Audio output → Advanced audio tuning</em></td>
@@ -651,7 +664,7 @@
 </tr>
 <tr class="even">
 <td><em>Custom firmware commands</em></td>
-<td>Enable/disable <code>[:fw …]</code> command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone, DSP/EQ/DRC)</td>
+<td>Enable/disable <code>[:fw …]</code> command parsing; configure namespace, token length, native-command override, reconnect reset, and per-command enable flags (GPIO, tone, DSP/EQ/DRC)</td>
 </tr>
 <tr class="odd">
 <td><em>Onboard RGB LED</em></td>

@@ -233,7 +233,7 @@
 </ul></li>
 </ul>
 <h2 id="overview">Overview</h2>
-<p>The host communicates with the ESP32 over USB using the DECtalk ESPress serial protocol. The ESP32 firmware boots directly into ESPress protocol mode on its host USB port, which appears as a standard serial (COM / ttyACM) port on the host computer. On <strong>ESP32-S3</strong> the host link uses USB CDC-ACM (TinyUSB); on <strong>ESP32-C6</strong> it uses the built-in USB Serial/JTAG interface.</p>
+<p>The host communicates with the ESP32 over USB using the DECtalk ESPress serial protocol. The ESP32 firmware boots directly into ESPress protocol mode on its host USB port, which appears as a standard serial port on the host computer (for example COM, <code>/dev/ttyACM*</code>, or <code>/dev/ttyUSB*</code> depending on the board and driver). On <strong>ESP32-S3</strong> the host link uses USB CDC-ACM (TinyUSB); on <strong>ESP32-C6</strong> it uses the built-in USB Serial/JTAG interface.</p>
 <h2 id="requirements">Requirements</h2>
 <ul>
 <li>Python 3.7 or later</li>
@@ -248,7 +248,7 @@
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyserial PySide6</span></code></pre></div></li>
 <li><p>Run the ESPress GUI:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> dtesp_gui_qt.py</span></code></pre></div></li>
-<li><p>Select the serial port for your ESP32 and click <strong>Connect</strong>.</p></li>
+<li><p>Select the serial port for your ESP32 and click <strong>Connect</strong>. On Linux this is often <code>/dev/ttyACM*</code> on ESP32-S3 and may be either <code>/dev/ttyACM*</code> or <code>/dev/ttyUSB*</code> on ESP32-C6 depending on the USB bridge/driver.</p></li>
 <li><p>Type text in the text box and click <strong>Speak</strong>.</p></li>
 </ol>
 <h2 id="gui-features">GUI Features</h2>
@@ -312,7 +312,7 @@
 [:np] Hello, I am Paul. [:nb] And I am Betty.
 [:dv ap 160 pr 50] This voice has modified pitch.
 [:tone 500,500] A tone before speech.</code></pre>
-<p>See <code>../ref_man.txt</code> for the full DECtalk command reference.</p>
+<p>For the full DECtalk inline-command reference, use the upstream DECtalk documentation that matches your language/voice package.</p>
 <h2 id="espress-gui-dtesp_gui_qtpy">ESPress GUI (<code>dtesp_gui_qt.py</code>)</h2>
 <p>A Qt-based (PySide6/PyQt6) GUI for the DECtalk ESPress serial protocol with full accessibility support. Features:</p>
 <ul>
@@ -341,7 +341,7 @@
 <tbody>
 <tr class="odd">
 <td>Transport</td>
-<td>USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6 (both appear as COM / ttyACM)</td>
+<td>USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6 (both appear as normal serial ports such as COM, <code>/dev/ttyACM*</code>, or <code>/dev/ttyUSB*</code>)</td>
 </tr>
 <tr class="even">
 <td>Text format</td>
