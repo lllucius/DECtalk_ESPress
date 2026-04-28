@@ -53,7 +53,8 @@ advancing DECtalk for everyone.
   pause/resume, DLE command sequences, XON/XOFF flow control
 - **Native USB host transport** — ESP32-S3 uses TinyUSB CDC-ACM and
   ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial
-  (COM / ttyACM) ports to the host; no external UART adapter needed
+  ports to the host (for example COM, `/dev/ttyACM*`, or `/dev/ttyUSB*`
+  depending on board and driver); no external UART adapter needed
 - **I2S audio output** — 11.025 kHz, 16-bit mono via I2S to an external DAC
   (PCM5102, MAX98357A, etc.)
 - **Configurable via `menuconfig`** — I2S pins, DMA tuning,
@@ -97,14 +98,14 @@ advancing DECtalk for everyone.
 
 ## Wiring
 
-Default I2S pin assignments (configurable via `idf.py menuconfig` →
+Current default I2S pin assignments (configurable via `idf.py menuconfig` →
 *DECtalk ESPress Firmware → Audio output*):
 
-| ESP32-S3 GPIO | I2S DAC Pin | Function |
-|---------------|-------------|----------|
-| GPIO 8 | BCK | Bit Clock |
-| GPIO 3 | WS / LRCK | Word Select |
-| GPIO 18 | DIN / DATA | Serial Data |
+| Default GPIO | I2S DAC Pin | Function |
+|--------------|-------------|----------|
+| GPIO 21 | BCK | Bit Clock |
+| GPIO 20 | WS / LRCK | Word Select |
+| GPIO 19 | DIN / DATA | Serial Data |
 | GND | GND | Ground |
 | 3.3 V / 5 V | VCC | Power (check your DAC's requirement) |
 
@@ -114,18 +115,20 @@ FMT→GND.
 **MAX98357A notes** — connect a 4–8 Ω speaker directly to the amplifier
 output terminals.
 
-**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 requires
-two extra I2C connections beyond the basic I2S pins:
+**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 adds I2C
+control pins on top of the basic I2S wiring.  The current Kconfig defaults are:
 
-| ESP32-S3 GPIO | TLV320DAC3100 Pin | Function |
-|---------------|-------------------|----------|
-| GPIO 9 | MCLK | Master Clock (256 × Fs) |
-| GPIO 1 | SDA | I2C Data |
-| GPIO 2 | SCL | I2C Clock |
+| Default GPIO | TLV320DAC3100 Pin | Function |
+|--------------|-------------------|----------|
+| GPIO 18 | SDA | I2C Data |
+| GPIO 9 | SCL | I2C Clock |
+| GPIO 22 | RESET | Optional active-low hardware reset |
+| GPIO 15 | INT | Optional interrupt output |
 
-All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
-Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
-Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.
+The optional TLV320 **MCLK** output is disabled by default (`-1`).  If you wire
+MCLK, set it explicitly in `idf.py menuconfig` → *DECtalk ESPress Firmware →
+Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the Audio DAC to
+expose the codec I2C, reset, interrupt, MCLK, and DSP-default settings.
 
 ## Quick Start
 
@@ -178,7 +181,7 @@ Serial/JTAG** on ESP32-C6.
 ## Release Build Workflow
 
 GitHub Actions includes a release-build workflow at
-`.github/workflows/release-builds.yml`.  It builds firmware binaries and the
+`.github/workflows/release.yml`.  It builds firmware binaries and the
 matching dictionary for all six DECtalk languages, uploads each language as a
 workflow artifact, and attaches the packaged artifacts to published GitHub
 releases.
@@ -335,12 +338,14 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, optional TLV320 MCLK, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz |
+| *Audio output → TLV320DAC3100 defaults* | Default profile, startup volume, DSP preset, DRC, speaker gain, and headset auto-switch behaviour |
+| *Audio output → Analog volume knob (potentiometer)* | Optional ADC-driven hardware volume knob with smoothing, hysteresis, and soft-takeover tuning |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
 | *USB CDC transport* / *JTAG serial transport* | Target-specific host transport buffer sizing |
-| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone, DSP/EQ/DRC) |
+| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, native-command override, reconnect reset, and per-command enable flags (GPIO, tone, DSP/EQ/DRC) |
 | *Onboard RGB LED* | Optionally drive the RGB LED data GPIO low at startup to keep the LED dark |
 | *Diagnostics and logging* | Enable/disable heap and stack diagnostics; choose the DECtalk firmware log level |
 
