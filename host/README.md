@@ -60,7 +60,8 @@ either firmware target.
 1. Flash the DECtalk firmware to your ESP32 (see `../README.md`).
 2. Open **`host/web/index.html`** in Chrome or Edge 89+ (either by
    double-clicking the file, serving it from any static web server, or
-   visiting the published GitHub Pages site).
+   visiting the published GitHub Pages site at
+   [lllucius.github.io/DECtalk_ESPress/gui/](https://lllucius.github.io/DECtalk_ESPress/gui/)).
 3. Click **Connect** and select the ESP32 serial port from the browser
    chooser.
 4. Type text and click **Speak**.
@@ -118,6 +119,9 @@ the existing Web Flasher.  Because it runs entirely in the browser,
 the same `index.html` file works whether opened from disk, served from
 a static web server, or hosted alongside the Web Flasher on GitHub
 Pages.
+
+The corresponding hosted Web Flasher page is available at
+[lllucius.github.io/DECtalk_ESPress/flasher/](https://lllucius.github.io/DECtalk_ESPress/flasher/).
 
 > **Browser support:** the Web Serial API is currently only available
 > in Chromium-based browsers (Chrome, Edge, Opera, Brave, …) on

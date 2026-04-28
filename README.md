@@ -171,7 +171,10 @@ See [BUILD.md](BUILD.md) for full prerequisites and configuration options.
 The published project site includes a browser-based flasher for installing
 released firmware without setting up ESP-IDF locally.
 
-1. Open the project site and click **Web Flasher** in the top navigation.
+1. Open the published project site at
+   [lllucius.github.io/DECtalk_ESPress](https://lllucius.github.io/DECtalk_ESPress/)
+   and click **Web Flasher** in the top navigation (or go directly to
+   [/flasher/](https://lllucius.github.io/DECtalk_ESPress/flasher/)).
 2. Use **Chrome** or **Edge** (version 89 or newer) so the page can access the
    board over the browser's Web Serial API.
 3. Connect the board's **UART flashing/debug USB port** to your computer, click
@@ -190,7 +193,10 @@ Serial/JTAG** on ESP32-C6.
 The published project site includes a browser-based GUI for controlling the
 device without installing any software.
 
-1. Open the project site and click **Web GUI** in the top navigation.
+1. Open the published project site at
+   [lllucius.github.io/DECtalk_ESPress](https://lllucius.github.io/DECtalk_ESPress/)
+   and click **Web GUI** in the top navigation (or go directly to
+   [/gui/](https://lllucius.github.io/DECtalk_ESPress/gui/)).
 2. Use **Chrome** or **Edge** (version 89 or newer) — the page requires the
    Web Serial API.
 3. Connect the board's **runtime host port** to your computer, click
@@ -213,7 +219,8 @@ See [host/README.md](host/README.md) for full Web GUI documentation.
 ## Release Build Workflow
 
 GitHub Actions includes a release-build workflow at
-`.github/workflows/release.yml`.  It builds firmware binaries and the
+[`.github/workflows/release.yml`](.github/workflows/release.yml).  It builds
+firmware binaries and the
 matching dictionary for all six DECtalk languages, uploads each language as a
 workflow artifact, and attaches the packaged artifacts to published GitHub
 releases.
