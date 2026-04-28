@@ -207,7 +207,7 @@
 <!-- Copyright (c) 2025 Leland Lucius -->
 
 <h1 id="dectalk-espress-firmware">DECtalk ESPress Firmware</h1>
-<p>An ESP32 firmware for <strong>ESP32-S3</strong> and <strong>ESP32-C6</strong> boards that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit. On ESP32-S3 the host link uses <strong>USB CDC-ACM</strong>; on ESP32-C6 it uses the built-in <strong>USB Serial/JTAG</strong> interface.</p>
+<p>An ESP32 firmware for <strong>ESP32-S3</strong> and <strong>ESP32-C6</strong> boards that turns a microcontroller into a standalone DECtalk text-to-speech device. The firmware boots directly into the DECtalk ESPress serial protocol, allowing a host computer to send text and receive status exactly as it would with a vintage DECtalk Express hardware unit. On ESP32-S3 the host link uses <strong>USB CDC-ACM</strong>; on ESP32-C6 it uses the built-in <strong>USB Serial/JTAG</strong> interface. The documented photographed hardware build in <strong><a href="HARDWARE.html">HARDWARE.md</a></strong> is an <strong>ESP32-C6</strong> perfboard build; <strong>ESP32-S3</strong> remains a supported firmware target, but it is not the specific physical build documented there.</p>
 <p>The speech synthesis itself is provided by the <strong>DECtalk component</strong> (<code>components/dectalk/</code>) which cross-compiles the upstream <code>dapi</code> library as a reusable ESP-IDF component. See the <a href="components/dectalk/README.html">component README</a> for component-specific documentation (language selection, dictionary storage modes, source resolution, porting notes).</p>
 <p>For detailed build instructions, toolchain setup, and architecture notes see <strong><a href="BUILD.html">BUILD.md</a></strong>.</p>
 <h2 id="acknowledgments">Acknowledgments</h2>
@@ -217,6 +217,7 @@
 <li><a href="#key-features">Key Features</a></li>
 <li><a href="#hardware-requirements">Hardware Requirements</a></li>
 <li><a href="#wiring">Wiring</a></li>
+<li><a href="#physical-device-build">Physical Device Build</a></li>
 <li><a href="#quick-start">Quick Start</a></li>
 <li><a href="#web-flasher">Web Flasher</a></li>
 <li><a href="#release-build-workflow">Release Build Workflow</a></li>
