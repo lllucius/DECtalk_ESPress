@@ -98,11 +98,11 @@ advancing DECtalk for everyone.
 
 ## Wiring
 
-Default I2S pin assignments (configurable via `idf.py menuconfig` →
+Default **ESP32-S3** I2S pin assignments (configurable via `idf.py menuconfig` →
 *DECtalk ESPress Firmware → Audio output*):
 
-| ESP32-S3 GPIO | I2S DAC Pin | Function |
-|---------------|-------------|----------|
+| ESP32-S3 default GPIO | I2S DAC Pin | Function |
+|-----------------------|-------------|----------|
 | GPIO 8 | BCK | Bit Clock |
 | GPIO 3 | WS / LRCK | Word Select |
 | GPIO 18 | DIN / DATA | Serial Data |
@@ -115,18 +115,21 @@ FMT→GND.
 **MAX98357A notes** — connect a 4–8 Ω speaker directly to the amplifier
 output terminals.
 
-**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 requires
-two extra I2C connections beyond the basic I2S pins:
+**TLV320DAC3100 (Adafruit breakout) notes** — for the default **ESP32-S3**
+configuration, the TLV320DAC3100 requires these extra connections beyond the
+basic I2S pins:
 
-| ESP32-S3 GPIO | TLV320DAC3100 Pin | Function |
-|---------------|-------------------|----------|
+| ESP32-S3 default GPIO | TLV320DAC3100 Pin | Function |
+|-----------------------|-------------------|----------|
 | GPIO 9 | MCLK | Master Clock (256 × Fs) |
 | GPIO 1 | SDA | I2C Data |
 | GPIO 2 | SCL | I2C Clock |
 
 All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
 Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
-Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.
+Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.  For the
+documented **ESP32-C6** perfboard build and its different pin assignments, see
+**[HARDWARE.md](HARDWARE.md)**.
 
 ## Physical Device Build
 
