@@ -15,6 +15,7 @@ on:
       - "components/dectalk/README.md"
       - "components/dectalk/BUILD.md"
       - "host/README.md"
+      - "host/web/**"
       - "pages/**"
       - "flasher/**"
       - ".github/workflows/deploy-site.yml"
@@ -72,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p /tmp/site/flasher /tmp/site/components/dectalk /tmp/site/host
+          mkdir -p /tmp/site/flasher /tmp/site/gui /tmp/site/components/dectalk /tmp/site/host
 
           # HTML pages converted from Markdown
           cp /tmp/build/index.html                      /tmp/site/index.html
@@ -85,6 +86,7 @@ jobs:
           # Static files
           cp LICENSE           /tmp/site/LICENSE
           cp flasher/index.html /tmp/site/flasher/index.html
+          cp host/web/index.html /tmp/site/gui/index.html
 
       - name: Deploy to gh-pages
         run: |
@@ -110,8 +112,9 @@ jobs:
           cp /tmp/site/README.html README.html
           cp /tmp/site/BUILD.html BUILD.html
           cp /tmp/site/LICENSE LICENSE
-          mkdir -p flasher components/dectalk host
+          mkdir -p flasher gui components/dectalk host
           cp /tmp/site/flasher/index.html flasher/index.html
+          cp /tmp/site/gui/index.html gui/index.html
           cp /tmp/site/components/dectalk/README.html components/dectalk/README.html
           cp /tmp/site/components/dectalk/BUILD.html components/dectalk/BUILD.html
           cp /tmp/site/host/README.html host/README.html

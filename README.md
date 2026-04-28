@@ -38,6 +38,7 @@ advancing DECtalk for everyone.
 - [Physical Device Build](#physical-device-build)
 - [Quick Start](#quick-start)
 - [Web Flasher](#web-flasher)
+- [Web GUI](#web-gui)
 - [Release Build Workflow](#release-build-workflow)
 - [Serial Interfaces](#serial-interfaces)
 - [ESPress Protocol Summary](#espress-protocol-summary)
@@ -65,6 +66,8 @@ advancing DECtalk for everyone.
   flow-control thresholds, task pinning, and more; no source edits needed
 - **Python host tools** — a serial API module (`dtesp_serial.py`) and
   GUI applications for controlling the device from a PC
+- **Browser-based Web GUI** — control the device directly from Chrome or Edge
+  via the Web Serial API; no install required
 - **Memory diagnostics** — optional runtime task that logs per-task stack
   high-water marks and heap fragmentation statistics
 - **Full DECtalk speech synthesis** — provided by the
@@ -182,6 +185,31 @@ After flashing finishes, unplug or close the flashing connection if needed and
 use the board's runtime host port: **native USB CDC** on ESP32-S3 or **USB
 Serial/JTAG** on ESP32-C6.
 
+## Web GUI
+
+The published project site includes a browser-based GUI for controlling the
+device without installing any software.
+
+1. Open the project site and click **Web GUI** in the top navigation.
+2. Use **Chrome** or **Edge** (version 89 or newer) — the page requires the
+   Web Serial API.
+3. Connect the board's **runtime host port** to your computer, click
+   **Connect**, and select the ESP32 serial port from the browser chooser.
+4. Choose a voice, adjust rate and pitch with the sliders, type text in the
+   text box, and click **Speak**.
+
+The Web GUI mirrors the Qt desktop GUI feature-for-feature: voice / rate /
+pitch controls, Pause / Resume / Flush / Query Status buttons, an **Audio
+Settings** dialog (volume, EQ presets, DRC, speaker gain), a Device Status
+panel, and a timestamped Communications Log.
+
+> **Browser support:** the Web Serial API is available only in Chromium-based
+> browsers (Chrome, Edge, Opera, …) on desktop.  Firefox and Safari are not
+> supported.  On Linux, ensure your user has access to the serial device
+> (typically by being in the `dialout` or `uucp` group).
+
+See [host/README.md](host/README.md) for full Web GUI documentation.
+
 ## Release Build Workflow
 
 GitHub Actions includes a release-build workflow at
@@ -235,9 +263,12 @@ encoding/decoding helpers.
 
 ## Host Tools
 
-The `host/` directory contains Python-based host software.  See
+The `host/` directory contains host software for controlling the device.  See
 **[host/README.md](host/README.md)** for full details.
 
+- **`web/index.html`** — browser-based Web GUI; no install required; runs in
+  Chrome or Edge 89+ using the Web Serial API.  Also hosted on the project
+  site — click **Web GUI** in the top navigation.
 - **`dtesp_serial.py`** — `DECtalkESPressSerial` class implementing the
   ESPress protocol: connect, speak, flush, pause/resume, status query,
   device detection.
@@ -371,7 +402,7 @@ This firmware is licensed under the MIT License — see [LICENSE](LICENSE).
 ## References
 
 - [BUILD.md](BUILD.md) — detailed firmware build process and architecture
-- [host/README.md](host/README.md) — Python host tools documentation
+- [host/README.md](host/README.md) — host tools documentation (Web GUI, Qt GUI, Python API)
 - [components/dectalk/README.md](components/dectalk/README.md) — DECtalk
   component: language, dictionary, source resolution
 - [components/dectalk/BUILD.md](components/dectalk/BUILD.md) — DECtalk
