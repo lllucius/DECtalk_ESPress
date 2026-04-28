@@ -20,14 +20,58 @@ DECtalk ESPress device.
 
 ## Build photos and layout
 
-| View | Image |
-|------|-------|
-| Front | ![Front of assembled device](images/front.png) |
-| Back | ![Back of assembled device](images/back.png) |
-| Left side | ![Left side of assembled device](images/left%20side.png) |
-| Right side | ![Right side of assembled device](images/right%20side.png) |
-| Inside | ![Inside of assembled device](images/inside.png) |
-| Perfboard wiring layout | ![Perfboard wiring layout](images/pcb%20layout.png) |
+Click any image to open the full-size version.
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="images/front.png">
+        <img src="images/front.png" alt="Front of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Front</sub>
+    </td>
+    <td align="center">
+      <a href="images/back.png">
+        <img src="images/back.png" alt="Back of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Back</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="images/left%20side.png">
+        <img src="images/left%20side.png" alt="Left side of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Left side</sub>
+    </td>
+    <td align="center">
+      <a href="images/right%20side.png">
+        <img src="images/right%20side.png" alt="Right side of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Right side</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="images/inside.png">
+        <img src="images/inside.png" alt="Inside of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Inside</sub>
+    </td>
+    <td align="center">
+      <a href="images/pcb%20layout.png">
+        <img src="images/pcb%20layout.png" alt="Perfboard wiring layout" width="300">
+      </a>
+      <br>
+      <sub>Perfboard wiring layout</sub>
+    </td>
+  </tr>
+</table>
 
 ## Firmware configuration
 
