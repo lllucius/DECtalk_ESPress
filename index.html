@@ -197,6 +197,7 @@
   <nav class="navbar">
     <a class="brand" href="/">DECtalk ESPress</a>
     <a href="/flasher/">Web Flasher</a>
+    <a href="/gui/">Web GUI</a>
     <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
     <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
   </nav>
@@ -220,6 +221,7 @@
 <li><a href="#physical-device-build">Physical Device Build</a></li>
 <li><a href="#quick-start">Quick Start</a></li>
 <li><a href="#web-flasher">Web Flasher</a></li>
+<li><a href="#web-gui">Web GUI</a></li>
 <li><a href="#release-build-workflow">Release Build Workflow</a></li>
 <li><a href="#serial-interfaces">Serial Interfaces</a></li>
 <li><a href="#espress-protocol-summary">ESPress Protocol Summary</a></li>
@@ -241,6 +243,7 @@
 <li><strong>I2S audio output</strong> — 11.025 kHz, 16-bit mono via I2S to an external DAC (PCM5102, MAX98357A, etc.)</li>
 <li><strong>Configurable via <code>menuconfig</code></strong> — I2S pins, DMA tuning, flow-control thresholds, task pinning, and more; no source edits needed</li>
 <li><strong>Python host tools</strong> — a serial API module (<code>dtesp_serial.py</code>) and GUI applications for controlling the device from a PC</li>
+<li><strong>Browser-based Web GUI</strong> — control the device directly from Chrome or Edge via the Web Serial API; no install required</li>
 <li><strong>Memory diagnostics</strong> — optional runtime task that logs per-task stack high-water marks and heap fragmentation statistics</li>
 <li><strong>Full DECtalk speech synthesis</strong> — provided by the <a href="components/dectalk/README.html">DECtalk component</a>, supporting six languages and three dictionary storage modes</li>
 </ul>
@@ -383,6 +386,19 @@
 <li>If you already downloaded a release archive from GitHub, click <strong>Flash from File…</strong> and select the <code>.tar.gz</code> / <code>.tgz</code> file instead.</li>
 </ol>
 <p>After flashing finishes, unplug or close the flashing connection if needed and use the board's runtime host port: <strong>native USB CDC</strong> on ESP32-S3 or <strong>USB Serial/JTAG</strong> on ESP32-C6.</p>
+<h2 id="web-gui">Web GUI</h2>
+<p>The published project site includes a browser-based GUI for controlling the device without installing any software.</p>
+<ol type="1">
+<li>Open the project site and click <strong>Web GUI</strong> in the top navigation.</li>
+<li>Use <strong>Chrome</strong> or <strong>Edge</strong> (version 89 or newer) — the page requires the Web Serial API.</li>
+<li>Connect the board's <strong>runtime host port</strong> to your computer, click <strong>Connect</strong>, and select the ESP32 serial port from the browser chooser.</li>
+<li>Choose a voice, adjust rate and pitch with the sliders, type text in the text box, and click <strong>Speak</strong>.</li>
+</ol>
+<p>The Web GUI mirrors the Qt desktop GUI feature-for-feature: voice / rate / pitch controls, Pause / Resume / Flush / Query Status buttons, an <strong>Audio Settings</strong> dialog (volume, EQ presets, DRC, speaker gain), a Device Status panel, and a timestamped Communications Log.</p>
+<blockquote>
+<p><strong>Browser support:</strong> the Web Serial API is available only in Chromium-based browsers (Chrome, Edge, Opera, …) on desktop. Firefox and Safari are not supported. On Linux, ensure your user has access to the serial device (typically by being in the <code>dialout</code> or <code>uucp</code> group).</p>
+</blockquote>
+<p>See <a href="host/README.html">host/README.md</a> for full Web GUI documentation.</p>
 <h2 id="release-build-workflow">Release Build Workflow</h2>
 <p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
 <h2 id="serial-interfaces">Serial Interfaces</h2>
@@ -471,8 +487,9 @@
 </table>
 <p>See <code>main/dtesp.h</code> for the full protocol constant definitions and encoding/decoding helpers.</p>
 <h2 id="host-tools">Host Tools</h2>
-<p>The <code>host/</code> directory contains Python-based host software. See <strong><a href="host/README.html">host/README.md</a></strong> for full details.</p>
+<p>The <code>host/</code> directory contains host software for controlling the device. See <strong><a href="host/README.html">host/README.md</a></strong> for full details.</p>
 <ul>
+<li><strong><code>web/index.html</code></strong> — browser-based Web GUI; no install required; runs in Chrome or Edge 89+ using the Web Serial API. Also hosted on the project site — click <strong>Web GUI</strong> in the top navigation.</li>
 <li><strong><code>dtesp_serial.py</code></strong> — <code>DECtalkESPressSerial</code> class implementing the ESPress protocol: connect, speak, flush, pause/resume, status query, device detection.</li>
 <li><strong><code>dtesp_gui_qt.py</code></strong> — Qt GUI with voice/rate/pitch controls, pause/resume/flush buttons, device status panel, and a communications log.</li>
 </ul>
@@ -717,7 +734,7 @@
 <h2 id="references">References</h2>
 <ul>
 <li><a href="BUILD.html">BUILD.md</a> — detailed firmware build process and architecture</li>
-<li><a href="host/README.html">host/README.md</a> — Python host tools documentation</li>
+<li><a href="host/README.html">host/README.md</a> — host tools documentation (Web GUI, Qt GUI, Python API)</li>
 <li><a href="components/dectalk/README.html">components/dectalk/README.md</a> — DECtalk component: language, dictionary, source resolution</li>
 <li><a href="components/dectalk/BUILD.html">components/dectalk/BUILD.md</a> — DECtalk component: build process, porting notes</li>
 <li><a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32/index.html">ESP-IDF Programming Guide</a></li>
