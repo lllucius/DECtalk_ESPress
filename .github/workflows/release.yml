@@ -107,7 +107,7 @@ jobs:
           artifact_root="release-artifacts/${{ matrix.language.code }}"
           mkdir -p "${artifact_root}/bootloader" "${artifact_root}/partition_table" "${artifact_root}/dicts"
 
-          cp build/dectalk_espress.bin "${artifact_root}/"
+          cp build/dtesp.bin "${artifact_root}/"
           cp build/bootloader/bootloader.bin "${artifact_root}/bootloader/"
           cp build/partition_table/partition-table.bin "${artifact_root}/partition_table/"
           cp build/flash_args "${artifact_root}/"

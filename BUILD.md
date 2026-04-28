@@ -148,6 +148,8 @@ DECtalk_ESPress/
 │   ├── fw_settings.h               # Firmware settings public API
 │   ├── tlv320.c             # TI TLV320DAC3100 codec driver (Adafruit breakout)
 │   ├── tlv320.h             # Codec driver public API
+│   ├── volume_knob.c               # Optional ADC-backed volume potentiometer support
+│   ├── volume_knob.h               # Volume knob public API / no-op wrappers
 │   ├── usb_cdc_transport.c         # ESP32-S3 USB CDC-ACM transport layer (TinyUSB wrapper)
 │   ├── usb_cdc_transport.h         # ESP32-S3 transport API
 │   ├── jtag_serial_transport.c     # ESP32-C6 USB Serial/JTAG transport layer
@@ -199,9 +201,10 @@ The `main/` component contains the application logic:
 | `dtesp_audio.c` | I2S output initialisation and, when selected, TLV320DAC3100 codec configuration |
 | `dtesp_job_pool.c` | Pre-allocated pool allocator for job objects, with heap fallback |
 | `custom_commands.c` | Tokenises incoming text for `[:fw …]` tokens and builds ordered job lists |
-| `custom_actions.c` | Sub-command handlers for `[:fw gpio]`, `[:fw voice]`, `[:fw rate]`, `[:fw tone]`, `[:fw volume]`, `[:fw profile]`, `[:fw autoswitch]`, `[:fw save]` |
+| `custom_actions.c` | Sub-command handlers for `[:fw gpio]`, `[:fw voice]`, `[:fw rate]`, `[:fw tone]`, codec controls, and TLV320 DSP commands such as `bass`, `treble`, `eq`, `drc`, `spkgain`, and `mute` |
 | `fw_settings.c` | NVS-backed mirror of codec settings (volume, profile, autoswitch); loaded at startup, persisted by `[:fw save]` |
 | `tlv320.c` | Driver for the TI TLV320DAC3100 stereo DAC / headphone amplifier (Adafruit breakout); compiled only when `DTESP_DAC_TLV320` is selected |
+| `volume_knob.c` | Optional ADC-sampled analog volume knob with smoothing, hysteresis, and soft-takeover against firmware volume changes |
 | `usb_cdc_transport.c` | ESP32-S3 TinyUSB CDC-ACM driver: RX stream buffer, DTR-based connection tracking, reconnection detection |
 | `jtag_serial_transport.c` | ESP32-C6 USB Serial/JTAG driver: buffered RX/TX, reconnect detection, RTS-reset suppression |
 | `diag_mem.c` | Optional diagnostic task enabled from `idf.py menuconfig` that logs stack HWM and heap stats every 10 s |
@@ -234,7 +237,7 @@ External dependency via `idf_component.yml`:
 Additional partitions can be added for dictionary storage:
 - A `udict` data partition (subtype `0x40`) when using partition-based
   dictionary storage — this can be created automatically via
-  `CONFIG_DTESP_AUTOCREATE_PARTITIONS`.
+  `CONFIG_DECTALK_AUTOCREATE_PARTITIONS`.
 - A `storage` SPIFFS partition when using file-system-based dictionary
   loading (commented out by default).
 

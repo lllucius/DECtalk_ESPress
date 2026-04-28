@@ -29,8 +29,9 @@ microcontroller.
 
 The host communicates with the ESP32 over USB using the DECtalk ESPress serial
 protocol.  The ESP32 firmware boots directly into ESPress protocol mode on its
-host USB port, which appears as a standard serial (COM / ttyACM) port on the
-host computer.  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
+host USB port, which appears as a standard serial port on the host computer
+(for example COM, `/dev/ttyACM*`, or `/dev/ttyUSB*` depending on the board and
+driver).  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
 **ESP32-C6** it uses the built-in USB Serial/JTAG interface.
 The dedicated physical-device guide in **`../HARDWARE.md`** covers the
 photographed **ESP32-C6** perfboard build; the host tools themselves support
@@ -59,7 +60,9 @@ either firmware target.
    python dtesp_gui_qt.py
    ```
 
-4. Select the serial port for your ESP32 and click **Connect**.
+4. Select the serial port for your ESP32 and click **Connect**.  On Linux this
+   is often `/dev/ttyACM*` on ESP32-S3 and may be either `/dev/ttyACM*` or
+   `/dev/ttyUSB*` on ESP32-C6 depending on the USB bridge/driver.
 
 5. Type text in the text box and click **Speak**.
 
@@ -108,7 +111,8 @@ are processed by the DECtalk engine on the ESP32. For example:
 [:tone 500,500] A tone before speech.
 ```
 
-See `../ref_man.txt` for the full DECtalk command reference.
+For the full DECtalk inline-command reference, use the upstream DECtalk
+documentation that matches your language/voice package.
 
 ## ESPress GUI (`dtesp_gui_qt.py`)
 
@@ -152,7 +156,7 @@ device.
 
 | Feature        | Description                                        |
 |----------------|----------------------------------------------------|
-| Transport      | USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6 (both appear as COM / ttyACM) |
+| Transport      | USB CDC-ACM on ESP32-S3; USB Serial/JTAG on ESP32-C6 (both appear as normal serial ports such as COM, `/dev/ttyACM*`, or `/dev/ttyUSB*`) |
 | Text format    | Plain ASCII text + CR                              |
 | Flush/stop     | ETX (0x03)                                         |
 | Status query   | ENQ (0x05) → 4-byte DLE status response            |

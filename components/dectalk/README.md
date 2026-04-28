@@ -196,5 +196,4 @@ linker wrapping, see **[BUILD.md](BUILD.md)**.
 
 ## License
 
-This component is licensed under the MIT License — see [LICENSE](LICENSE).
-
+This component is licensed under the MIT License — see [LICENSE](../../LICENSE).
