@@ -33,6 +33,9 @@ host USB port, which appears as a standard serial port on the host computer
 (for example COM, `/dev/ttyACM*`, or `/dev/ttyUSB*` depending on the board and
 driver).  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
 **ESP32-C6** it uses the built-in USB Serial/JTAG interface.
+The dedicated physical-device guide in **`../HARDWARE.md`** covers the
+photographed **ESP32-C6** perfboard build; the host tools themselves support
+either firmware target.
 
 ## Requirements
 
@@ -40,7 +43,8 @@ driver).  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
 - [pyserial](https://pypi.org/project/pyserial/) (`pip install pyserial`)
 - [PySide6](https://pypi.org/project/PySide6/) (`pip install PySide6`) — for
   the Qt GUI.  PyQt6 is accepted as a fallback.
-- ESP32-S3 / ESP32-C6 running the DECtalk firmware (see `../README.md`)
+- ESP32-S3 / ESP32-C6 running the DECtalk firmware (see `../README.md`; for the
+  documented ESP32-C6 hardware build, see `../HARDWARE.md`)
 
 ## Quick Start
 

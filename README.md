@@ -9,6 +9,9 @@ boots directly into the DECtalk ESPress serial protocol, allowing a host
 computer to send text and receive status exactly as it would with a vintage
 DECtalk Express hardware unit.  On ESP32-S3 the host link uses **USB
 CDC-ACM**; on ESP32-C6 it uses the built-in **USB Serial/JTAG** interface.
+The documented photographed hardware build in **[HARDWARE.md](HARDWARE.md)** is
+an **ESP32-C6** perfboard build; **ESP32-S3** remains a supported firmware
+target, but it is not the specific physical build documented there.
 
 The speech synthesis itself is provided by the **DECtalk component**
 (`components/dectalk/`) which cross-compiles the upstream `dapi` library as
@@ -32,6 +35,7 @@ advancing DECtalk for everyone.
 - [Key Features](#key-features)
 - [Hardware Requirements](#hardware-requirements)
 - [Wiring](#wiring)
+- [Physical Device Build](#physical-device-build)
 - [Quick Start](#quick-start)
 - [Web Flasher](#web-flasher)
 - [Release Build Workflow](#release-build-workflow)
