@@ -51,7 +51,7 @@ jobs:
             --generate-notes
 
   build:
-    name: Build ${{ matrix.language.name }}
+    name: Build ${{ matrix.language.name }} / ${{ matrix.target.chip }}
     runs-on: ubuntu-latest
     needs: prepare_release
     strategy:
@@ -76,6 +76,9 @@ jobs:
           - code: fr
             name: french
             symbol: CONFIG_DECTALK_LANG_FR
+        target:
+          - chip: esp32s3
+          - chip: esp32c6
 
     steps:
       - name: Check out repository
@@ -95,7 +98,7 @@ jobs:
         uses: espressif/esp-idf-ci-action@v1.2.0
         with:
           esp_idf_version: v6.0
-          target: esp32s3
+          target: ${{ matrix.target.chip }}
           command: >
             idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.release" build
 
@@ -104,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          artifact_root="release-artifacts/${{ matrix.language.code }}"
+          artifact_root="release-artifacts/${{ matrix.language.code }}-${{ matrix.target.chip }}"
           mkdir -p "${artifact_root}/bootloader" "${artifact_root}/partition_table" "${artifact_root}/dicts"
 
           cp build/dectalk_espress.bin "${artifact_root}/"
@@ -114,14 +117,14 @@ jobs:
           cp sdkconfig "${artifact_root}/"
           cp sdkconfig.release "${artifact_root}/"
 
-          archive="${PWD}/release-artifacts/dectalk-espress-${{ matrix.language.code }}.tar.gz"
-          tar -C release-artifacts -czf "${archive}" "${{ matrix.language.code }}"
+          archive="${PWD}/release-artifacts/dectalk-espress-${{ matrix.language.code }}-${{ matrix.target.chip }}.tar.gz"
+          tar -C release-artifacts -czf "${archive}" "${{ matrix.language.code }}-${{ matrix.target.chip }}"
           echo "archive=${archive}" >> "${GITHUB_ENV}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: dectalk-espress-${{ matrix.language.code }}
+          name: dectalk-espress-${{ matrix.language.code }}-${{ matrix.target.chip }}
           path: ${{ env.archive }}
           if-no-files-found: error
 
@@ -132,7 +135,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          lang="${{ matrix.language.code }}"
           gh release upload "${{ needs.prepare_release.outputs.tag }}" \
             "${{ env.archive }}" \
             --clobber
@@ -202,7 +204,7 @@ jobs:
           cp /tmp/build/host/README.html /tmp/site-host-README.html
           cp LICENSE /tmp/LICENSE
           cp flasher/index.html /tmp/flasher-index.html
-          cp CNAME /tmp/CNAME
+          if [ -f CNAME ]; then cp CNAME /tmp/CNAME; fi
 
           # Check out or create the gh-pages branch
           if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
@@ -232,7 +234,7 @@ jobs:
           cp /tmp/site-comp-README.html components/dectalk/README.html
           cp /tmp/site-comp-BUILD.html components/dectalk/BUILD.html
           cp /tmp/site-host-README.html host/README.html
-          cp /tmp/CNAME CNAME
+          if [ -f /tmp/CNAME ]; then cp /tmp/CNAME CNAME; fi
 
           # Commit and push
           git add -A

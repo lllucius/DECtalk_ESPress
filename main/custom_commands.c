@@ -268,7 +268,11 @@ int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
             {
                 return -1;
             }
-            dtesp_job_list_append(out, job);
+            if (dtesp_job_list_append(out, job) != 0)
+            {
+                dtesp_job_free(job);
+                return -1;
+            }
         }
         return 0;
     }
@@ -323,7 +327,11 @@ int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
                             &text[seg_start], bracket_start - seg_start);
                         if (tj)
                         {
-                            dtesp_job_list_append(out, tj);
+                            if (dtesp_job_list_append(out, tj) != 0)
+                            {
+                                dtesp_job_free(tj);
+                                return -1;
+                            }
                         }
                     }
                     pos = close + 1;
@@ -338,7 +346,11 @@ int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
                         &text[seg_start], bracket_start - seg_start);
                     if (tj)
                     {
-                        dtesp_job_list_append(out, tj);
+                        if (dtesp_job_list_append(out, tj) != 0)
+                        {
+                            dtesp_job_free(tj);
+                            return -1;
+                        }
                     }
                 }
 
@@ -352,7 +364,11 @@ int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
                 dtesp_job_t *action = dispatch_custom_command(argc, argv);
                 if (action)
                 {
-                    dtesp_job_list_append(out, action);
+                    if (dtesp_job_list_append(out, action) != 0)
+                    {
+                        dtesp_job_free(action);
+                        return -1;
+                    }
                 }
                 // If dispatch returned NULL (unknown cmd), the token
                 // is silently consumed — it never reaches DECtalk.
@@ -379,7 +395,11 @@ int custom_commands_tokenize(const char *text, dtesp_job_list_t *out)
             &text[seg_start], text_len - seg_start);
         if (tj)
         {
-            dtesp_job_list_append(out, tj);
+            if (dtesp_job_list_append(out, tj) != 0)
+            {
+                dtesp_job_free(tj);
+                return -1;
+            }
         }
     }
 

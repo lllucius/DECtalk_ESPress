@@ -154,6 +154,39 @@ dtesp_job_t *custom_action_gpio(int argc, const char **argv)
             return NULL;
         }
     }
+
+    // Reject well-known unsafe pins per chip family:
+    //   strapping pins (misdriving them can prevent boot),
+    //   native USB D+/D- (breaks the host link),
+    //   JTAG pins (needed for debugging and used by the USB-JTAG bridge).
+# if CONFIG_IDF_TARGET_ESP32S3
+    // ESP32-S3 strapping: GPIO0 (boot mode), GPIO3 (JTAG enable),
+    //                     GPIO45 (VDDSPI), GPIO46 (ROM log).
+    // USB: GPIO19 (D-), GPIO20 (D+).
+    // JTAG: GPIO39-GPIO42.
+    static const int unsafe_s3[] = { 0, 3, 19, 20, 39, 40, 41, 42, 45, 46 };
+    for (size_t i = 0; i < sizeof(unsafe_s3) / sizeof(unsafe_s3[0]); i++)
+    {
+        if (unsafe_s3[i] == pin)
+        {
+            LOG_W("gpio: pin %d is a strapping/USB/JTAG pin; rejecting", pin);
+            return NULL;
+        }
+    }
+# elif CONFIG_IDF_TARGET_ESP32C6
+    // ESP32-C6 strapping: GPIO8 (boot mode), GPIO9 (JTAG enable), GPIO15.
+    // USB: GPIO12 (D-), GPIO13 (D+).
+    // JTAG: GPIO4-GPIO7.
+    static const int unsafe_c6[] = { 4, 5, 6, 7, 8, 9, 12, 13, 15 };
+    for (size_t i = 0; i < sizeof(unsafe_c6) / sizeof(unsafe_c6[0]); i++)
+    {
+        if (unsafe_c6[i] == pin)
+        {
+            LOG_W("gpio: pin %d is a strapping/USB/JTAG pin; rejecting", pin);
+            return NULL;
+        }
+    }
+# endif
 #endif
 
     int level;

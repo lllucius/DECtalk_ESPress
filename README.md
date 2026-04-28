@@ -178,8 +178,9 @@ Serial/JTAG** on ESP32-C6.
 ## Release Build Workflow
 
 GitHub Actions includes a release-build workflow at
-`.github/workflows/release-builds.yml`.  It builds firmware binaries and the
-matching dictionary for all six DECtalk languages, uploads each language as a
+`.github/workflows/release.yml`.  It builds firmware binaries and the
+matching dictionary for all six DECtalk languages on both supported targets
+(**ESP32-S3** and **ESP32-C6**), uploads each language/target combination as a
 workflow artifact, and attaches the packaged artifacts to published GitHub
 releases.
 
