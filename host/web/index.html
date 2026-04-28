@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  DECtalk ESPress Web GUI
+  Browser-based host application that talks directly to an ESP32 running
+  DECtalk firmware via the Web Serial API. No backend required.
+  Mirrors the Qt host GUI (host/dtesp_gui_qt.py) feature-for-feature.
+  Requires Chrome or Edge 89+.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress Web GUI</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired — matches site template) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --accent-hover:#5580d0;
+      --danger:      #e05555;
+      --success:     #55c055;
+      --warn:        #e0c050;
+      --tx:          #79c0ff;
+      --rx:          #7ee787;
+      --info:        #e0c050;
+      --err:         #ff8585;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+    .navbar .active { color: var(--heading); }
+
+    .container {
+      max-width: 1100px;
+      margin: 1.25rem auto 0;
+      padding: 0 1.25rem 3rem;
+    }
+
+    h1 {
+      color: var(--heading);
+      font-size: 1.5rem;
+      font-weight: 600;
+      line-height: 1.3;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    /* ── Panels ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .panel h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--heading);
+    }
+    .panel.compact { padding: 0.5rem 0.85rem; }
+
+    /* ── Form rows ── */
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .form-row:last-child { margin-bottom: 0; }
+    .form-row .grow { flex: 1; }
+
+    label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    label.lbl { min-width: 70px; }
+
+    select, input[type="text"], input[type="number"], textarea {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.85rem;
+      font-family: inherit;
+    }
+    select { min-width: 140px; }
+
+    input[type="range"] {
+      flex: 1;
+      min-width: 140px;
+      max-width: 320px;
+      accent-color: var(--accent);
+    }
+
+    output {
+      display: inline-block;
+      min-width: 3.2em;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    textarea#text-input {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      font-family: "SF Mono", "Fira Code", Consolas, "Liberation Mono",
+                   Menlo, monospace;
+      font-size: 0.85rem;
+    }
+
+    /* ── Buttons ── */
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.35rem 0.85rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      font-family: inherit;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    button.secondary:hover:not(:disabled) {
+      background: var(--code-bg);
+    }
+    button.danger { background: var(--danger); }
+    button.danger:hover:not(:disabled) { background: #c04040; }
+
+    .btn-group {
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+
+    .spacer { flex: 1; }
+
+    /* ── Connection pill in nav bar ── */
+    .conn-pill {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: var(--text-muted);
+      display: inline-block;
+    }
+    .dot.on  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot.err { background: var(--danger); }
+
+    /* ── Status panel indicators ── */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+    }
+    .ind {
+      color: var(--text-muted);
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+    .ind .bullet { margin-right: 0.25rem; }
+    .ind.on-ready { color: var(--success); font-weight: 600; }
+    .ind.on-tx    { color: var(--link);    font-weight: 600; }
+    .ind.on-flush { color: #f0a040;        font-weight: 600; }
+    .ind.on-index { color: #c084fc;        font-weight: 600; }
+
+    .raw-status {
+      font-family: "SF Mono", Consolas, Menlo, monospace;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    /* ── Log ── */
+    #log-container h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--heading);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    #log-container h2 .right {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 400;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    #log-container h2 button {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+    }
+    #log {
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-family: "SF Mono", "Fira Code", Consolas, "Liberation Mono",
+                   Menlo, monospace;
+      font-size: 0.78rem;
+      padding: 0.6rem 0.85rem;
+      border-radius: 8px;
+      height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    #log .tx   { color: var(--tx); }
+    #log .rx   { color: var(--rx); }
+    #log .info { color: var(--info); }
+    #log .err  { color: var(--err); }
+
+    /* ── Modal (Audio Settings) ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 200;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 4vh 1rem;
+      overflow-y: auto;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    }
+    .modal h3 {
+      color: var(--heading);
+      font-size: 1.05rem;
+      margin-bottom: 0.6rem;
+    }
+    .modal fieldset {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.85rem;
+      margin-bottom: 0.6rem;
+    }
+    .modal legend {
+      padding: 0 0.4rem;
+      color: var(--heading);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .modal .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      padding-top: 0.4rem;
+    }
+    .eq-grid {
+      display: grid;
+      grid-template-columns: 110px 1fr 50px;
+      gap: 0.35rem 0.6rem;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .eq-grid label { color: var(--text); }
+
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--text);
+    }
+    .checkbox input[type="checkbox"],
+    .checkbox input[type="radio"] { accent-color: var(--accent); }
+
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 1.5rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 700px) {
+      .container { padding: 0 0.75rem 2.5rem; }
+      h1 { font-size: 1.25rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+      input[type="range"] { min-width: 100px; }
+      .eq-grid { grid-template-columns: 95px 1fr 40px; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a class="active" href="#">Web GUI</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <span class="conn-pill" aria-live="polite">
+      <span id="conn-dot" class="dot" aria-hidden="true"></span>
+      <span id="conn-text">Disconnected</span>
+    </span>
+  </nav>
+
+  <main class="container">
+    <h1>🗣️ Web GUI</h1>
+    <p class="subtitle">
+      Browser-based host control for DECtalk ESPress over USB —
+      requires Chrome or Edge 89+ (Web Serial API).
+    </p>
+
+    <!-- Connection -->
+    <section class="panel" aria-labelledby="conn-h">
+      <h2 id="conn-h">Connection (ESPress Protocol)</h2>
+      <div class="form-row">
+        <span id="port-info" class="conn-pill">No port selected</span>
+        <span class="spacer"></span>
+        <div class="btn-group">
+          <button id="btn-connect">Connect</button>
+          <button id="btn-disconnect" class="danger" disabled>Disconnect</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Speech settings -->
+    <section class="panel" aria-labelledby="speech-h">
+      <h2 id="speech-h">Speech Settings</h2>
+      <div class="form-row">
+        <label class="lbl" for="voice-select">Voice:</label>
+        <select id="voice-select" aria-label="DECtalk voice" style="min-width:0;width:120px;flex-shrink:0;"></select>
+        <label class="lbl" for="rate-slider">Rate (WPM):</label>
+        <input id="rate-slider" type="range" min="75" max="600" value="200"
+               style="flex:1;min-width:80px;max-width:none;"
+               aria-label="Speaking rate in words per minute">
+        <output id="rate-value" for="rate-slider">200</output>
+        <label class="lbl" for="pitch-slider">Pitch (Hz):</label>
+        <input id="pitch-slider" type="range" min="50" max="400" value="50"
+               style="flex:1;min-width:80px;max-width:none;"
+               aria-label="Average pitch in Hz; minimum uses voice default">
+        <output id="pitch-value" for="pitch-slider">Default</output>
+      </div>
+    </section>
+
+    <!-- Text input + actions -->
+    <section class="panel" aria-labelledby="text-h">
+      <h2 id="text-h">Text to Speak</h2>
+      <textarea id="text-input" spellcheck="false"
+        placeholder="Type text here, then press Speak. DECtalk inline commands such as [:np] or [:dv ap 120] are supported."
+        aria-label="Text to speak. Supports DECtalk inline commands."></textarea>
+      <div class="form-row" style="margin-top: 0.6rem;">
+        <div class="btn-group">
+          <button id="btn-speak"  disabled>Speak</button>
+          <button id="btn-pause"  class="secondary" disabled>Pause</button>
+          <button id="btn-resume" class="secondary" disabled>Resume</button>
+          <button id="btn-flush"  class="secondary" disabled>Flush</button>
+          <button id="btn-audio"  class="secondary" disabled>Audio Settings…</button>
+          <button id="btn-save"   class="secondary" disabled>Save to Device</button>
+        </div>
+        <span class="spacer"></span>
+        <button id="btn-clear" class="secondary">Clear Text</button>
+      </div>
+    </section>
+
+    <!-- Device status -->
+    <section class="panel compact" aria-labelledby="status-h">
+      <h2 id="status-h">Device Status</h2>
+      <div class="status-row">
+        <span><span style="color: var(--text-muted);">Status:</span>
+          <code id="status-raw" class="raw-status">--</code></span>
+        <span id="ind-ready" class="ind"><span class="bullet">●</span>Ready</span>
+        <span id="ind-tx"    class="ind"><span class="bullet">●</span>Transmitting</span>
+        <span id="ind-flush" class="ind"><span class="bullet">●</span>Flushing</span>
+        <span id="ind-index" class="ind"><span class="bullet">●</span>Index</span>
+      </div>
+    </section>
+
+    <!-- Log -->
+    <div id="log-container" class="panel">
+      <h2>
+        Communications Log
+        <span class="right">
+          <label class="checkbox">
+            <input type="checkbox" id="autoscroll" checked> Auto-scroll
+          </label>
+          <button id="btn-clear-log" class="secondary">Clear</button>
+        </span>
+      </h2>
+      <div id="log" role="log" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <!-- Audio Settings modal -->
+  <div class="modal-overlay" id="audio-overlay" role="dialog"
+       aria-modal="true" aria-labelledby="audio-h">
+    <div class="modal">
+      <h3 id="audio-h">🎚️ Audio Settings</h3>
+
+      <fieldset>
+        <legend>Output</legend>
+        <div class="form-row">
+          <label class="lbl">Profile:</label>
+          <label class="checkbox">
+            <input type="radio" name="profile" value="0" checked> Speaker
+          </label>
+          <label class="checkbox">
+            <input type="radio" name="profile" value="1"> Headphone
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="checkbox">
+            <input id="autoswitch-chk" type="checkbox"> Headset auto-switch
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="lbl" for="volume-slider">Volume:</label>
+          <input id="volume-slider" type="range" min="0" max="9" value="5">
+          <output id="volume-value" for="volume-slider">5</output>
+          <span style="width: 0.5rem;"></span>
+          <label for="spkgain-select">Speaker gain (dB):</label>
+          <select id="spkgain-select"></select>
+          <label class="checkbox">
+            <input id="mute-chk" type="checkbox"> Mute
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Tone Controls</legend>
+        <div class="form-row">
+          <label class="lbl" for="bass-slider">Bass (dB):</label>
+          <input id="bass-slider" type="range" min="-12" max="12" value="0">
+          <output id="bass-value" for="bass-slider">0</output>
+        </div>
+        <div class="form-row">
+          <label class="lbl" for="treble-slider">Treble (dB):</label>
+          <input id="treble-slider" type="range" min="-12" max="12" value="0">
+          <output id="treble-value" for="treble-slider">0</output>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Equalizer (5-band peaking)</legend>
+        <div id="eq-grid" class="eq-grid"></div>
+        <div class="form-row">
+          <label class="lbl" for="eq-preset-select">EQ preset:</label>
+          <select id="eq-preset-select">
+            <option value="">(custom)</option>
+          </select>
+          <button id="btn-eq-reset" class="secondary">Reset Bands</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Dynamic Range Compression</legend>
+        <div class="form-row">
+          <label class="checkbox">
+            <input id="drc-chk" type="checkbox"> DRC enabled
+          </label>
+          <label for="drc-preset-select">Preset:</label>
+          <select id="drc-preset-select"></select>
+        </div>
+      </fieldset>
+
+      <div class="modal-buttons">
+        <button id="btn-audio-save">Save to Device</button>
+        <button id="btn-audio-close" class="secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+  <script>
+"use strict";
+/* =========================================================================
+ * DECtalk ESPress protocol (JavaScript port of host/dtesp_serial.py).
+ * Wire-format constants and DLE encode/decode helpers match the Python
+ * module and the firmware exactly.
+ * ========================================================================= */
+
+const VOICES = {
+  "Paul":   "np", "Betty":  "nb", "Harry":  "nh", "Frank":  "nf",
+  "Dennis": "nd", "Kit":    "nk", "Ursula": "nu", "Rita":   "nr",
+  "Wendy":  "nw",
+};
+
+const RATE_MIN = 75, RATE_MAX = 600, RATE_DEFAULT = 200;
+const PITCH_MIN = 50, PITCH_MAX = 400;
+
+// ASCII control characters used by the ESPress protocol.
+const DT_SOH  = 0x01;
+const DT_ETX  = 0x03;
+const DT_ENQ  = 0x05;
+const DT_SO   = 0x0E;
+const DT_SI   = 0x0F;
+const DT_DLE  = 0x10;
+const DT_XON  = 0x11;
+const DT_XOFF = 0x13;
+const DT_FLUSH_BRACKET = 0x5D;  // ']'
+
+const DLE_PREFIX_STATUS = 0x40;
+const DLE_PREFIX_INDEX  = 0x50;
+
+// Status bits (mirror dtesp_serial.py / firmware).
+const DTESP_STAT_TR_CHAR     = 0x0002;
+const DTESP_STAT_RR_CHAR     = 0x0004;
+const DTESP_STAT_CMD_READY   = 0x0008;
+const DTESP_STAT_NEW_INDEX   = 0x0040;
+const DTESP_STAT_FLUSHING    = 0x0400;
+
+// Codec / DSP control ranges (mirror dtesp_gui_qt.py).
+const TONE_GAIN_MIN = -12, TONE_GAIN_MAX = 12;
+const EQ_BAND_FREQS = [160, 500, 1500, 3000, 5000];
+const EQ_GAIN_MIN = -12, EQ_GAIN_MAX = 12;
+const EQ_PRESETS  = ["flat", "speech", "crisp", "warm"];
+const DRC_PRESETS = ["soft", "speech", "loud"];
+const SPK_GAIN_VALUES = [6, 12, 18, 24];
+const VOLUME_MIN = 0, VOLUME_MAX = 9, VOLUME_DEFAULT = 5;
+
+// Mirror of the firmware preset table in main/tlv320_dsp.c.
+const EQ_PRESET_DEFINITIONS = {
+  "flat":   { bass:  0, eq: [0,  0, 0, 0, 0], treble: 0,
+              drc: false, drc_preset: "speech" },
+  "speech": { bass: -3, eq: [0, -2, 0, 3, 0], treble: 2,
+              drc: true,  drc_preset: "speech" },
+  "crisp":  { bass: -3, eq: [0, -2, 0, 4, 3], treble: 2,
+              drc: true,  drc_preset: "loud" },
+  "warm":   { bass:  2, eq: [0,  0, 0, 0, 0], treble: 0,
+              drc: false, drc_preset: "soft" },
+};
+
+const POLL_INTERVAL_MS    = 2000;
+const LOG_SPEAK_MAX_CHARS = 120;
+const STATUS_TIMEOUT_MS   = 2000;
+const FLUSH_TIMEOUT_MS    = 2000;
+
+function buildPrefix(voice, rate, pitch) {
+  let parts = "";
+  if (voice && Object.prototype.hasOwnProperty.call(VOICES, voice)) {
+    parts += "[:" + VOICES[voice] + "]";
+  }
+  if (rate !== null && rate !== undefined) {
+    const r = Math.max(RATE_MIN, Math.min(RATE_MAX, parseInt(rate, 10)));
+    parts += "[:ra " + r + "]";
+  }
+  if (pitch !== null && pitch !== undefined && pitch > 0) {
+    const p = Math.max(PITCH_MIN, Math.min(PITCH_MAX, parseInt(pitch, 10)));
+    parts += "[:dv ap " + p + "]";
+  }
+  return parts;
+}
+
+function dleDecodeWord(buf) {
+  return ((buf[1] & 0x0F) << 12) |
+         ((buf[2] & 0x3F) << 6)  |
+          (buf[3] & 0x3F);
+}
+
+/* =========================================================================
+ * DtespSerial — Web Serial connection wrapper.
+ *
+ * The firmware boots into ESPress mode and uses application-level XON/XOFF
+ * flow control plus DLE-framed status/index responses.  This class owns:
+ *   - the SerialPort + reader/writer streams
+ *   - a background read loop that classifies bytes into:
+ *       XON/XOFF        → updates _deviceXoff
+ *       DLE + 3 bytes   → resolves a pending status promise OR fires onIndex
+ *       SOH             → resolves a pending flush-ack promise
+ *       everything else → dropped (stale boot output, etc.)
+ *   - send helpers that respect XOFF before writing speech text
+ * ========================================================================= */
+
+class DtespSerial {
+  constructor() {
+    this._port    = null;
+    this._reader  = null;
+    this._writer  = null;
+    this._textEnc = new TextEncoder();
+    this._readLoopPromise = null;
+    this._closing = false;
+
+    this._deviceXoff = false;
+    this._lastStatus = -1;
+
+    this._statusWaiters = [];   // Array<(statusWord:number) => void>
+    this._flushWaiter   = null; // {resolve, timer} | null
+
+    // Public callbacks
+    this.onLog        = null;   // (direction, message, css?) => void
+    this.onStatus     = null;   // (value, decoded, polled) => void
+    this.onIndex      = null;   // (index) => void
+    this.onError      = null;   // (Error) => void
+    this.onDisconnect = null;   // () => void
+  }
+
+  get connected()  { return this._port !== null; }
+  get lastStatus() { return this._lastStatus; }
+
+  // ---- Connect / Disconnect --------------------------------------
+
+  async connect(baud) {
+    if (this._port) throw new Error("Already connected");
+    if (!("serial" in navigator)) {
+      throw new Error("Web Serial API not supported. Use Chrome or Edge 89+.");
+    }
+    if (baud === undefined) baud = 115200;
+
+    this._log("--", "Requesting serial port...");
+    const port = await navigator.serial.requestPort();
+    await port.open({
+      baudRate: baud,
+      dataBits: 8,
+      stopBits: 1,
+      parity: "none",
+      flowControl: "none",   // We handle XON/XOFF in software.
+      bufferSize: 4096,
+    });
+
+    this._port    = port;
+    this._closing = false;
+    this._reader  = port.readable.getReader();
+    this._writer  = port.writable.getWriter();
+
+    // Some adapters need a brief moment before they accept I/O cleanly.
+    await this._sleep(500);
+
+    // Start the background dispatcher BEFORE we send anything so the
+    // probe response is captured.
+    this._readLoopPromise = this._readLoop().catch((e) => {
+      if (!this._closing) this._reportError(e);
+    });
+
+    // Probe the device with ENQ; the firmware always replies with a
+    // DLE-framed status word.  We give it up to 2.5 s.  Even if it
+    // doesn't respond (some boards may have lost the probe in startup
+    // noise), we still allow the user to use the connection — the Qt
+    // host's behaviour is similar in spirit.
+    let probed = false;
+    try {
+      await this._writeBytes(Uint8Array.of(DT_ENQ));
+      const probe = await this._waitStatusInternal(2500);
+      probed = probe >= 0;
+    } catch (_) { /* fall through */ }
+
+    if (!probed) {
+      this._log("--",
+        "No response from device on probe; continuing anyway.", "info");
+    }
+
+    // Tell the device we're ready to receive.
+    try { await this._writeBytes(Uint8Array.of(DT_XON)); } catch (_) {}
+
+    this._log("--", "Connected");
+  }
+
+  async disconnect() {
+    this._closing = true;
+
+    // Reject any waiters so callers don't hang.
+    while (this._statusWaiters.length) {
+      const w = this._statusWaiters.shift();
+      try { w(-1); } catch (_) {}
+    }
+    if (this._flushWaiter) {
+      const fw = this._flushWaiter;
+      this._flushWaiter = null;
+      clearTimeout(fw.timer);
+      try { fw.resolve(false); } catch (_) {}
+    }
+
+    if (this._reader) {
+      try { await this._reader.cancel(); } catch (_) {}
+      try { this._reader.releaseLock(); } catch (_) {}
+      this._reader = null;
+    }
+    if (this._writer) {
+      try { await this._writer.close(); } catch (_) {}
+      try { this._writer.releaseLock(); } catch (_) {}
+      this._writer = null;
+    }
+    if (this._readLoopPromise) {
+      try { await this._readLoopPromise; } catch (_) {}
+      this._readLoopPromise = null;
+    }
+    if (this._port) {
+      try { await this._port.close(); } catch (_) {}
+      this._port = null;
+    }
+    this._lastStatus = -1;
+    this._log("--", "Disconnected");
+  }
+
+  // ---- High-level commands ---------------------------------------
+
+  async sendText(text) {
+    if (!this._port) throw new Error("Not connected");
+    await this._waitForXon(2000);
+    const data = this._textEnc.encode(text + "\r");
+    await this._writeBytes(data);
+  }
+
+  async speak(text, voice, rate, pitch) {
+    const prefix = buildPrefix(voice, rate, pitch);
+    const full = prefix + text;
+    const truncated = full.length > LOG_SPEAK_MAX_CHARS
+      ? full.slice(0, LOG_SPEAK_MAX_CHARS) + "…"
+      : full;
+    this._log("TX", "SPEAK: " + truncated);
+    await this.sendText(full);
+    this._log("RX", "Text sent");
+  }
+
+  async pause() {
+    if (!this._port) throw new Error("Not connected");
+    await this._writeBytes(Uint8Array.of(DT_SO));
+    this._log("TX", "SO (Pause)");
+  }
+  async resume() {
+    if (!this._port) throw new Error("Not connected");
+    await this._writeBytes(Uint8Array.of(DT_SI));
+    this._log("TX", "SI (Resume)");
+  }
+
+  async requestStatus(timeoutMs) {
+    if (!this._port) throw new Error("Not connected");
+    if (timeoutMs === undefined) timeoutMs = STATUS_TIMEOUT_MS;
+    const wait = this._waitStatusInternal(timeoutMs);
+    await this._writeBytes(Uint8Array.of(DT_ENQ));
+    return await wait;
+  }
+
+  /** Send the TSR FLUSH_TEXT sequence (']' + ETX + XON) and wait for SOH. */
+  async flushWithAck(timeoutMs) {
+    if (!this._port) throw new Error("Not connected");
+    if (timeoutMs === undefined) timeoutMs = FLUSH_TIMEOUT_MS;
+    if (this._flushWaiter) {
+      // A previous flush is still pending; cancel it in favour of this one.
+      const old = this._flushWaiter;
+      this._flushWaiter = null;
+      clearTimeout(old.timer);
+      try { old.resolve(false); } catch (_) {}
+    }
+    const ackPromise = new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this._flushWaiter && this._flushWaiter.resolve === resolve) {
+          this._flushWaiter = null;
+          resolve(false);
+        }
+      }, timeoutMs);
+      this._flushWaiter = { resolve, timer };
+    });
+    await this._writeBytes(
+      Uint8Array.of(DT_FLUSH_BRACKET, DT_ETX, DT_XON)
+    );
+    return ackPromise;
+  }
+
+  decodeStatus(value) {
+    if (value < 0) {
+      return { ready: false, transmitting: false, flushing: false,
+               index: false, raw: null };
+    }
+    return {
+      ready:        Boolean(value & (DTESP_STAT_RR_CHAR | DTESP_STAT_CMD_READY)),
+      transmitting: Boolean(value & DTESP_STAT_TR_CHAR),
+      flushing:     Boolean(value & DTESP_STAT_FLUSHING),
+      index:        Boolean(value & DTESP_STAT_NEW_INDEX),
+      raw:          "0x" + value.toString(16).toUpperCase().padStart(4, "0"),
+    };
+  }
+
+  // ---- Internals -------------------------------------------------
+
+  async _writeBytes(u8) {
+    if (!this._writer) throw new Error("Not connected");
+    await this._writer.write(u8);
+  }
+
+  _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  _waitStatusInternal(timeoutMs) {
+    return new Promise((resolve) => {
+      const w = (val) => {
+        clearTimeout(timer);
+        const i = this._statusWaiters.indexOf(w);
+        if (i >= 0) this._statusWaiters.splice(i, 1);
+        resolve(val);
+      };
+      const timer = setTimeout(() => {
+        const i = this._statusWaiters.indexOf(w);
+        if (i >= 0) this._statusWaiters.splice(i, 1);
+        resolve(-1);
+      }, timeoutMs);
+      this._statusWaiters.push(w);
+    });
+  }
+
+  async _waitForXon(timeoutMs) {
+    if (!this._deviceXoff) return;
+    const deadline = Date.now() + timeoutMs;
+    while (this._deviceXoff && Date.now() < deadline) {
+      await this._sleep(20);
+    }
+  }
+
+  _reportError(err) {
+    if (this.onError) { try { this.onError(err); } catch (_) {} }
+  }
+
+  _log(direction, message, css) {
+    if (this.onLog) {
+      try { this.onLog(direction, message, css); } catch (_) {}
+    }
+  }
+
+  _publishStatus(value, polled) {
+    this._lastStatus = value;
+    if (this.onStatus) {
+      try { this.onStatus(value, this.decodeStatus(value), polled); }
+      catch (_) {}
+    }
+  }
+
+  // Background classifier reading raw bytes from the SerialPort.
+  async _readLoop() {
+    const dleBuf = [];
+    while (true) {
+      let chunk;
+      try {
+        const r = await this._reader.read();
+        if (r.done) break;
+        chunk = r.value;
+      } catch (e) {
+        if (this._closing) return;
+        throw e;
+      }
+      if (!chunk || chunk.length === 0) continue;
+
+      for (let i = 0; i < chunk.length; i++) {
+        const b = chunk[i];
+        if (dleBuf.length > 0) {
+          dleBuf.push(b);
+          if (dleBuf.length === 4) {
+            const word = dleDecodeWord(dleBuf);
+            const prefix = dleBuf[1] & 0xF0;
+            dleBuf.length = 0;
+            if (prefix === DLE_PREFIX_STATUS) {
+              this._lastStatus = word;
+              if (this._statusWaiters.length > 0) {
+                const waiters = this._statusWaiters.slice();
+                this._statusWaiters.length = 0;
+                for (const w of waiters) {
+                  try { w(word); } catch (_) {}
+                }
+              }
+              this._publishStatus(word, false);
+            } else if (prefix === DLE_PREFIX_INDEX) {
+              if (this.onIndex) {
+                try { this.onIndex(word); } catch (_) {}
+              }
+            }
+            // Other DLE prefixes are silently ignored (matches firmware).
+          }
+          continue;
+        }
+        switch (b) {
+          case DT_DLE:
+            dleBuf.push(b);
+            break;
+          case DT_XON:
+            this._deviceXoff = false;
+            break;
+          case DT_XOFF:
+            this._deviceXoff = true;
+            break;
+          case DT_SOH:
+            if (this._flushWaiter) {
+              const fw = this._flushWaiter;
+              this._flushWaiter = null;
+              clearTimeout(fw.timer);
+              try { fw.resolve(true); } catch (_) {}
+            }
+            break;
+          default:
+            // Drop stray bytes (boot messages etc.).
+            break;
+        }
+      }
+    }
+    // Reader closed: typically a USB unplug.
+    if (!this._closing) {
+      this._closing = true;
+      if (this.onDisconnect) {
+        try { this.onDisconnect(); } catch (_) {}
+      }
+    }
+  }
+}
+
+/* =========================================================================
+ * UI controller
+ * ========================================================================= */
+
+const $ = (id) => document.getElementById(id);
+
+const UI = {
+  dt: null,
+  pollTimer: null,
+  audioState: null,
+  suppressFw: false,
+
+  init() {
+    this.dt = new DtespSerial();
+    this.dt.onLog = (d, m, css) => this.logEntry(d, m, css);
+    this.dt.onStatus = (v, dec, polled) => this.renderStatus(v, dec, polled);
+    this.dt.onError = (e) =>
+      this.logEntry("--", "Error: " + e.message, "err");
+    this.dt.onDisconnect = () => this.handleUnexpectedDisconnect();
+
+    this.audioState = {
+      profile: 0, autoswitch: true,
+      volume: VOLUME_DEFAULT, spkgain: SPK_GAIN_VALUES[0],
+      mute: false,
+      bass: 0, treble: 0,
+      eq: EQ_BAND_FREQS.map(() => 0),
+      eq_preset: null,
+      drc: false, drc_preset: DRC_PRESETS[0],
+    };
+
+    this.populateStaticUi();
+    this.bindEvents();
+
+    if (!("serial" in navigator)) {
+      this.logEntry("--",
+        "Web Serial API not available. Please use Chrome or Edge 89+.",
+        "err");
+      $("btn-connect").disabled = true;
+      $("conn-text").textContent = "Browser not supported";
+    }
+  },
+
+  // ---- Static population -----------------------------------------
+
+  populateStaticUi() {
+    const voiceSel = $("voice-select");
+    voiceSel.innerHTML = "";
+    for (const v of Object.keys(VOICES)) {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = v;
+      voiceSel.appendChild(opt);
+    }
+    voiceSel.value = "Paul";
+
+    const spk = $("spkgain-select");
+    spk.innerHTML = "";
+    for (const v of SPK_GAIN_VALUES) {
+      const opt = document.createElement("option");
+      opt.value = String(v); opt.textContent = String(v);
+      spk.appendChild(opt);
+    }
+
+    const eqp = $("eq-preset-select");
+    while (eqp.options.length > 1) eqp.remove(1);
+    for (const name of EQ_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      eqp.appendChild(opt);
+    }
+
+    const drcp = $("drc-preset-select");
+    drcp.innerHTML = "";
+    for (const name of DRC_PRESETS) {
+      const opt = document.createElement("option");
+      opt.value = name; opt.textContent = name;
+      drcp.appendChild(opt);
+    }
+
+    const grid = $("eq-grid");
+    grid.innerHTML = "";
+    EQ_BAND_FREQS.forEach((freq, i) => {
+      const lbl = document.createElement("label");
+      lbl.htmlFor = "eq-" + i;
+      lbl.textContent = this.freqLabel(freq) + ":";
+
+      const slider = document.createElement("input");
+      slider.type  = "range";
+      slider.id    = "eq-" + i;
+      slider.min   = EQ_GAIN_MIN;
+      slider.max   = EQ_GAIN_MAX;
+      slider.value = 0;
+      slider.setAttribute("aria-label",
+        "Equalizer band " + (i + 1) + " at " + freq + " Hz");
+
+      const out = document.createElement("output");
+      out.id = "eq-" + i + "-value";
+      out.textContent = "0";
+
+      slider.addEventListener("input", () => {
+        out.textContent = this.formatGain(slider.value);
+      });
+      slider.addEventListener("change", () => {
+        this.onEqBandCommit(i, parseInt(slider.value, 10));
+      });
+
+      grid.appendChild(lbl);
+      grid.appendChild(slider);
+      grid.appendChild(out);
+    });
+  },
+
+  // ---- Event wiring ----------------------------------------------
+
+  bindEvents() {
+    $("btn-connect").addEventListener("click", () => this.connect());
+    $("btn-disconnect").addEventListener("click", () => this.disconnect());
+
+    $("rate-slider").addEventListener("input", (e) => {
+      $("rate-value").textContent = e.target.value;
+    });
+    $("pitch-slider").addEventListener("input", (e) => {
+      const v = parseInt(e.target.value, 10);
+      $("pitch-value").textContent = v <= PITCH_MIN ? "Default" : String(v);
+    });
+
+    $("btn-speak").addEventListener("click",  () => this.onSpeak());
+    $("btn-pause").addEventListener("click",  () =>
+      this.runAction(() => this.dt.pause(),  "Pause"));
+    $("btn-resume").addEventListener("click", () =>
+      this.runAction(() => this.dt.resume(), "Resume"));
+    $("btn-flush").addEventListener("click",  () => this.onFlush());
+
+    $("btn-audio").addEventListener("click", () => this.openAudioDialog());
+    $("btn-save").addEventListener("click",  () => this.sendFw("save"));
+
+    $("btn-clear").addEventListener("click",     () => $("text-input").value = "");
+    $("btn-clear-log").addEventListener("click", () => $("log").textContent = "");
+
+    // Audio dialog wiring
+    for (const r of document.querySelectorAll('input[name="profile"]')) {
+      r.addEventListener("change", () => {
+        const idx = parseInt(r.value, 10);
+        this.audioState.profile = idx;
+        this.sendFw("profile " + (idx === 1 ? "headphone" : "speaker"));
+      });
+    }
+
+    $("autoswitch-chk").addEventListener("change", (e) => {
+      this.audioState.autoswitch = e.target.checked;
+      this.sendFw("autoswitch " + (e.target.checked ? "on" : "off"));
+    });
+
+    const vol = $("volume-slider");
+    vol.addEventListener("input", () => {
+      $("volume-value").textContent = vol.value;
+    });
+    vol.addEventListener("change", () => {
+      this.audioState.volume = parseInt(vol.value, 10);
+      this.sendFw("volume " + this.audioState.volume);
+    });
+
+    $("spkgain-select").addEventListener("change", (e) => {
+      const v = parseInt(e.target.value, 10);
+      this.audioState.spkgain = v;
+      this.sendFw("spkgain " + v);
+    });
+
+    $("mute-chk").addEventListener("change", (e) => {
+      this.audioState.mute = e.target.checked;
+      this.sendFw("mute " + (e.target.checked ? "on" : "off"));
+    });
+
+    const bass = $("bass-slider");
+    bass.addEventListener("input", () => {
+      $("bass-value").textContent = this.formatGain(bass.value);
+    });
+    bass.addEventListener("change", () => {
+      const v = parseInt(bass.value, 10);
+      this.audioState.bass = v;
+      this.sendFw("bass " + v);
+    });
+
+    const treble = $("treble-slider");
+    treble.addEventListener("input", () => {
+      $("treble-value").textContent = this.formatGain(treble.value);
+    });
+    treble.addEventListener("change", () => {
+      const v = parseInt(treble.value, 10);
+      this.audioState.treble = v;
+      this.sendFw("treble " + v);
+    });
+
+    $("eq-preset-select").addEventListener("change", (e) => {
+      const name = e.target.value;
+      if (!name) return;
+      const def = EQ_PRESET_DEFINITIONS[name];
+      if (def) {
+        this.audioState.bass       = def.bass;
+        this.audioState.treble     = def.treble;
+        this.audioState.eq         = def.eq.slice();
+        this.audioState.drc        = def.drc;
+        this.audioState.drc_preset = def.drc_preset;
+        this.audioState.eq_preset  = name;
+        this.suppressFw = true;
+        try { this.loadAudioDialogFromState(); }
+        finally { this.suppressFw = false; }
+      }
+      this.sendFw("eq preset " + name);
+    });
+
+    $("btn-eq-reset").addEventListener("click", () => {
+      for (let i = 0; i < this.audioState.eq.length; i++) {
+        this.audioState.eq[i] = 0;
+        const sl  = $("eq-" + i);
+        const out = $("eq-" + i + "-value");
+        if (sl)  sl.value = 0;
+        if (out) out.textContent = "0";
+      }
+      this.audioState.eq_preset = null;
+      $("eq-preset-select").value = "";
+      this.sendFw("eq reset");
+    });
+
+    $("drc-chk").addEventListener("change", (e) => {
+      this.audioState.drc = e.target.checked;
+      this.sendFw("drc " + (e.target.checked ? "on" : "off"));
+    });
+    $("drc-preset-select").addEventListener("change", (e) => {
+      const name = e.target.value;
+      if (!name) return;
+      this.audioState.drc_preset = name;
+      this.sendFw("drc preset " + name);
+    });
+
+    $("btn-audio-save").addEventListener("click",  () => this.onAudioSave());
+    $("btn-audio-close").addEventListener("click", () => this.closeAudioDialog());
+    $("audio-overlay").addEventListener("click", (e) => {
+      if (e.target === $("audio-overlay")) this.closeAudioDialog();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" &&
+          $("audio-overlay").classList.contains("visible")) {
+        this.closeAudioDialog();
+      }
+    });
+
+    // Best-effort cleanup on tab close.
+    window.addEventListener("beforeunload", () => {
+      if (this.dt && this.dt.connected) this.dt.disconnect();
+    });
+
+    // Surface USB unplug events.
+    if ("serial" in navigator) {
+      navigator.serial.addEventListener("disconnect", () => {
+        if (this.dt && this.dt.connected) this.handleUnexpectedDisconnect();
+      });
+    }
+  },
+
+  // ---- Connection ------------------------------------------------
+
+  async connect() {
+    $("btn-connect").disabled = true;
+    try {
+      await this.dt.connect(115200);
+      this.setConnected(true);
+
+      // getInfo is on the SerialPort itself.
+      let info = null;
+      try { info = this.dt._port.getInfo ? this.dt._port.getInfo() : null; }
+      catch (_) { info = null; }
+      if (info && info.usbVendorId !== undefined &&
+          info.usbVendorId !== null) {
+        const vid = info.usbVendorId.toString(16).padStart(4, "0");
+        const pid = (info.usbProductId || 0).toString(16).padStart(4, "0");
+        $("port-info").textContent = "USB " + vid + ":" + pid;
+      } else {
+        $("port-info").textContent = "Serial port connected";
+      }
+
+      // Start background status polling (matches the Qt app).
+      this.pollTimer = setInterval(() => this.pollOnce(), POLL_INTERVAL_MS);
+    } catch (e) {
+      this.logEntry("--", "Connection failed: " + e.message, "err");
+      // Clean up any half-opened state.
+      try { await this.dt.disconnect(); } catch (_) {}
+      this.setConnected(false);
+      // Don't show the alert for the user-cancelled port chooser.
+      if (!/cancell|denied|No port selected/i.test(e.message)) {
+        alert("Connection failed: " + e.message);
+      }
+    }
+  },
+
+  async disconnect() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    try { await this.dt.disconnect(); }
+    catch (e) { this.logEntry("--", "Disconnect error: " + e.message, "err"); }
+    this.setConnected(false);
+    $("port-info").textContent = "No port selected";
+    this.renderStatus(-1, this.dt.decodeStatus(-1), false);
+  },
+
+  async handleUnexpectedDisconnect() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.logEntry("--", "Device disconnected", "err");
+    try { await this.dt.disconnect(); } catch (_) {}
+    this.setConnected(false);
+    $("port-info").textContent = "No port selected";
+    this.renderStatus(-1, this.dt.decodeStatus(-1), false);
+  },
+
+  setConnected(connected) {
+    $("btn-connect").disabled    = connected;
+    $("btn-disconnect").disabled = !connected;
+    for (const id of ["btn-speak", "btn-pause", "btn-resume", "btn-flush",
+                      "btn-audio", "btn-save"]) {
+      $(id).disabled = !connected;
+    }
+    const dot = $("conn-dot");
+    dot.classList.toggle("on",  connected);
+    dot.classList.toggle("err", false);
+    $("conn-text").textContent = connected ? "Connected" : "Disconnected";
+  },
+
+  // ---- Speech actions --------------------------------------------
+
+  async runAction(fn, label) {
+    if (!this.dt.connected) return;
+    try { await fn(); }
+    catch (e) {
+      this.logEntry("--", label + " error: " + e.message, "err");
+    }
+  },
+
+  async onSpeak() {
+    const text = $("text-input").value.trim();
+    if (!text) {
+      alert("Please enter some text to speak.");
+      return;
+    }
+    if (!this.dt.connected) return;
+    const voice = $("voice-select").value;
+    const rate  = parseInt($("rate-slider").value, 10);
+    const pitchRaw = parseInt($("pitch-slider").value, 10);
+    const pitch = pitchRaw <= PITCH_MIN ? null : pitchRaw;
+    try {
+      await this.dt.speak(text, voice, rate, pitch);
+    } catch (e) {
+      this.logEntry("--", "Speak error: " + e.message, "err");
+    }
+  },
+
+  async onFlush() {
+    if (!this.dt.connected) return;
+    this.logEntry("TX", "] + ETX + XON (Flush with ack)");
+    try {
+      const ack = await this.dt.flushWithAck();
+      this.logEntry("RX",
+        ack ? "SOH (Flush acknowledged)" : "Flush sent (no ack)");
+    } catch (e) {
+      this.logEntry("--", "Flush error: " + e.message, "err");
+    }
+  },
+
+  async onQueryStatus() {
+    if (!this.dt.connected) return;
+    this.logEntry("TX", "ENQ (Query Status)");
+    try {
+      const value = await this.dt.requestStatus();
+      this.renderStatus(value, this.dt.decodeStatus(value), false);
+    } catch (e) {
+      this.logEntry("--", "Status error: " + e.message, "err");
+    }
+  },
+
+  async pollOnce() {
+    if (!this.dt.connected) return;
+    try {
+      const value = await this.dt.requestStatus(1500);
+      if (value >= 0) {
+        this.renderStatus(value, this.dt.decodeStatus(value), true);
+      }
+    } catch (_) {
+      // Mirror the Qt app: silently ignore polling errors.
+    }
+  },
+
+  // ---- Status rendering ------------------------------------------
+
+  renderStatus(value, decoded, polled) {
+    $("status-raw").textContent = decoded.raw
+      ? decoded.raw
+      : (value < 0 ? "No response" : "--");
+    const map = [
+      ["ind-ready", "ready",        "on-ready"],
+      ["ind-tx",    "transmitting", "on-tx"],
+      ["ind-flush", "flushing",     "on-flush"],
+      ["ind-index", "index",        "on-index"],
+    ];
+    for (const [id, key, cls] of map) {
+      $(id).classList.toggle(cls, !!decoded[key]);
+    }
+    if (value < 0) {
+      this.logEntry("RX",
+        (polled ? "Poll status: " : "Status: ") + "No response");
+    } else {
+      this.logEntry("RX",
+        (polled ? "Poll status: " : "Status: ") + decoded.raw);
+    }
+  },
+
+  // ---- [:fw …] dispatch ------------------------------------------
+
+  async sendFw(subcmd) {
+    if (this.suppressFw) return;
+    if (!this.dt.connected) {
+      this.logEntry("--",
+        "FW cmd ignored (not connected): [:fw " + subcmd + "]", "info");
+      return;
+    }
+    const cmd = "[:fw " + subcmd + "]";
+    this.logEntry("TX", "FW: " + cmd);
+    try {
+      await this.dt.sendText(cmd);
+    } catch (e) {
+      this.logEntry("--", "FW cmd error: " + e.message, "err");
+    }
+  },
+
+  onEqBandCommit(idx, val) {
+    this.audioState.eq[idx]   = val;
+    this.audioState.eq_preset = null;
+    $("eq-preset-select").value = "";
+    this.sendFw("eq " + (idx + 1) + " " + val);
+  },
+
+  onAudioSave() {
+    const s = this.audioState;
+    const eq = s.eq.map((v, i) =>
+      (i + 1) + ":" + this.formatGain(v)).join(", ");
+    this.logEntry("--",
+      "Saving to device: profile=" +
+        (s.profile === 1 ? "headphone" : "speaker") +
+      " autoswitch=" + (s.autoswitch ? "on" : "off") +
+      " volume="     + s.volume +
+      " spkgain="    + s.spkgain +
+      " mute="       + (s.mute ? "on" : "off") +
+      " bass="       + this.formatGain(s.bass) +
+      " treble="     + this.formatGain(s.treble) +
+      " eq=["        + eq + "]" +
+      " eq_preset="  + (s.eq_preset || "(custom)") +
+      " drc="        + (s.drc ? "on" : "off") +
+      " drc_preset=" + s.drc_preset);
+    this.sendFw("save");
+  },
+
+  // ---- Audio dialog ----------------------------------------------
+
+  openAudioDialog() {
+    this.suppressFw = true;
+    try { this.loadAudioDialogFromState(); }
+    finally { this.suppressFw = false; }
+    $("audio-overlay").classList.add("visible");
+  },
+  closeAudioDialog() {
+    $("audio-overlay").classList.remove("visible");
+  },
+
+  loadAudioDialogFromState() {
+    const s = this.audioState;
+    const profile = s.profile === 1 ? "1" : "0";
+    const radio = document.querySelector(
+      'input[name="profile"][value="' + profile + '"]');
+    if (radio) radio.checked = true;
+    $("autoswitch-chk").checked = !!s.autoswitch;
+    $("volume-slider").value = s.volume;
+    $("volume-value").textContent = String(s.volume);
+    $("spkgain-select").value = String(s.spkgain);
+    $("mute-chk").checked = !!s.mute;
+    $("bass-slider").value = s.bass;
+    $("bass-value").textContent = this.formatGain(s.bass);
+    $("treble-slider").value = s.treble;
+    $("treble-value").textContent = this.formatGain(s.treble);
+    s.eq.forEach((g, i) => {
+      const sl  = $("eq-" + i);
+      const out = $("eq-" + i + "-value");
+      if (sl)  sl.value = g;
+      if (out) out.textContent = this.formatGain(g);
+    });
+    $("eq-preset-select").value = s.eq_preset || "";
+    $("drc-chk").checked = !!s.drc;
+    $("drc-preset-select").value = s.drc_preset || "";
+  },
+
+  // ---- Helpers ---------------------------------------------------
+
+  freqLabel(hz) {
+    if (hz >= 1000) {
+      const k = hz / 1000;
+      return Math.abs(k - Math.round(k)) < 1e-6
+        ? Math.round(k) + " kHz"
+        : k.toFixed(1) + " kHz";
+    }
+    return hz + " Hz";
+  },
+
+  formatGain(v) {
+    const n = parseInt(v, 10);
+    if (!n) return "0";
+    return n > 0 ? "+" + n : "" + n;
+  },
+
+  logEntry(direction, message, css) {
+    const log = $("log");
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const ms = String(now.getMilliseconds()).padStart(3, "0");
+    const cls = css
+      || (direction === "TX" ? "tx"
+          : direction === "RX" ? "rx"
+          : "info");
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent =
+      "[" + hh + ":" + mm + ":" + ss + "." + ms + "] " +
+      direction.padEnd(2) + "  " + message + "\n";
+    log.appendChild(span);
+    while (log.childNodes.length > 1000) {
+      log.removeChild(log.firstChild);
+    }
+    if ($("autoscroll").checked) {
+      log.scrollTop = log.scrollHeight;
+    }
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => UI.init());
+  </script>
+</body>
+</html>

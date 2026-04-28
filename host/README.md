@@ -3,15 +3,22 @@
 
 # DECtalk - Host GUI & Serial API
 
-This directory contains a Qt-based Python GUI application and a serial API
-module for controlling the DECtalk text-to-speech engine running on an ESP32
-microcontroller.
+This directory contains host applications for controlling the DECtalk
+text-to-speech engine running on an ESP32 microcontroller:
+
+- A **browser-based Web GUI** (`web/index.html`) — no install required;
+  runs entirely in Chrome / Edge using the Web Serial API.
+- A **Qt desktop GUI** (`dtesp_gui_qt.py`) — full-featured Python /
+  PySide6 application.
+- A **serial API module** (`dtesp_serial.py`) — Python library used by
+  the Qt GUI and reusable for scripting.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [Web GUI (`web/index.html`)](#web-gui-webindexhtml)
 - [GUI Features](#gui-features)
   - [Voice Selection](#voice-selection)
   - [Rate Control](#rate-control)
@@ -48,6 +55,18 @@ either firmware target.
 
 ## Quick Start
 
+### Option 1 — Web GUI (no install)
+
+1. Flash the DECtalk firmware to your ESP32 (see `../README.md`).
+2. Open **`host/web/index.html`** in Chrome or Edge 89+ (either by
+   double-clicking the file, serving it from any static web server, or
+   visiting the published GitHub Pages site).
+3. Click **Connect** and select the ESP32 serial port from the browser
+   chooser.
+4. Type text and click **Speak**.
+
+### Option 2 — Qt desktop GUI
+
 1. Flash the DECtalk firmware to your ESP32 (see `../README.md`).
 
 2. Install the Python dependencies:
@@ -65,6 +84,46 @@ either firmware target.
    `/dev/ttyUSB*` on ESP32-C6 depending on the USB bridge/driver.
 
 5. Type text in the text box and click **Speak**.
+
+## Web GUI (`web/index.html`)
+
+A single self-contained HTML page that talks to the ESP32 directly from
+the browser via the **Web Serial API** (Chrome / Edge 89+).  No Python,
+backend, or local install is required.  It mirrors the Qt GUI feature
+for feature, reorganised into a vertical browser-friendly layout:
+
+- **Connection** – click **Connect** and pick the ESP32 from the
+  browser's serial port chooser.  Disconnect cleanly with
+  **Disconnect**.
+- **Speech Settings** – voice, rate (WPM) and pitch (Hz) sliders with
+  live-updating value labels.
+- **Text to Speak** – multi-line textarea; supports DECtalk inline
+  commands such as `[:np]` or `[:dv ap 120]`.
+- **Speak / Pause / Resume / Flush / Query Status / Clear Text** –
+  same actions as the Qt app.  Pause/Resume send SO/SI; Flush uses the
+  TSR `]` + ETX + XON sequence and waits for the SOH ack.
+- **Audio Settings** dialog – output profile (speaker / headphone),
+  headset auto-switch, volume, class-D speaker amp gain, mute, bass /
+  treble, 5-band peaking EQ with named presets (`flat`, `speech`,
+  `crisp`, `warm`), DRC with tuning presets (`soft`, `speech`,
+  `loud`).  Each change is sent immediately as a `[:fw …]` inline
+  command.  **Save to Device** persists the current state to NVS.
+- **Device Status** panel – raw status word plus highlighted Ready /
+  Transmitting / Flushing / Index indicators, polled every 2 s.
+- **Communications Log** – timestamped TX/RX events, capped at 1000
+  lines, with auto-scroll and a Clear button.
+
+The page is dark-themed to match the project's GitHub Pages site and
+the existing Web Flasher.  Because it runs entirely in the browser,
+the same `index.html` file works whether opened from disk, served from
+a static web server, or hosted alongside the Web Flasher on GitHub
+Pages.
+
+> **Browser support:** the Web Serial API is currently only available
+> in Chromium-based browsers (Chrome, Edge, Opera, Brave, …) on
+> desktop.  Firefox and Safari are not supported.  On Linux, ensure
+> your user has access to the serial device (typically by being in the
+> `dialout` or `uucp` group).
 
 ## GUI Features
 
