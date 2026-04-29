@@ -285,10 +285,17 @@ static void log_rx_dle_command(uint16_t word)
 // Transport vtable pointer, initialised in dtesp_task() before use.
 static const dtesp_transport_t *s_transport;
 
+// Mutex serialising all device-to-host writes.  Prevents interleaving of
+// DLE sequences when the TTS callback (speech pthread) and the protocol
+// handler (FreeRTOS task) both try to send at the same time.
+static pthread_mutex_t s_tx_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 // Send raw bytes to the host over the serial transport.
 static void dtesp_send(const uint8_t *data, int len)
 {
+    pthread_mutex_lock(&s_tx_mutex);
     s_transport->write(data, (size_t)len);
+    pthread_mutex_unlock(&s_tx_mutex);
 }
 
 // Send a single byte to the host.
@@ -318,11 +325,20 @@ static void dtesp_send_status(void)
 // ----------------------------------------------------------------
 // Send a DLE index marker sequence followed by a status update.
 // Index: DLE 5X YY ZZ, then Status: DLE 4X YY ZZ
+// Suppressed while the host has sent XOFF (estate.host_xoff set).
+// Index markers are unsolicited; dropping them when the host is flow-
+// controlling is safe — the host chose to pause device TX.
 // ----------------------------------------------------------------
 static void dtesp_send_index(uint16_t index_value)
 {
     uint8_t buf[8];
     char flags[128];
+
+    if (estate.host_xoff)
+    {
+        ESP_LOGD(TAG, "TX DLE INDEX %u suppressed (host XOFF)", index_value);
+        return;
+    }
 
     dle_encode_word(DLE_PREFIX_INDEX, index_value, buf);
     estate.status |= STAT_new_index | STAT_index_valid;
@@ -386,6 +402,10 @@ static void dtesp_check_flow_control(void)
 // -- Text Buffer Management ------------------------------------------
 
 // Send a flush signal to the speech task.
+// Uses portMAX_DELAY so the FLUSH job is never dropped: TextToSpeechReset()
+// has already interrupted ongoing synthesis so the speech task will unblock
+// and consume a slot shortly.  Dropping the FLUSH would leave stale queued
+// jobs in the pipeline and STAT_flushing might never clear.
 static void dtesp_send_flush(void)
 {
     dtesp_job_t *job = dtesp_job_pool_alloc_flush();
@@ -394,9 +414,10 @@ static void dtesp_send_flush(void)
         ESP_LOGE(TAG, "Failed to allocate FLUSH job");
         return;
     }
-    if (xQueueSend(speech_queue, &job, pdMS_TO_TICKS(50)) != pdTRUE)
+    if (xQueueSend(speech_queue, &job, portMAX_DELAY) != pdTRUE)
     {
-        ESP_LOGW(TAG, "Speech queue full; dropping FLUSH job");
+        // Should not happen with portMAX_DELAY, but guard defensively.
+        ESP_LOGE(TAG, "Failed to enqueue FLUSH job");
         dtesp_job_pool_free(job);
     }
 }
