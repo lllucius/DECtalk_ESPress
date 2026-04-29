@@ -30,23 +30,18 @@ import json
 import os
 
 
-# ---- Canonical voice list (loaded from voices.json) -----------------
-# The single source of truth is voices.json in the repository root.
-# The firmware's custom_actions.c voice_map[] table is kept in sync
-# with the same data.
-_VOICES_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "voices.json")
-try:
-    with open(_VOICES_JSON, "r") as _f:
-        _voice_data = json.load(_f)["voices"]
-    VOICES = {v["name"]: v["code"] for v in _voice_data}
-except (FileNotFoundError, KeyError, json.JSONDecodeError):
-    # Fallback for standalone usage when voices.json is not found in the repository root
-    VOICES = {
-        "Paul": "np", "Betty": "nb", "Harry": "nh", "Frank": "nf",
-        "Dennis": "nd", "Kit": "nk", "Ursula": "nu", "Rita": "nr",
-        "Wendy": "nw",
-    }
+# ---- Canonical voice list -----------------
+VOICES = {
+    "Paul": "np",
+    "Betty": "nb",
+    "Harry": "nh",
+    "Frank": "nf",
+    "Dennis": "nd",
+    "Kit": "nk",
+    "Ursula": "nu",
+    "Rita": "nr",
+    "Wendy": "nw",
+}
 
 # Speaking rate limits (words per minute)
 RATE_MIN = 75

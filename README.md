@@ -9,6 +9,9 @@ boots directly into the DECtalk ESPress serial protocol, allowing a host
 computer to send text and receive status exactly as it would with a vintage
 DECtalk Express hardware unit.  On ESP32-S3 the host link uses **USB
 CDC-ACM**; on ESP32-C6 it uses the built-in **USB Serial/JTAG** interface.
+The documented photographed hardware build in **[HARDWARE.md](HARDWARE.md)** is
+an **ESP32-C6** perfboard build; **ESP32-S3** remains a supported firmware
+target, but it is not the specific physical build documented there.
 
 The speech synthesis itself is provided by the **DECtalk component**
 (`components/dectalk/`) which cross-compiles the upstream `dapi` library as
@@ -32,8 +35,10 @@ advancing DECtalk for everyone.
 - [Key Features](#key-features)
 - [Hardware Requirements](#hardware-requirements)
 - [Wiring](#wiring)
+- [Physical Device Build](#physical-device-build)
 - [Quick Start](#quick-start)
 - [Web Flasher](#web-flasher)
+- [Web GUI](#web-gui)
 - [Release Build Workflow](#release-build-workflow)
 - [Serial Interfaces](#serial-interfaces)
 - [ESPress Protocol Summary](#espress-protocol-summary)
@@ -53,13 +58,16 @@ advancing DECtalk for everyone.
   pause/resume, DLE command sequences, XON/XOFF flow control
 - **Native USB host transport** — ESP32-S3 uses TinyUSB CDC-ACM and
   ESP32-C6 uses USB Serial/JTAG, both appearing as standard serial
-  (COM / ttyACM) ports to the host; no external UART adapter needed
+  ports to the host (for example COM, `/dev/ttyACM*`, or `/dev/ttyUSB*`
+  depending on board and driver); no external UART adapter needed
 - **I2S audio output** — 11.025 kHz, 16-bit mono via I2S to an external DAC
   (PCM5102, MAX98357A, etc.)
 - **Configurable via `menuconfig`** — I2S pins, DMA tuning,
   flow-control thresholds, task pinning, and more; no source edits needed
 - **Python host tools** — a serial API module (`dtesp_serial.py`) and
   GUI applications for controlling the device from a PC
+- **Browser-based Web GUI** — control the device directly from Chrome or Edge
+  via the Web Serial API; no install required
 - **Memory diagnostics** — optional runtime task that logs per-task stack
   high-water marks and heap fragmentation statistics
 - **Full DECtalk speech synthesis** — provided by the
@@ -97,14 +105,14 @@ advancing DECtalk for everyone.
 
 ## Wiring
 
-Default I2S pin assignments (configurable via `idf.py menuconfig` →
+Current default I2S pin assignments (configurable via `idf.py menuconfig` →
 *DECtalk ESPress Firmware → Audio output*):
 
-| ESP32-S3 GPIO | I2S DAC Pin | Function |
-|---------------|-------------|----------|
-| GPIO 8 | BCK | Bit Clock |
-| GPIO 3 | WS / LRCK | Word Select |
-| GPIO 18 | DIN / DATA | Serial Data |
+| Default GPIO | I2S DAC Pin | Function |
+|--------------|-------------|----------|
+| GPIO 21 | BCK | Bit Clock |
+| GPIO 20 | WS / LRCK | Word Select |
+| GPIO 19 | DIN / DATA | Serial Data |
 | GND | GND | Ground |
 | 3.3 V / 5 V | VCC | Power (check your DAC's requirement) |
 
@@ -114,18 +122,20 @@ FMT→GND.
 **MAX98357A notes** — connect a 4–8 Ω speaker directly to the amplifier
 output terminals.
 
-**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 requires
-two extra I2C connections beyond the basic I2S pins:
+**TLV320DAC3100 (Adafruit breakout) notes** — the TLV320DAC3100 adds I2C
+control pins on top of the basic I2S wiring.  The current Kconfig defaults are:
 
-| ESP32-S3 GPIO | TLV320DAC3100 Pin | Function |
-|---------------|-------------------|----------|
-| GPIO 9 | MCLK | Master Clock (256 × Fs) |
-| GPIO 1 | SDA | I2C Data |
-| GPIO 2 | SCL | I2C Clock |
+| Default GPIO | TLV320DAC3100 Pin | Function |
+|--------------|-------------------|----------|
+| GPIO 18 | SDA | I2C Data |
+| GPIO 9 | SCL | I2C Clock |
+| GPIO 22 | RESET | Optional active-low hardware reset |
+| GPIO 15 | INT | Optional interrupt output |
 
-All GPIOs above are configurable via `idf.py menuconfig` → *DECtalk ESPress
-Firmware → Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the
-Audio DAC to expose the codec I2C, reset, and interrupt GPIO settings.
+The optional TLV320 **MCLK** output is disabled by default (`-1`).  If you wire
+MCLK, set it explicitly in `idf.py menuconfig` → *DECtalk ESPress Firmware →
+Audio output*.  Select **Adafruit TLV320DAC3100 breakout** as the Audio DAC to
+expose the codec I2C, reset, interrupt, MCLK, and DSP-default settings.
 
 ## Quick Start
 
@@ -174,6 +184,31 @@ released firmware without setting up ESP-IDF locally.
 After flashing finishes, unplug or close the flashing connection if needed and
 use the board's runtime host port: **native USB CDC** on ESP32-S3 or **USB
 Serial/JTAG** on ESP32-C6.
+
+## Web GUI
+
+The published project site includes a browser-based GUI for controlling the
+device without installing any software.
+
+1. Open the project site and click **Web GUI** in the top navigation.
+2. Use **Chrome** or **Edge** (version 89 or newer) — the page requires the
+   Web Serial API.
+3. Connect the board's **runtime host port** to your computer, click
+   **Connect**, and select the ESP32 serial port from the browser chooser.
+4. Choose a voice, adjust rate and pitch with the sliders, type text in the
+   text box, and click **Speak**.
+
+The Web GUI mirrors the Qt desktop GUI feature-for-feature: voice / rate /
+pitch controls, Pause / Resume / Flush / Query Status buttons, an **Audio
+Settings** dialog (volume, EQ presets, DRC, speaker gain), a Device Status
+panel, and a timestamped Communications Log.
+
+> **Browser support:** the Web Serial API is available only in Chromium-based
+> browsers (Chrome, Edge, Opera, …) on desktop.  Firefox and Safari are not
+> supported.  On Linux, ensure your user has access to the serial device
+> (typically by being in the `dialout` or `uucp` group).
+
+See [host/README.md](host/README.md) for full Web GUI documentation.
 
 ## Release Build Workflow
 
@@ -229,9 +264,12 @@ encoding/decoding helpers.
 
 ## Host Tools
 
-The `host/` directory contains Python-based host software.  See
+The `host/` directory contains host software for controlling the device.  See
 **[host/README.md](host/README.md)** for full details.
 
+- **`web/index.html`** — browser-based Web GUI; no install required; runs in
+  Chrome or Edge 89+ using the Web Serial API.  Also hosted on the project
+  site — click **Web GUI** in the top navigation.
 - **`dtesp_serial.py`** — `DECtalkESPressSerial` class implementing the
   ESPress protocol: connect, speak, flush, pause/resume, status query,
   device detection.
@@ -336,12 +374,14 @@ ESPress protocol emulation, hardware interfaces, and runtime behaviour.
 
 | Menu Path | Key Settings |
 |-----------|-------------|
-| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz |
+| *Audio output* | Audio DAC selection (generic or TLV320DAC3100), I2S BCK/WS/DO GPIO pins, optional TLV320 MCLK, and TLV320DAC3100 I2C/reset/interrupt GPIOs; sample rate is hardcoded at 11.025 kHz |
+| *Audio output → TLV320DAC3100 defaults* | Default profile, startup volume, DSP preset, DRC, speaker gain, and headset auto-switch behaviour |
+| *Audio output → Analog volume knob (potentiometer)* | Optional ADC-driven hardware volume knob with smoothing, hysteresis, and soft-takeover tuning |
 | *Audio output → Advanced audio tuning* | I2S DMA descriptor count, DMA frame count |
 | *Runtime tuning* | Text buffer size, speech queue depth, RX timeout, idle flush timeout |
 | *Runtime tuning → Advanced task tuning* | Speech task core affinity, main ESPress thread stack size |
 | *USB CDC transport* / *JTAG serial transport* | Target-specific host transport buffer sizing |
-| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, argument limit, and per-command enable flags (GPIO, tone, DSP/EQ/DRC) |
+| *Custom firmware commands* | Enable/disable `[:fw …]` command parsing; configure namespace, token length, native-command override, reconnect reset, and per-command enable flags (GPIO, tone, DSP/EQ/DRC) |
 | *Onboard RGB LED* | Optionally drive the RGB LED data GPIO low at startup to keep the LED dark |
 | *Diagnostics and logging* | Enable/disable heap and stack diagnostics; choose the DECtalk firmware log level |
 
@@ -363,7 +403,7 @@ This firmware is licensed under the MIT License — see [LICENSE](LICENSE).
 ## References
 
 - [BUILD.md](BUILD.md) — detailed firmware build process and architecture
-- [host/README.md](host/README.md) — Python host tools documentation
+- [host/README.md](host/README.md) — host tools documentation (Web GUI, Qt GUI, Python API)
 - [components/dectalk/README.md](components/dectalk/README.md) — DECtalk
   component: language, dictionary, source resolution
 - [components/dectalk/BUILD.md](components/dectalk/BUILD.md) — DECtalk

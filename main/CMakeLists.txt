@@ -13,10 +13,10 @@ set(SRCS
 set(REQUIRES
     dectalk
     driver
+    esp_adc
     esp_driver_gpio
     esp_driver_i2c
     esp_driver_i2s
-    esp_driver_gpio
     esp_driver_ledc
     esp_timer
     nvs_flash
