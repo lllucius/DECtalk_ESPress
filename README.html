@@ -400,7 +400,7 @@
 </blockquote>
 <p>See <a href="host/README.html">host/README.md</a> for full Web GUI documentation.</p>
 <h2 id="release-build-workflow">Release Build Workflow</h2>
-<p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages, uploads each language as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
+<p>GitHub Actions includes a release-build workflow at <code>.github/workflows/release.yml</code>. It builds firmware binaries and the matching dictionary for all six DECtalk languages on both supported targets (<strong>ESP32-S3</strong> and <strong>ESP32-C6</strong>), uploads each language/target combination as a workflow artifact, and attaches the packaged artifacts to published GitHub releases.</p>
 <h2 id="serial-interfaces">Serial Interfaces</h2>
 <p>The firmware's host transport depends on the target:</p>
 <table>
