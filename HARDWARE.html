@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025 Leland Lucius
+
+  Dark-themed Pandoc HTML template for DECtalk ESPress GitHub Pages.
+  Used by the deploy-site and release workflows to convert Markdown to HTML.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DECtalk ESPress — Hardware</title>
+  <style>
+    /* ── Colour palette (GitHub-dark inspired) ── */
+    :root {
+      --bg:          #0d1117;
+      --surface:     #161b22;
+      --border:      #30363d;
+      --text:        #e6edf3;
+      --text-muted:  #8b949e;
+      --heading:     #f0f6fc;
+      --link:        #58a6ff;
+      --link-hover:  #79c0ff;
+      --code-bg:     #1c2128;
+      --code-text:   #e6edf3;
+      --accent:      #6c9ef8;
+      --table-alt:   #161b22;
+      --table-head:  #1c2128;
+      --kbd-bg:      #2d333b;
+      --blockquote:  #30363d;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Body ── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Top navigation bar ── */
+    .navbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .navbar a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+    .navbar a:hover { color: var(--link); }
+    .navbar .brand {
+      color: var(--heading);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-right: auto;
+    }
+
+    /* ── Main content area ── */
+    .container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1.5rem 4rem;
+    }
+
+    /* ── Typography ── */
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--heading);
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      line-height: 1.3;
+      border-bottom: none;
+    }
+    h1 { font-size: 1.75rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+    h2 { font-size: 1.4rem;  padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.15rem; }
+    h4 { font-size: 1rem; }
+
+    p { margin-bottom: 1rem; }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+
+    strong { color: var(--heading); font-weight: 600; }
+
+    /* ── Lists ── */
+    ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    li > ul, li > ol { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+
+    /* ── Code ── */
+    code {
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", Consolas,
+                   "Liberation Mono", Menlo, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--table-head);
+      color: var(--heading);
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: var(--table-alt); }
+
+    /* ── Blockquotes ── */
+    blockquote {
+      border-left: 3px solid var(--accent);
+      background: var(--surface);
+      margin: 1rem 0;
+      padding: 0.75rem 1rem;
+      color: var(--text-muted);
+      border-radius: 0 6px 6px 0;
+    }
+    blockquote p { margin-bottom: 0.5rem; }
+    blockquote p:last-child { margin-bottom: 0; }
+    blockquote strong { color: var(--text); }
+
+    /* ── Horizontal rules ── */
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+
+    /* ── Images ── */
+    img { max-width: 100%; height: auto; border-radius: 6px; }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding: 2rem 1rem;
+      border-top: 1px solid var(--border);
+      margin-top: 3rem;
+    }
+    .footer a { color: var(--link); }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .container { padding: 0 1rem 3rem; }
+      h1 { font-size: 1.4rem; }
+      h2 { font-size: 1.2rem; }
+      table { font-size: 0.82rem; }
+      th, td { padding: 0.45rem 0.55rem; }
+      .navbar { padding: 0.5rem 1rem; gap: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a class="brand" href="/">DECtalk ESPress</a>
+    <a href="/flasher/">Web Flasher</a>
+    <a href="/gui/">Web GUI</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress">GitHub</a>
+    <a href="https://github.com/lllucius/DECtalk_ESPress/releases">Releases</a>
+  </nav>
+
+  <main class="container">
+<!-- SPDX-License-Identifier: MIT -->
+
+<!-- Copyright (c) 2025 Leland Lucius -->
+
+<h1 id="dectalk-espress-physical-device">DECtalk ESPress Physical Device</h1>
+<p>This document describes the perfboard build shown in the repository images. It uses an ESP32-C6 development board, an Adafruit TLV320DAC3100 audio breakout, a small speaker, and a front-panel volume potentiometer to make a self-contained DECtalk ESPress device.</p>
+<h2 id="parts">Parts</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Generic ESP32-C6 development board</td>
+<td>Provides USB Serial/JTAG for host communication and firmware flashing.</td>
+</tr>
+<tr class="even">
+<td>Adafruit TLV320DAC3100 audio breakout</td>
+<td>I2S DAC, I2C-controlled codec, and class-D speaker amplifier.</td>
+</tr>
+<tr class="odd">
+<td>3 W 8 Ω mini speaker</td>
+<td>Connects directly to the TLV320 speaker outputs.</td>
+</tr>
+<tr class="even">
+<td>10 kΩ linear potentiometer</td>
+<td>Optional analog volume control.</td>
+</tr>
+<tr class="odd">
+<td>Perfboard</td>
+<td>Carries the ESP32-C6 board, audio breakout, and wiring.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="build-photos-and-layout">Build photos and layout</h2>
+<p>Click any image to open the full-size version.</p>
+<table>
+  <tr>
+    <td align="center">
+      <a href="images/front.png">
+        <img src="images/front.png" alt="Front of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Front</sub>
+    </td>
+    <td align="center">
+      <a href="images/back.png">
+        <img src="images/back.png" alt="Back of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Back</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="images/left%20side.png">
+        <img src="images/left%20side.png" alt="Left side of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Left side</sub>
+    </td>
+    <td align="center">
+      <a href="images/right%20side.png">
+        <img src="images/right%20side.png" alt="Right side of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Right side</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="images/inside.png">
+        <img src="images/inside.png" alt="Inside of assembled device" width="300">
+      </a>
+      <br>
+      <sub>Inside</sub>
+    </td>
+    <td align="center">
+      <a href="images/pcb%20layout.png">
+        <img src="images/pcb%20layout.png" alt="Perfboard wiring layout" width="300">
+      </a>
+      <br>
+      <sub>Perfboard wiring layout</sub>
+    </td>
+  </tr>
+</table>
+
+<h2 id="firmware-configuration">Firmware configuration</h2>
+<p>Configure the firmware for the ESP32-C6 target and the TLV320DAC3100 breakout:</p>
+<ol type="1">
+<li>Run <code>idf.py set-target esp32c6</code>.</li>
+<li>In <code>idf.py menuconfig</code>, select <em>DECtalk ESPress Firmware → Audio output → Audio DAC → Adafruit TLV320DAC3100 breakout</em>.</li>
+<li>Use the pin assignments in the wiring table below.</li>
+<li>If using the potentiometer, enable <em>DECtalk ESPress Firmware → Audio output → Analog volume knob (potentiometer) → Enable analog volume potentiometer</em>.</li>
+</ol>
+<h2 id="wiring">Wiring</h2>
+<p>The layout is illustrated in <code>images/pcb layout.png</code>. The following table lists the same hookups in text form.</p>
+<h3 id="esp32-c6-to-tlv320dac3100">ESP32-C6 to TLV320DAC3100</h3>
+<table>
+<thead>
+<tr class="header">
+<th>ESP32-C6 pin</th>
+<th>TLV320DAC3100 pin</th>
+<th>Function</th>
+<th>Menuconfig setting</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>5V</td>
+<td>VIN</td>
+<td>Breakout power</td>
+<td>n/a</td>
+</tr>
+<tr class="even">
+<td>GND</td>
+<td>GND</td>
+<td>Ground</td>
+<td>n/a</td>
+</tr>
+<tr class="odd">
+<td>GPIO 23</td>
+<td>MCLK</td>
+<td>I2S master clock</td>
+<td><code>DTESP_I2S_MCLK_GPIO=23</code></td>
+</tr>
+<tr class="even">
+<td>GPIO 21</td>
+<td>BCLK</td>
+<td>I2S bit clock</td>
+<td><code>DTESP_I2S_BCK_GPIO=21</code></td>
+</tr>
+<tr class="odd">
+<td>GPIO 20</td>
+<td>WCLK</td>
+<td>I2S word select / LRCK</td>
+<td><code>DTESP_I2S_WS_GPIO=20</code></td>
+</tr>
+<tr class="even">
+<td>GPIO 19</td>
+<td>DIN</td>
+<td>I2S audio data to codec</td>
+<td><code>DTESP_I2S_DO_GPIO=19</code></td>
+</tr>
+<tr class="odd">
+<td>GPIO 18</td>
+<td>SDA</td>
+<td>I2C data</td>
+<td><code>DTESP_I2C_SDA_GPIO=18</code></td>
+</tr>
+<tr class="even">
+<td>GPIO 9</td>
+<td>SCL</td>
+<td>I2C clock</td>
+<td><code>DTESP_I2C_SCL_GPIO=9</code></td>
+</tr>
+<tr class="odd">
+<td>GPIO 22</td>
+<td>RST</td>
+<td>Codec reset</td>
+<td><code>DTESP_CODEC_RESET_GPIO=22</code></td>
+</tr>
+<tr class="even">
+<td>GPIO 15</td>
+<td>GPIO / interrupt</td>
+<td>Codec interrupt</td>
+<td><code>DTESP_CODEC_INT_GPIO=15</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="speaker">Speaker</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Speaker lead</th>
+<th>TLV320DAC3100 pin</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Speaker +</td>
+<td>SPK+</td>
+</tr>
+<tr class="even">
+<td>Speaker -</td>
+<td>SPK-</td>
+</tr>
+</tbody>
+</table>
+<p>The TLV320DAC3100 speaker output is a bridge-tied-load amplifier. Do not connect either speaker terminal to ground.</p>
+<h3 id="volume-potentiometer">Volume potentiometer</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Potentiometer terminal</th>
+<th>ESP32-C6 pin</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>One outside lug</td>
+<td>3V3</td>
+<td>ADC high reference</td>
+</tr>
+<tr class="even">
+<td>Wiper / center lug</td>
+<td>GPIO 6</td>
+<td>Volume ADC input (<code>DTESP_VOLUME_KNOB_GPIO=6</code>)</td>
+</tr>
+<tr class="odd">
+<td>Other outside lug</td>
+<td>GND</td>
+<td>ADC low reference</td>
+</tr>
+</tbody>
+</table>
+<p>If the knob works backwards, swap the two outside potentiometer lugs.</p>
+<h2 id="assembly-notes">Assembly notes</h2>
+<ul>
+<li>Keep the I2S and I2C wires short and route all grounds back to the ESP32-C6 ground rail.</li>
+<li>Use the TLV320DAC3100 <code>SPK+</code> and <code>SPK-</code> pins only for the speaker. Use the headphone pins only for headphone output.</li>
+<li>The ESP32-C6 USB connector remains accessible for flashing, logs, and normal DECtalk ESPress host communication.</li>
+<li>Power the device down before changing wiring or moving boards on the perfboard.</li>
+</ul>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/lllucius/DECtalk_ESPress">DECtalk ESPress</a>
+      — MIT License
+    </p>
+  </footer>
+
+</body>
+</html>

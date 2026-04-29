@@ -240,25 +240,25 @@
 </ul></li>
 </ul>
 <h2 id="overview">Overview</h2>
-<p>The host communicates with the ESP32 over USB using the DECtalk ESPress serial protocol. The ESP32 firmware boots directly into ESPress protocol mode on its host USB port, which appears as a standard serial port on the host computer (for example COM, <code>/dev/ttyACM*</code>, or <code>/dev/ttyUSB*</code> depending on the board and driver). On <strong>ESP32-S3</strong> the host link uses USB CDC-ACM (TinyUSB); on <strong>ESP32-C6</strong> it uses the built-in USB Serial/JTAG interface. The dedicated physical-device guide in <strong><code>../HARDWARE.md</code></strong> covers the photographed <strong>ESP32-C6</strong> perfboard build; the host tools themselves support either firmware target.</p>
+<p>The host communicates with the ESP32 over USB using the DECtalk ESPress serial protocol. The ESP32 firmware boots directly into ESPress protocol mode on its host USB port, which appears as a standard serial port on the host computer (for example COM, <code>/dev/ttyACM*</code>, or <code>/dev/ttyUSB*</code> depending on the board and driver). On <strong>ESP32-S3</strong> the host link uses USB CDC-ACM (TinyUSB); on <strong>ESP32-C6</strong> it uses the built-in USB Serial/JTAG interface. The dedicated physical-device guide in <strong><a href="../HARDWARE.html">../HARDWARE.md</a></strong> covers the photographed <strong>ESP32-C6</strong> perfboard build; the host tools themselves support either firmware target.</p>
 <h2 id="requirements">Requirements</h2>
 <ul>
 <li>Python 3.7 or later</li>
 <li><a href="https://pypi.org/project/pyserial/">pyserial</a> (<code>pip install pyserial</code>)</li>
 <li><a href="https://pypi.org/project/PySide6/">PySide6</a> (<code>pip install PySide6</code>) — for the Qt GUI. PyQt6 is accepted as a fallback.</li>
-<li>ESP32-S3 / ESP32-C6 running the DECtalk firmware (see <code>../README.md</code>; for the documented ESP32-C6 hardware build, see <code>../HARDWARE.md</code>)</li>
+<li>ESP32-S3 / ESP32-C6 running the DECtalk firmware (see <a href="../README.html">../README.md</a>; for the documented ESP32-C6 hardware build, see <a href="../HARDWARE.html">../HARDWARE.md</a>)</li>
 </ul>
 <h2 id="quick-start">Quick Start</h2>
 <h3 id="option-1--web-gui-no-install">Option 1 — Web GUI (no install)</h3>
 <ol type="1">
-<li>Flash the DECtalk firmware to your ESP32 (see <code>../README.md</code>).</li>
+<li>Flash the DECtalk firmware to your ESP32 (see <a href="../README.html">../README.md</a>).</li>
 <li>Open <strong><code>host/web/index.html</code></strong> in Chrome or Edge 89+ (either by double-clicking the file, serving it from any static web server, or visiting the published GitHub Pages site).</li>
 <li>Click <strong>Connect</strong> and select the ESP32 serial port from the browser chooser.</li>
 <li>Type text and click <strong>Speak</strong>.</li>
 </ol>
 <h3 id="option-2--qt-desktop-gui">Option 2 — Qt desktop GUI</h3>
 <ol type="1">
-<li><p>Flash the DECtalk firmware to your ESP32 (see <code>../README.md</code>).</p></li>
+<li><p>Flash the DECtalk firmware to your ESP32 (see <a href="../README.html">../README.md</a>).</p></li>
 <li><p>Install the Python dependencies:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pyserial PySide6</span></code></pre></div></li>
 <li><p>Run the ESPress GUI:</p>
