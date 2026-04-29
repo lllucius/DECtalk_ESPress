@@ -40,7 +40,7 @@ host USB port, which appears as a standard serial port on the host computer
 (for example COM, `/dev/ttyACM*`, or `/dev/ttyUSB*` depending on the board and
 driver).  On **ESP32-S3** the host link uses USB CDC-ACM (TinyUSB); on
 **ESP32-C6** it uses the built-in USB Serial/JTAG interface.
-The dedicated physical-device guide in **`../HARDWARE.md`** covers the
+The dedicated physical-device guide in **[../HARDWARE.md](../HARDWARE.md)** covers the
 photographed **ESP32-C6** perfboard build; the host tools themselves support
 either firmware target.
 
@@ -50,14 +50,15 @@ either firmware target.
 - [pyserial](https://pypi.org/project/pyserial/) (`pip install pyserial`)
 - [PySide6](https://pypi.org/project/PySide6/) (`pip install PySide6`) — for
   the Qt GUI.  PyQt6 is accepted as a fallback.
-- ESP32-S3 / ESP32-C6 running the DECtalk firmware (see `../README.md`; for the
-  documented ESP32-C6 hardware build, see `../HARDWARE.md`)
+- ESP32-S3 / ESP32-C6 running the DECtalk firmware (see
+  [../README.md](../README.md); for the documented ESP32-C6 hardware build, see
+  [../HARDWARE.md](../HARDWARE.md))
 
 ## Quick Start
 
 ### Option 1 — Web GUI (no install)
 
-1. Flash the DECtalk firmware to your ESP32 (see `../README.md`).
+1. Flash the DECtalk firmware to your ESP32 (see [../README.md](../README.md)).
 2. Open **`host/web/index.html`** in Chrome or Edge 89+ (either by
    double-clicking the file, serving it from any static web server, or
    visiting the published GitHub Pages site).
@@ -67,7 +68,7 @@ either firmware target.
 
 ### Option 2 — Qt desktop GUI
 
-1. Flash the DECtalk firmware to your ESP32 (see `../README.md`).
+1. Flash the DECtalk firmware to your ESP32 (see [../README.md](../README.md)).
 
 2. Install the Python dependencies:
    ```bash

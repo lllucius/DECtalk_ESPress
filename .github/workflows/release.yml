@@ -178,6 +178,7 @@ jobs:
           convert README.md                    /tmp/build/index.html                       "DECtalk ESPress"
           convert README.md                    /tmp/build/README.html                      "DECtalk ESPress"
           convert BUILD.md                     /tmp/build/BUILD.html                       "DECtalk ESPress — Build"
+          convert HARDWARE.md                  /tmp/build/HARDWARE.html                    "DECtalk ESPress — Hardware"
           convert components/dectalk/README.md /tmp/build/components/dectalk/README.html   "DECtalk Component"
           convert components/dectalk/BUILD.md  /tmp/build/components/dectalk/BUILD.html    "DECtalk Component — Build"
           convert host/README.md               /tmp/build/host/README.html                 "DECtalk Host Tools"
@@ -199,10 +200,13 @@ jobs:
           cp /tmp/build/index.html /tmp/site-index.html
           cp /tmp/build/README.html /tmp/site-README.html
           cp /tmp/build/BUILD.html /tmp/site-BUILD.html
+          cp /tmp/build/HARDWARE.html /tmp/site-HARDWARE.html
           cp /tmp/build/components/dectalk/README.html /tmp/site-comp-README.html
           cp /tmp/build/components/dectalk/BUILD.html /tmp/site-comp-BUILD.html
           cp /tmp/build/host/README.html /tmp/site-host-README.html
           cp LICENSE /tmp/LICENSE
+          mkdir -p /tmp/site-images
+          cp images/* /tmp/site-images/
           cp flasher/index.html /tmp/flasher-index.html
           if [ -f CNAME ]; then cp CNAME /tmp/CNAME; fi
 
@@ -228,8 +232,10 @@ jobs:
           cp /tmp/site-index.html index.html
           cp /tmp/site-README.html README.html
           cp /tmp/site-BUILD.html BUILD.html
+          cp /tmp/site-HARDWARE.html HARDWARE.html
           cp /tmp/LICENSE LICENSE
-          mkdir -p flasher components/dectalk host
+          mkdir -p flasher images components/dectalk host
+          cp /tmp/site-images/* images/
           cp /tmp/flasher-index.html flasher/index.html
           cp /tmp/site-comp-README.html components/dectalk/README.html
           cp /tmp/site-comp-BUILD.html components/dectalk/BUILD.html

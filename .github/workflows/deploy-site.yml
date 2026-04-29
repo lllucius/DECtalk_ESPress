@@ -11,7 +11,9 @@ on:
     paths:
       - "README.md"
       - "BUILD.md"
+      - "HARDWARE.md"
       - "LICENSE"
+      - "images/**"
       - "components/dectalk/README.md"
       - "components/dectalk/BUILD.md"
       - "host/README.md"
@@ -65,6 +67,7 @@ jobs:
           convert README.md                    /tmp/build/index.html                       "DECtalk ESPress"
           convert README.md                    /tmp/build/README.html                      "DECtalk ESPress"
           convert BUILD.md                     /tmp/build/BUILD.html                       "DECtalk ESPress — Build"
+          convert HARDWARE.md                  /tmp/build/HARDWARE.html                    "DECtalk ESPress — Hardware"
           convert components/dectalk/README.md /tmp/build/components/dectalk/README.html   "DECtalk Component"
           convert components/dectalk/BUILD.md  /tmp/build/components/dectalk/BUILD.html    "DECtalk Component — Build"
           convert host/README.md               /tmp/build/host/README.html                 "DECtalk Host Tools"
@@ -73,18 +76,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p /tmp/site/flasher /tmp/site/gui /tmp/site/components/dectalk /tmp/site/host
+          mkdir -p /tmp/site/flasher /tmp/site/gui /tmp/site/images /tmp/site/components/dectalk /tmp/site/host
 
           # HTML pages converted from Markdown
           cp /tmp/build/index.html                      /tmp/site/index.html
           cp /tmp/build/README.html                     /tmp/site/README.html
           cp /tmp/build/BUILD.html                      /tmp/site/BUILD.html
+          cp /tmp/build/HARDWARE.html                   /tmp/site/HARDWARE.html
           cp /tmp/build/components/dectalk/README.html  /tmp/site/components/dectalk/README.html
           cp /tmp/build/components/dectalk/BUILD.html   /tmp/site/components/dectalk/BUILD.html
           cp /tmp/build/host/README.html                /tmp/site/host/README.html
 
           # Static files
           cp LICENSE           /tmp/site/LICENSE
+          cp images/*          /tmp/site/images/
           cp flasher/index.html /tmp/site/flasher/index.html
           cp host/web/index.html /tmp/site/gui/index.html
 
@@ -111,8 +116,10 @@ jobs:
           cp /tmp/site/index.html index.html
           cp /tmp/site/README.html README.html
           cp /tmp/site/BUILD.html BUILD.html
+          cp /tmp/site/HARDWARE.html HARDWARE.html
           cp /tmp/site/LICENSE LICENSE
-          mkdir -p flasher gui components/dectalk host
+          mkdir -p flasher gui images components/dectalk host
+          cp /tmp/site/images/* images/
           cp /tmp/site/flasher/index.html flasher/index.html
           cp /tmp/site/gui/index.html gui/index.html
           cp /tmp/site/components/dectalk/README.html components/dectalk/README.html
